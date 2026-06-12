@@ -1,0 +1,203 @@
+// FacturaRD — esquema multi-tenant (ver ESPECIFICACION.md §4)
+// Todo dato fiscal lleva organization_id; la RLS de PostgreSQL se activa en Fase 1.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MembershipRole {
+  org_admin
+  contador
+  cliente
+}
+
+enum InvoiceStatus {
+  subida
+  procesando
+  extraida
+  en_revision
+  validada
+  incluida_en_606
+  reportada
+  rechazada
+  duplicada
+}
+
+enum SubscriptionStatus {
+  activa
+  vencida
+  suspendida
+  cancelada
+}
+
+model User {
+  id           String       @id @default(uuid())
+  email        String       @unique
+  passwordHash String       @map("password_hash")
+  nombre       String
+  telefono     String?
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+  memberships  Membership[]
+  clientProfiles ClientProfile[]
+  auditLogs    AuditLog[]
+
+  @@map("users")
+}
+
+model Organization {
+  id                 String              @id @default(uuid())
+  nombre             String
+  rnc                String?
+  planId             String?             @map("plan_id")
+  estadoSuscripcion  SubscriptionStatus? @map("estado_suscripcion")
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+  plan               Plan?               @relation(fields: [planId], references: [id])
+  memberships        Membership[]
+  clientProfiles     ClientProfile[]
+  invoices           Invoice[]
+  subscriptions      Subscription[]
+  auditLogs          AuditLog[]
+
+  @@map("organizations")
+}
+
+model Membership {
+  id             String         @id @default(uuid())
+  userId         String         @map("user_id")
+  organizationId String         @map("organization_id")
+  rol            MembershipRole
+  createdAt      DateTime       @default(now()) @map("created_at")
+  user           User           @relation(fields: [userId], references: [id])
+  organization   Organization   @relation(fields: [organizationId], references: [id])
+  assignments    Assignment[]
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+  @@map("memberships")
+}
+
+model ClientProfile {
+  id             String       @id @default(uuid())
+  organizationId String       @map("organization_id")
+  userId         String?      @map("user_id")
+  rncOCedula     String       @map("rnc_o_cedula")
+  razonSocial    String       @map("razon_social")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  user           User?        @relation(fields: [userId], references: [id])
+  assignments    Assignment[]
+  invoices       Invoice[]
+
+  @@unique([organizationId, rncOCedula])
+  @@map("client_profiles")
+}
+
+// Qué contador atiende a qué cliente final
+model Assignment {
+  contadorMembershipId String        @map("contador_membership_id")
+  clientProfileId      String        @map("client_profile_id")
+  createdAt            DateTime      @default(now()) @map("created_at")
+  contadorMembership   Membership    @relation(fields: [contadorMembershipId], references: [id])
+  clientProfile        ClientProfile @relation(fields: [clientProfileId], references: [id])
+
+  @@id([contadorMembershipId, clientProfileId])
+  @@map("assignments")
+}
+
+model Invoice {
+  id                    String        @id @default(uuid())
+  organizationId        String        @map("organization_id")
+  clientProfileId       String        @map("client_profile_id")
+  estado                InvoiceStatus @default(subida)
+  imagenUrl             String        @map("imagen_url")
+  // Hash perceptual de la imagen para detección de duplicados (§4)
+  imagenPhash           String?       @map("imagen_phash")
+  ncf                   String?
+  rncProveedor          String?       @map("rnc_proveedor")
+  razonSocialProveedor  String?       @map("razon_social_proveedor")
+  fecha                 DateTime?     @db.Date
+  montoFacturado        Decimal?      @map("monto_facturado") @db.Decimal(14, 2)
+  itbis                 Decimal?      @db.Decimal(14, 2)
+  otrosImpuestos        Decimal?      @map("otros_impuestos") @db.Decimal(14, 2)
+  propinaLegal          Decimal?      @map("propina_legal") @db.Decimal(14, 2)
+  categoria606          String?       @map("categoria_606")
+  tipoComprobante       String?       @map("tipo_comprobante")
+  confianzaPorCampo     Json?         @map("confianza_por_campo")
+  validacionDgii        Json?         @map("validacion_dgii")
+  periodoFiscal         String?       @map("periodo_fiscal") // AAAAMM
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
+  organization          Organization  @relation(fields: [organizationId], references: [id])
+  clientProfile         ClientProfile @relation(fields: [clientProfileId], references: [id])
+  categoria             Categoria606? @relation(fields: [categoria606], references: [codigo])
+
+  // Unicidad fiscal contra duplicados; los NULL no chocan entre sí en PostgreSQL
+  @@unique([organizationId, rncProveedor, ncf])
+  @@index([organizationId, periodoFiscal])
+  @@index([organizationId, estado])
+  @@map("invoices")
+}
+
+// Las 11 categorías de gasto del Formato 606 — tabla de referencia, no hardcodear
+model Categoria606 {
+  codigo   String    @id
+  nombre   String
+  invoices Invoice[]
+
+  @@map("categorias_606")
+}
+
+model Plan {
+  id             String         @id @default(uuid())
+  nombre         String         @unique
+  maxContadores  Int            @map("max_contadores")
+  maxClientes    Int            @map("max_clientes")
+  maxFacturasMes Int            @map("max_facturas_mes")
+  precio         Decimal        @db.Decimal(14, 2)
+  createdAt      DateTime       @default(now()) @map("created_at")
+  organizations  Organization[]
+  subscriptions  Subscription[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id             String             @id @default(uuid())
+  organizationId String             @map("organization_id")
+  planId         String             @map("plan_id")
+  estado         SubscriptionStatus
+  inicio         DateTime
+  fin            DateTime?
+  metodoPago     String?            @map("metodo_pago")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  organization   Organization       @relation(fields: [organizationId], references: [id])
+  plan           Plan               @relation(fields: [planId], references: [id])
+
+  @@index([organizationId])
+  @@map("subscriptions")
+}
+
+// Crítico para datos fiscales: quién hizo qué y cuándo
+model AuditLog {
+  id             String        @id @default(uuid())
+  organizationId String?       @map("organization_id")
+  userId         String?       @map("user_id")
+  accion         String
+  entidad        String
+  entidadId      String?       @map("entidad_id")
+  datos          Json?
+  createdAt      DateTime      @default(now()) @map("created_at")
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  user           User?         @relation(fields: [userId], references: [id])
+
+  @@index([organizationId, createdAt])
+  @@map("audit_log")
+}

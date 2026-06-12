@@ -1,0 +1,9 @@
+# TLS automático cuando APP_DOMAIN es un dominio real; en localhost usa certificado interno
+{$APP_DOMAIN:localhost} {
+	encode gzip
+
+	# HSTS (ESPECIFICACION.md §8)
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+	reverse_proxy api:3000
+}

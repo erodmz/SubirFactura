@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Builds
+dist/
+*.tsbuildinfo
+
+# Environment — nunca commitear secretos
+.env
+.env.*
+!.env.example
+
+# Prisma
+shared/prisma/generated/
+
+# Logs y temporales
+*.log
+.DS_Store
+coverage/
+
+# Docker volúmenes locales
+.volumes/
