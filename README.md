@@ -9,9 +9,10 @@ La especificación completa está en [ESPECIFICACION.md](./ESPECIFICACION.md).
 
 | Paquete | Descripción |
 |---|---|
-| `api/` | API NestJS — monolito modular (auth, tenants, invoices, dgii, …) |
+| `api/` | API NestJS — monolito modular (auth, tenants, invoices, dgii, …), servido bajo `/api` |
 | `workers/` | Workers BullMQ — pipeline OCR con Claude API, trabajos de lote |
 | `shared/` | Esquema Prisma, validadores fiscales (NCF, RNC, aritmética), tipos y constantes |
+| `web/` | Panel web del contador (Next.js): empresas, clientes, equipo, suscripciones |
 
 La app móvil Flutter vivirá en un repositorio/carpeta aparte (`app_flutter`).
 
@@ -32,8 +33,10 @@ docker compose up -d postgres redis minio
 pnpm db:migrate               # crea/aplica migraciones (desarrollo)
 pnpm db:seed                  # planes + categorías 606
 
-pnpm dev:api                  # API en http://localhost:3000 (GET /health)
+pnpm dev:api                  # API en http://localhost:3000 (rutas bajo /api, GET /health)
 pnpm dev:worker               # worker BullMQ
+pnpm dev:web                  # panel en http://localhost:3001 (crear web/.env.local con
+                              # NEXT_PUBLIC_API_URL=http://localhost:3000)
 ```
 
 ## Comandos
@@ -59,9 +62,9 @@ docker compose up -d --build  # migra, siembra y levanta todo detrás de Caddy (
 ## Estado del proyecto
 
 - [x] **Fase 0 — Fundación**: monorepo pnpm, Docker Compose, Prisma + seeds, CI, validadores fiscales
-- [x] **Fase 1 — Núcleo multi-tenant (backend)**: auth JWT + refresh rotado, memberships multi-empresa,
-      invitaciones por enlace, clientes + asignaciones, límites de plan, RLS, panel super-admin (API)
-- [ ] Fase 1 (resto) — Panel web mínimo del contador
+- [x] **Fase 1 — Núcleo multi-tenant**: auth JWT + refresh rotado, memberships multi-empresa,
+      invitaciones por enlace, clientes + asignaciones, límites de plan, RLS, panel super-admin,
+      y panel web del contador (Next.js) detrás de Caddy
 - [ ] Fase 2 — Captura y OCR (app Flutter + pipeline Claude API)
 - [ ] Fase 3 — DGII (padrón RNC, generadores 606/607, cierre de período)
 - [ ] Fase 4 — Pulido y lanzamiento

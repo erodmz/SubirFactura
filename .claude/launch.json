@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["web/.next/standalone/web/server.js"],
+      "port": 3001,
+      "autoPort": false
+    }
+  ]
+}

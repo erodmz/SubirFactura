@@ -5,5 +5,16 @@
 	# HSTS (ESPECIFICACION.md §8)
 	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
 
-	reverse_proxy api:3000
+	# API NestJS bajo /api; /health para monitoreo
+	handle /api/* {
+		reverse_proxy api:3000
+	}
+	handle /health {
+		reverse_proxy api:3000
+	}
+
+	# Panel web del contador (Next.js)
+	handle {
+		reverse_proxy web:3000
+	}
 }

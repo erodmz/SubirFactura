@@ -9,6 +9,10 @@ async function bootstrap() {
   }
 
   const app = await NestFactory.create(AppModule);
+  // El panel web y la app móvil consumen todo bajo /api; /health queda en la
+  // raíz para los healthchecks de Docker/Caddy
+  app.setGlobalPrefix('api', { exclude: ['health'] });
+  app.enableCors({ origin: process.env.WEB_ORIGIN?.split(',') ?? true });
   app.useGlobalPipes(
     new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
   );

@@ -14,6 +14,7 @@
     "test": "pnpm -r test",
     "dev:api": "pnpm --filter @facturard/api dev",
     "dev:worker": "pnpm --filter @facturard/workers dev",
+    "dev:web": "pnpm --filter @facturard/web dev",
     "db:generate": "pnpm --filter @facturard/shared db:generate",
     "db:migrate": "pnpm --filter @facturard/shared db:migrate",
     "db:deploy": "pnpm --filter @facturard/shared db:deploy",
