@@ -44,6 +44,7 @@ pnpm dev:worker               # worker BullMQ
 | `pnpm test` | Tests (vitest) — validadores fiscales con cobertura completa |
 | `pnpm lint` | ESLint |
 | `pnpm db:migrate` / `db:deploy` / `db:seed` | Prisma migrate dev / deploy / seeds |
+| `pnpm --filter @facturard/shared exec tsx scripts/make-super-admin.ts <email>` | Promueve un usuario a super-admin |
 
 ## Despliegue (servidor Ubuntu propio)
 
@@ -58,7 +59,9 @@ docker compose up -d --build  # migra, siembra y levanta todo detrás de Caddy (
 ## Estado del proyecto
 
 - [x] **Fase 0 — Fundación**: monorepo pnpm, Docker Compose, Prisma + seeds, CI, validadores fiscales
-- [ ] Fase 1 — Núcleo multi-tenant (auth, memberships, RLS, panel contador, super-admin)
+- [x] **Fase 1 — Núcleo multi-tenant (backend)**: auth JWT + refresh rotado, memberships multi-empresa,
+      invitaciones por enlace, clientes + asignaciones, límites de plan, RLS, panel super-admin (API)
+- [ ] Fase 1 (resto) — Panel web mínimo del contador
 - [ ] Fase 2 — Captura y OCR (app Flutter + pipeline Claude API)
 - [ ] Fase 3 — DGII (padrón RNC, generadores 606/607, cierre de período)
 - [ ] Fase 4 — Pulido y lanzamiento

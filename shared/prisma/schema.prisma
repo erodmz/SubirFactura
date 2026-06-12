@@ -41,13 +41,49 @@ model User {
   passwordHash String       @map("password_hash")
   nombre       String
   telefono     String?
+  isSuperAdmin Boolean      @default(false) @map("is_super_admin")
   createdAt    DateTime     @default(now()) @map("created_at")
   updatedAt    DateTime     @updatedAt @map("updated_at")
   memberships  Membership[]
   clientProfiles ClientProfile[]
   auditLogs    AuditLog[]
+  refreshTokens RefreshToken[]
+  invitationsSent Invitation[]
 
   @@map("users")
+}
+
+// Refresh tokens rotados (ESPECIFICACION.md §8) — se guarda solo el hash
+model RefreshToken {
+  id           String    @id @default(uuid())
+  userId       String    @map("user_id")
+  tokenHash    String    @unique @map("token_hash")
+  expiresAt    DateTime  @map("expires_at")
+  revokedAt    DateTime? @map("revoked_at")
+  replacedById String?   @map("replaced_by_id")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  user         User      @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// Invitaciones a una organización (rol contador o cliente)
+model Invitation {
+  id             String         @id @default(uuid())
+  organizationId String         @map("organization_id")
+  email          String
+  rol            MembershipRole
+  tokenHash      String         @unique @map("token_hash")
+  invitedById    String         @map("invited_by_id")
+  expiresAt      DateTime       @map("expires_at")
+  acceptedAt     DateTime?      @map("accepted_at")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  organization   Organization   @relation(fields: [organizationId], references: [id])
+  invitedBy      User           @relation(fields: [invitedById], references: [id])
+
+  @@index([organizationId, email])
+  @@map("invitations")
 }
 
 model Organization {
@@ -64,6 +100,7 @@ model Organization {
   invoices           Invoice[]
   subscriptions      Subscription[]
   auditLogs          AuditLog[]
+  invitations        Invitation[]
 
   @@map("organizations")
 }
