@@ -7,6 +7,9 @@ import { HealthController } from './health/health.controller';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuditModule } from './audit/audit.module';
 import { PlansModule } from './plans/plans.module';
+import { StorageModule } from './storage/storage.module';
+import { QueueModule } from './queue/queue.module';
+import { InvoicesModule } from './invoices/invoices.module';
 import { AuthModule } from './auth/auth.module';
 import { OrganizationsModule } from './organizations/organizations.module';
 import { InvitationsModule } from './invitations/invitations.module';
@@ -33,10 +36,13 @@ import { OrgRolesGuard } from './common/guards/org-roles.guard';
     PrismaModule,
     AuditModule,
     PlansModule,
+    StorageModule,
+    QueueModule,
     AuthModule,
     OrganizationsModule,
     InvitationsModule,
     ClientsModule,
+    InvoicesModule,
     AdminModule,
   ],
   controllers: [HealthController],

@@ -1,5 +1,7 @@
 import { Worker, type ConnectionOptions } from 'bullmq';
 import { QUEUE_OCR } from '@facturard/shared';
+import { prisma } from '@facturard/shared/db';
+import { handleOcrFailure, processOcrJob, type OcrJobData } from './ocr/processor';
 
 const redisUrl = new URL(process.env.REDIS_URL ?? 'redis://localhost:6379');
 const connection: ConnectionOptions = {
@@ -10,19 +12,14 @@ const connection: ConnectionOptions = {
   maxRetriesPerRequest: null,
 };
 
-// Stub del pipeline OCR. La Fase 2 implementa aquí la llamada a Claude API
-// con la imagen desde MinIO, reglas de confianza y validaciones determinísticas.
-const ocrWorker = new Worker(
-  QUEUE_OCR,
-  async (job) => {
-    console.log(`[ocr] trabajo recibido: ${job.id}`, job.data);
-    return { processed: false, reason: 'pipeline OCR pendiente (Fase 2)' };
-  },
-  { connection },
-);
+const ocrWorker = new Worker<OcrJobData>(QUEUE_OCR, processOcrJob, {
+  connection,
+  // Claude API es el cuello de botella; 3 facturas en paralelo por worker
+  concurrency: Number(process.env.OCR_CONCURRENCY ?? 3),
+});
 
 ocrWorker.on('failed', (job, err) => {
-  console.error(`[ocr] trabajo ${job?.id} falló:`, err.message);
+  void handleOcrFailure(job, err);
 });
 
 console.log(`Worker FacturaRD escuchando la cola "${QUEUE_OCR}"`);
@@ -30,6 +27,7 @@ console.log(`Worker FacturaRD escuchando la cola "${QUEUE_OCR}"`);
 async function shutdown(signal: string) {
   console.log(`${signal} recibido, cerrando worker...`);
   await ocrWorker.close();
+  await prisma.$disconnect();
   process.exit(0);
 }
 

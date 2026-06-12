@@ -1,0 +1,79 @@
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { Membership } from '@facturard/shared/db';
+import { InvoicesService } from './invoices.service';
+import { OrgRoles } from '../common/decorators/org-roles.decorator';
+import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-user.decorator';
+import { ListInvoicesQueryDto, ReviewInvoiceDto, UploadInvoiceDto } from './dto/invoices.dto';
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // la app comprime a ~1–2 MB (§5.1)
+
+@Controller('organizations/:orgId/invoices')
+export class InvoicesController {
+  constructor(private readonly invoices: InvoicesService) {}
+
+  @Post()
+  @OrgRoles('org_admin', 'contador', 'cliente')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_FILE_SIZE } }))
+  upload(
+    @Param('orgId') orgId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: { membership: Membership },
+    @Body() dto: UploadInvoiceDto,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) {
+      throw new Error('Falta el archivo: enviar multipart/form-data con el campo "file"');
+    }
+    return this.invoices.upload(orgId, user, req.membership, dto.clientProfileId, file);
+  }
+
+  @Get()
+  @OrgRoles('org_admin', 'contador', 'cliente')
+  list(
+    @Param('orgId') orgId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: { membership: Membership },
+    @Query() query: ListInvoicesQueryDto,
+  ) {
+    return this.invoices.list(orgId, user, req.membership, query);
+  }
+
+  @Get(':invoiceId')
+  @OrgRoles('org_admin', 'contador', 'cliente')
+  get(@Param('orgId') orgId: string, @Param('invoiceId') invoiceId: string) {
+    return this.invoices.get(orgId, invoiceId);
+  }
+
+  @Patch(':invoiceId/review')
+  @OrgRoles('org_admin', 'contador', 'cliente')
+  review(
+    @Param('orgId') orgId: string,
+    @Param('invoiceId') invoiceId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ReviewInvoiceDto,
+  ) {
+    return this.invoices.review(orgId, invoiceId, user, dto);
+  }
+
+  @Post(':invoiceId/retry')
+  @OrgRoles('org_admin', 'contador')
+  retry(
+    @Param('orgId') orgId: string,
+    @Param('invoiceId') invoiceId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.invoices.retry(orgId, invoiceId, user);
+  }
+}

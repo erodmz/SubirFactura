@@ -10,9 +10,12 @@ export interface InvoiceExtraction {
   rnc_proveedor: ExtractedField<string>;
   razon_social: ExtractedField<string>;
   fecha: ExtractedField<string>; // ISO AAAA-MM-DD
-  monto_facturado: ExtractedField<number>;
+  monto_facturado: ExtractedField<number>; // subtotal sin impuestos
   itbis: ExtractedField<number>;
   propina_legal: ExtractedField<number>;
+  // Extra sobre el contrato del spec: el total impreso permite la
+  // validación aritmética determinística (§5.4)
+  monto_total: ExtractedField<number>;
   categoria_606_sugerida: ExtractedField<string>;
   tipo_comprobante: ExtractedField<string>;
   es_legible: boolean;

@@ -65,6 +65,10 @@ docker compose up -d --build  # migra, siembra y levanta todo detrás de Caddy (
 - [x] **Fase 1 — Núcleo multi-tenant**: auth JWT + refresh rotado, memberships multi-empresa,
       invitaciones por enlace, clientes + asignaciones, límites de plan, RLS, panel super-admin,
       y panel web del contador (Next.js) detrás de Caddy
-- [ ] Fase 2 — Captura y OCR (app Flutter + pipeline Claude API)
+- [x] **Fase 2 — Pipeline OCR (backend)**: subida de facturas a MinIO, cola BullMQ, worker con
+      Claude API (visión + structured outputs), reglas de confianza (80/100%), validaciones
+      determinísticas, detección de duplicados, cola de revisión con edición campo a campo,
+      y respaldo de captura manual tras 3 reintentos
+- [ ] Fase 2 (resto) — App móvil Flutter (cámara con guías, cola offline-first)
 - [ ] Fase 3 — DGII (padrón RNC, generadores 606/607, cierre de período)
 - [ ] Fase 4 — Pulido y lanzamiento

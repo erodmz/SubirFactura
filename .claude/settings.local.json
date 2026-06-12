@@ -20,7 +20,13 @@
       "mcp__Claude_Preview__preview_start",
       "Bash(kill 87366)",
       "Bash(pnpm --filter @facturard/web build)",
-      "Bash(git commit -m 'feat\\(web\\): panel del contador en Next.js y API bajo /api \\(Fase 1\\) *)"
+      "Bash(git commit -m 'feat\\(web\\): panel del contador en Next.js y API bajo /api \\(Fase 1\\) *)",
+      "Skill(claude-api)",
+      "Skill(claude-api:*)",
+      "Bash(pnpm add *)",
+      "Read(//Users/elmer/Projects/**)",
+      "Bash(qlmanage -t -s 800 -o /tmp /tmp/factura.svg)",
+      "Bash(git commit -m 'feat\\(ocr\\): pipeline de extracción con Claude API \\(Fase 2 backend\\) *)"
     ]
   }
 }
