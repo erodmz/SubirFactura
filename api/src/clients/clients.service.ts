@@ -57,8 +57,14 @@ export class ClientsService {
     };
   }
 
-  /** org_admin ve todos; contador solo sus clientes asignados (§4). */
+  /** org_admin ve todos; contador solo asignados; cliente solo su propio perfil (§4). */
   async list(orgId: string, membership: Membership) {
+    if (membership.rol === 'cliente') {
+      return this.prisma.forOrg(orgId).clientProfile.findMany({
+        where: { userId: membership.userId },
+        orderBy: { razonSocial: 'asc' },
+      });
+    }
     if (membership.rol === 'contador') {
       const assignments = await this.prisma.assignment.findMany({
         where: { contadorMembershipId: membership.id },

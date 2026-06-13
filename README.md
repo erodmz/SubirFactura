@@ -13,6 +13,7 @@ La especificación completa está en [ESPECIFICACION.md](./ESPECIFICACION.md).
 | `workers/` | Workers BullMQ — pipeline OCR con Claude API, trabajos de lote |
 | `shared/` | Esquema Prisma, validadores fiscales (NCF, RNC, aritmética), tipos y constantes |
 | `web/` | Panel web del contador (Next.js): empresas, clientes, equipo, suscripciones |
+| `app_flutter/` | App móvil del cliente final: captura con guías, cola offline-first, revisión |
 
 La app móvil Flutter vivirá en un repositorio/carpeta aparte (`app_flutter`).
 
@@ -69,6 +70,7 @@ docker compose up -d --build  # migra, siembra y levanta todo detrás de Caddy (
       Claude API (visión + structured outputs), reglas de confianza (80/100%), validaciones
       determinísticas, detección de duplicados, cola de revisión con edición campo a campo,
       y respaldo de captura manual tras 3 reintentos
-- [ ] Fase 2 (resto) — App móvil Flutter (cámara con guías, cola offline-first)
+- [x] **Fase 2 — App Flutter**: login multi-empresa, captura con guías, cola de subida
+      offline-first con reintentos, estados en vivo y revisión campo a campo
 - [ ] Fase 3 — DGII (padrón RNC, generadores 606/607, cierre de período)
 - [ ] Fase 4 — Pulido y lanzamiento

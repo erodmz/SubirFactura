@@ -30,7 +30,7 @@ export class ClientsController {
   }
 
   @Get()
-  @OrgRoles('org_admin', 'contador')
+  @OrgRoles('org_admin', 'contador', 'cliente')
   list(@Param('orgId') orgId: string, @Req() req: { membership: Membership }) {
     return this.clients.list(orgId, req.membership);
   }
