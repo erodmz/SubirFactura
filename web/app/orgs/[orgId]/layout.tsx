@@ -34,6 +34,8 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
         <nav>
           <Link href={`/orgs/${orgId}`}>Resumen</Link>
           <Link href={`/orgs/${orgId}/clients`}>Clientes</Link>
+          <Link href={`/orgs/${orgId}/invoices`}>Facturas</Link>
+          <Link href={`/orgs/${orgId}/dgii`}>606</Link>
           <Link href={`/orgs/${orgId}/members`}>Equipo</Link>
         </nav>
         <span className="muted">{orgName}</span>

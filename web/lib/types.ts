@@ -38,6 +38,60 @@ export interface Client {
   limitWarning?: string;
 }
 
+export interface Invoice {
+  id: string;
+  estado: string;
+  ncf: string | null;
+  rncProveedor: string | null;
+  razonSocialProveedor: string | null;
+  fecha: string | null;
+  montoFacturado: number | string | null;
+  itbis: number | string | null;
+  propinaLegal: number | string | null;
+  otrosImpuestos: number | string | null;
+  categoria606: string | null;
+  tipoComprobante: string | null;
+  periodoFiscal: string | null;
+  clientProfile?: { id: string; razonSocial: string };
+  confianzaPorCampo?: {
+    evaluation?: { camposBajaConfianza?: string[]; erroresValidacion?: string[] };
+    error?: string;
+  } | null;
+}
+
+export interface Preview606 {
+  nombreArchivo: string;
+  cantidadRegistros: number;
+  omitidas: { id: string; razon: string }[];
+}
+
+/** Las 11 categorías de gasto del Formato 606. */
+export const CATEGORIAS_606: Record<string, string> = {
+  '01': 'Gastos de personal',
+  '02': 'Trabajos, suministros y servicios',
+  '03': 'Arrendamientos',
+  '04': 'Gastos de activos fijos',
+  '05': 'Gastos de representación',
+  '06': 'Otras deducciones admitidas',
+  '07': 'Gastos financieros',
+  '08': 'Gastos extraordinarios',
+  '09': 'Compras y gastos del costo de venta',
+  '10': 'Adquisiciones de activos',
+  '11': 'Gastos de seguros',
+};
+
+export const ESTADO_LABELS: Record<string, string> = {
+  subida: 'Subida',
+  procesando: 'Procesando',
+  extraida: 'Extraída',
+  en_revision: 'En revisión',
+  validada: 'Validada',
+  incluida_en_606: 'En 606',
+  reportada: 'Reportada',
+  rechazada: 'Rechazada',
+  duplicada: 'Duplicada',
+};
+
 export interface AdminOrg {
   id: string;
   nombre: string;

@@ -83,3 +83,26 @@ export async function api<T = unknown>(
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
+
+/** Descarga un archivo del API (con auth + refresh) y la dispara en el navegador. */
+export async function apiDownload(path: string, filename: string): Promise<void> {
+  const doFetch = () =>
+    fetch(`${API_BASE}${path}`, {
+      headers: { Authorization: `Bearer ${getTokens()?.accessToken ?? ''}` },
+    });
+  let res = await doFetch();
+  if (res.status === 401 && (await tryRefresh())) res = await doFetch();
+  if (res.status === 401) {
+    clearTokens();
+    window.location.href = '/login';
+    throw new ApiError(401, 'Sesión expirada');
+  }
+  if (!res.ok) throw await parseError(res);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
