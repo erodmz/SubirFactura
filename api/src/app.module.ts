@@ -10,6 +10,7 @@ import { PlansModule } from './plans/plans.module';
 import { StorageModule } from './storage/storage.module';
 import { QueueModule } from './queue/queue.module';
 import { InvoicesModule } from './invoices/invoices.module';
+import { DgiiModule } from './dgii/dgii.module';
 import { AuthModule } from './auth/auth.module';
 import { OrganizationsModule } from './organizations/organizations.module';
 import { InvitationsModule } from './invitations/invitations.module';
@@ -43,6 +44,7 @@ import { OrgRolesGuard } from './common/guards/org-roles.guard';
     InvitationsModule,
     ClientsModule,
     InvoicesModule,
+    DgiiModule,
     AdminModule,
   ],
   controllers: [HealthController],

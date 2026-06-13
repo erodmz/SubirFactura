@@ -72,5 +72,5 @@ docker compose up -d --build  # migra, siembra y levanta todo detrás de Caddy (
       y respaldo de captura manual tras 3 reintentos
 - [x] **Fase 2 — App Flutter**: login multi-empresa, captura con guías, cola de subida
       offline-first con reintentos, estados en vivo y revisión campo a campo
-- [ ] Fase 3 — DGII (padrón RNC, generadores 606/607, cierre de período)
+- [ ] Fase 3 — DGII (en curso): **606 TXT + cierre de período listos**; pendientes padrón RNC, 607, Excel
 - [ ] Fase 4 — Pulido y lanzamiento
