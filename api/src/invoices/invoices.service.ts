@@ -57,7 +57,7 @@ export class InvoicesService {
 
     // Detección de duplicados por hash exacto de la imagen (§4).
     // TODO Fase 4: hash perceptual para fotos re-tomadas de la misma factura.
-    const imageHash = createHash('sha256').update(file.buffer).digest('hex');
+    const imageHash = createHash('sha256').update(new Uint8Array(file.buffer)).digest('hex');
     const duplicate = await this.prisma.forOrg(orgId).invoice.findFirst({
       where: { imagenPhash: imageHash },
       select: { id: true },

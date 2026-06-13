@@ -3,7 +3,13 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { api, apiDownload } from '../../../../lib/api';
-import type { Preview606 } from '../../../../lib/types';
+import type { PadronAdvertencia, Preview606 } from '../../../../lib/types';
+
+function advertenciaTexto(a: PadronAdvertencia): string {
+  if (!a.existe) return `RNC ${a.rnc} no figura en el padrón de la DGII`;
+  if (!a.activo) return `RNC ${a.rnc} aparece inactivo en el padrón`;
+  return `RNC ${a.rnc}: la razón social no coincide con el padrón (oficial: ${a.razonSocialOficial ?? '—'})`;
+}
 
 function periodoActual(): string {
   const now = new Date();
@@ -56,6 +62,18 @@ export default function DgiiPage() {
     }
   }
 
+  async function doDownloadExcel() {
+    setError('');
+    try {
+      await apiDownload(
+        `/api/organizations/${orgId}/dgii/606/excel?periodo=${periodo}`,
+        `DGII_F_606_${periodo}.xlsx`,
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error');
+    }
+  }
+
   async function doCerrar() {
     if (!confirm(`¿Cerrar el período ${periodo}? Las facturas validadas quedarán incluidas en el 606.`))
       return;
@@ -102,6 +120,9 @@ export default function DgiiPage() {
             <button className="secondary" onClick={doDownload} disabled={!validPeriodo}>
               Descargar TXT
             </button>
+            <button className="secondary" onClick={doDownloadExcel} disabled={!validPeriodo}>
+              Descargar Excel
+            </button>
           </div>
         </div>
       </div>
@@ -112,6 +133,16 @@ export default function DgiiPage() {
           <p>
             <strong>{preview.cantidadRegistros}</strong> factura(s) entrarán al 606.
           </p>
+          {preview.advertencias.length > 0 && (
+            <div className="notice">
+              Avisos del padrón RNC (no impiden generar, pero conviene revisar):
+              <ul>
+                {preview.advertencias.map((a) => (
+                  <li key={a.rnc}>{advertenciaTexto(a)}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           {preview.omitidas.length > 0 ? (
             <div className="notice">
               {preview.omitidas.length} factura(s) del período no se incluyen por datos incompletos:

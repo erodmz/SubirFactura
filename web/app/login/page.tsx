@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api, saveTokens, PENDING_INVITE_KEY, type Tokens } from '../../lib/api';
+import ThemeToggle from '../../components/ThemeToggle';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -31,10 +32,16 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="auth-box">
-      <div className="card">
-        <h1>FacturaRD</h1>
-        <p className="muted">Inicia sesión para administrar las facturas de tus clientes.</p>
+    <div className="auth-shell">
+      <div className="auth-top">
+        <ThemeToggle />
+      </div>
+      <div className="auth-box">
+        <h1 className="hero-title gradient">FacturaRD</h1>
+        <p className="muted" style={{ textAlign: 'center', marginBottom: 24 }}>
+          Digitaliza y reporta los gastos de tus clientes ante la DGII.
+        </p>
+        <div className="card">
         {error && <div className="error">{error}</div>}
         <form onSubmit={submit}>
           <label>Correo electrónico</label>
@@ -51,7 +58,8 @@ export default function LoginPage() {
         <p className="muted" style={{ marginTop: 16 }}>
           ¿No tienes cuenta? <Link href="/register">Regístrate</Link>
         </p>
+        </div>
       </div>
-    </main>
+    </div>
   );
 }

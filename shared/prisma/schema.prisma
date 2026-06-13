@@ -238,3 +238,18 @@ model AuditLog {
   @@index([organizationId, createdAt])
   @@map("audit_log")
 }
+
+// Padrón RNC de la DGII (ESPECIFICACION.md §6). Tabla de referencia global
+// (no por tenant): se importa en lote desde el archivo público de la DGII y
+// permite validar localmente que el RNC del proveedor existe y su razón social
+// coincide, antes de generar el 606.
+model RncPadron {
+  rnc             String   @id
+  razonSocial     String   @map("razon_social")
+  nombreComercial String?  @map("nombre_comercial")
+  actividad       String?
+  estado          String?
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("rnc_padron")
+}

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api, clearTokens, getTokens } from '../../../lib/api';
+import ThemeToggle from '../../../components/ThemeToggle';
 
 export default function OrgLayout({ children }: { children: React.ReactNode }) {
   const { orgId } = useParams<{ orgId: string }>();
@@ -39,6 +40,7 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
           <Link href={`/orgs/${orgId}/members`}>Equipo</Link>
         </nav>
         <span className="muted">{orgName}</span>
+        <ThemeToggle />
         <a onClick={logout} style={{ cursor: 'pointer' }}>
           Salir
         </a>

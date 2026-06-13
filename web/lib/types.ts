@@ -59,10 +59,19 @@ export interface Invoice {
   } | null;
 }
 
+export interface PadronAdvertencia {
+  rnc: string;
+  existe: boolean;
+  activo: boolean;
+  razonSocialCoincide: boolean;
+  razonSocialOficial?: string;
+}
+
 export interface Preview606 {
   nombreArchivo: string;
   cantidadRegistros: number;
   omitidas: { id: string; razon: string }[];
+  advertencias: PadronAdvertencia[];
 }
 
 /** Las 11 categorías de gasto del Formato 606. */
