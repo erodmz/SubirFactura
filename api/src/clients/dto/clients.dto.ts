@@ -31,3 +31,9 @@ export class CreateAssignmentDto {
   @IsNotEmpty()
   contadorMembershipId!: string;
 }
+
+export class AddClientMemberDto {
+  @IsString()
+  @IsNotEmpty({ message: 'Indica el usuario a habilitar' })
+  userId!: string;
+}

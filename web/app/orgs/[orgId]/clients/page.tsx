@@ -10,6 +10,7 @@ export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [expanded, setExpanded] = useState<Client | null>(null);
+  const [clientUsers, setClientUsers] = useState<{ id: string; nombre: string; email: string }[]>([]);
   const [form, setForm] = useState({ rncOCedula: '', razonSocial: '' });
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -39,7 +40,39 @@ export default function ClientsPage() {
   }
 
   async function openDetail(client: Client) {
-    setExpanded(await api<Client>(`/api/organizations/${orgId}/clients/${client.id}`));
+    const [detail, users] = await Promise.all([
+      api<Client>(`/api/organizations/${orgId}/clients/${client.id}`),
+      api<{ id: string; nombre: string; email: string }[]>(
+        `/api/organizations/${orgId}/clients/${client.id}/members`,
+      ),
+    ]);
+    setExpanded(detail);
+    setClientUsers(users);
+  }
+
+  async function addMember(clientId: string, userId: string) {
+    setError('');
+    try {
+      await api(`/api/organizations/${orgId}/clients/${clientId}/members`, {
+        method: 'POST',
+        body: { userId },
+      });
+      await openDetail({ id: clientId } as Client);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error inesperado');
+    }
+  }
+
+  async function removeMember(clientId: string, userId: string) {
+    setError('');
+    try {
+      await api(`/api/organizations/${orgId}/clients/${clientId}/members/${userId}`, {
+        method: 'DELETE',
+      });
+      await openDetail({ id: clientId } as Client);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error inesperado');
+    }
   }
 
   async function assign(clientId: string, contadorMembershipId: string) {
@@ -194,6 +227,60 @@ export default function ClientsPage() {
               </button>
             </div>
           </div>
+
+          <h3 className="muted" style={{ marginTop: 24 }}>
+            Usuarios que suben facturas
+          </h3>
+          <p className="muted">
+            Las personas de este negocio que cargan facturas desde la app móvil.
+          </p>
+          <table>
+            <tbody>
+              {clientUsers.map((u) => (
+                <tr key={u.id}>
+                  <td>
+                    {u.nombre} <span className="muted">({u.email})</span>
+                  </td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button
+                      className="danger"
+                      style={{ marginTop: 0 }}
+                      onClick={() => removeMember(expanded.id, u.id)}
+                    >
+                      Quitar
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {clientUsers.length === 0 && (
+                <tr>
+                  <td className="muted">Nadie habilitado todavía</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+          <div className="row">
+            <div>
+              <label>Habilitar usuario</label>
+              <select
+                value=""
+                onChange={(e) => e.target.value && addMember(expanded.id, e.target.value)}
+              >
+                <option value="">Seleccionar…</option>
+                {members
+                  .filter((m) => !clientUsers.some((u) => u.id === m.user.id))
+                  .map((m) => (
+                    <option key={m.id} value={m.user.id}>
+                      {m.user.nombre} ({m.rol})
+                    </option>
+                  ))}
+              </select>
+            </div>
+          </div>
+          <p className="muted" style={{ marginTop: 8 }}>
+            ¿No está en la lista? Invítalo primero en <strong>Equipo</strong> (rol cliente) y luego
+            habilítalo aquí.
+          </p>
         </div>
       )}
     </>

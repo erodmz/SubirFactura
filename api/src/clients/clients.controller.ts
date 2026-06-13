@@ -13,7 +13,12 @@ import type { Membership } from '@facturard/shared/db';
 import { ClientsService } from './clients.service';
 import { OrgRoles } from '../common/decorators/org-roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-user.decorator';
-import { CreateAssignmentDto, CreateClientDto, UpdateClientDto } from './dto/clients.dto';
+import {
+  AddClientMemberDto,
+  CreateAssignmentDto,
+  CreateClientDto,
+  UpdateClientDto,
+} from './dto/clients.dto';
 
 @Controller('organizations/:orgId/clients')
 export class ClientsController {
@@ -84,5 +89,36 @@ export class ClientsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.clients.unassign(orgId, clientId, contadorMembershipId, user.userId);
+  }
+
+  // ── Usuarios que suben facturas del cliente ────────────────────────────────
+
+  @Get(':clientId/members')
+  @OrgRoles('org_admin', 'contador')
+  listMembers(@Param('orgId') orgId: string, @Param('clientId') clientId: string) {
+    return this.clients.listMembers(orgId, clientId);
+  }
+
+  @Post(':clientId/members')
+  @OrgRoles('org_admin', 'contador')
+  addMember(
+    @Param('orgId') orgId: string,
+    @Param('clientId') clientId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: AddClientMemberDto,
+  ) {
+    return this.clients.addMember(orgId, clientId, dto.userId, user.userId);
+  }
+
+  @Delete(':clientId/members/:userId')
+  @HttpCode(204)
+  @OrgRoles('org_admin', 'contador')
+  removeMember(
+    @Param('orgId') orgId: string,
+    @Param('clientId') clientId: string,
+    @Param('userId') userId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.clients.removeMember(orgId, clientId, userId, user.userId);
   }
 }

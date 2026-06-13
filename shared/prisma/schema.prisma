@@ -46,6 +46,7 @@ model User {
   updatedAt    DateTime     @updatedAt @map("updated_at")
   memberships  Membership[]
   clientProfiles ClientProfile[]
+  clientMemberships ClientMember[]
   auditLogs    AuditLog[]
   refreshTokens RefreshToken[]
   invitationsSent Invitation[]
@@ -123,6 +124,8 @@ model Membership {
 model ClientProfile {
   id             String       @id @default(uuid())
   organizationId String       @map("organization_id")
+  // Contacto principal (legado). Quién puede subir facturas se rige por
+  // client_members, que admite varios usuarios por cliente.
   userId         String?      @map("user_id")
   rncOCedula     String       @map("rnc_o_cedula")
   razonSocial    String       @map("razon_social")
@@ -131,10 +134,25 @@ model ClientProfile {
   organization   Organization @relation(fields: [organizationId], references: [id])
   user           User?        @relation(fields: [userId], references: [id])
   assignments    Assignment[]
+  members        ClientMember[]
   invoices       Invoice[]
 
   @@unique([organizationId, rncOCedula])
   @@map("client_profiles")
+}
+
+// Usuarios habilitados para subir facturas de un cliente (muchos a muchos).
+// Un negocio como CEIDI puede tener varias personas subiendo sus facturas.
+model ClientMember {
+  clientProfileId String        @map("client_profile_id")
+  userId          String        @map("user_id")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  clientProfile   ClientProfile @relation(fields: [clientProfileId], references: [id], onDelete: Cascade)
+  user            User          @relation(fields: [userId], references: [id])
+
+  @@id([clientProfileId, userId])
+  @@index([userId])
+  @@map("client_members")
 }
 
 // Qué contador atiende a qué cliente final

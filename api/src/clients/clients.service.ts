@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { validateTaxId } from '@facturard/shared';
-import type { Membership } from '@facturard/shared/db';
+import { Prisma, type Membership } from '@facturard/shared/db';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { PlanLimitsService } from '../plans/plan-limits.service';
@@ -57,11 +57,15 @@ export class ClientsService {
     };
   }
 
-  /** org_admin ve todos; contador solo asignados; cliente solo su propio perfil (§4). */
+  /** org_admin ve todos; contador solo asignados; cliente solo donde es miembro (§4). */
   async list(orgId: string, membership: Membership) {
     if (membership.rol === 'cliente') {
-      return this.prisma.forOrg(orgId).clientProfile.findMany({
+      const links = await this.prisma.clientMember.findMany({
         where: { userId: membership.userId },
+        select: { clientProfileId: true },
+      });
+      return this.prisma.forOrg(orgId).clientProfile.findMany({
+        where: { id: { in: links.map((l) => l.clientProfileId) } },
         orderBy: { razonSocial: 'asc' },
       });
     }
@@ -180,6 +184,61 @@ export class ClientsService {
       accion: 'client.unassign_contador',
       entidad: 'assignment',
       entidadId: `${contadorMembershipId}:${clientId}`,
+    });
+  }
+
+  // ── Usuarios que suben facturas del cliente (muchos a muchos) ──────────────
+
+  /** Lista los usuarios habilitados para subir facturas de este cliente. */
+  async listMembers(orgId: string, clientId: string) {
+    await this.get(orgId, clientId);
+    const links = await this.prisma.clientMember.findMany({
+      where: { clientProfileId: clientId },
+      include: { user: { select: { id: true, nombre: true, email: true } } },
+      orderBy: { createdAt: 'asc' },
+    });
+    return links.map((l) => l.user);
+  }
+
+  /** Habilita a un usuario (ya miembro de la organización) a subir facturas del cliente. */
+  async addMember(orgId: string, clientId: string, userId: string, actorUserId: string) {
+    await this.get(orgId, clientId);
+    const membership = await this.prisma.membership.findUnique({
+      where: { userId_organizationId: { userId, organizationId: orgId } },
+    });
+    if (!membership) {
+      throw new BadRequestException(
+        'Ese usuario no es miembro de la organización; invítalo primero desde Equipo',
+      );
+    }
+    try {
+      await this.prisma.clientMember.create({ data: { clientProfileId: clientId, userId } });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        throw new ConflictException('El usuario ya está habilitado para este cliente');
+      }
+      throw err;
+    }
+    await this.audit.log({
+      organizationId: orgId,
+      userId: actorUserId,
+      accion: 'client.add_member',
+      entidad: 'client_member',
+      entidadId: `${clientId}:${userId}`,
+    });
+  }
+
+  async removeMember(orgId: string, clientId: string, userId: string, actorUserId: string) {
+    await this.get(orgId, clientId);
+    await this.prisma.clientMember.deleteMany({
+      where: { clientProfileId: clientId, userId },
+    });
+    await this.audit.log({
+      organizationId: orgId,
+      userId: actorUserId,
+      accion: 'client.remove_member',
+      entidad: 'client_member',
+      entidadId: `${clientId}:${userId}`,
     });
   }
 }

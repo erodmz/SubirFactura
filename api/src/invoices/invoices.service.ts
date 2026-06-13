@@ -49,8 +49,13 @@ export class InvoicesService {
       where: { id: clientProfileId },
     });
     if (!client) throw new NotFoundException('Cliente no encontrado');
-    if (membership.rol === 'cliente' && client.userId !== user.userId) {
-      throw new ForbiddenException('Solo puedes subir facturas de tu propio perfil');
+    if (membership.rol === 'cliente') {
+      const link = await this.prisma.clientMember.findUnique({
+        where: { clientProfileId_userId: { clientProfileId, userId: user.userId } },
+      });
+      if (!link) {
+        throw new ForbiddenException('No estás habilitado para subir facturas de este cliente');
+      }
     }
 
     const limitWarning = await this.planLimits.ensureCanAddFactura(orgId);
@@ -116,11 +121,11 @@ export class InvoicesService {
           : '__none__'
         : { in: allowed };
     } else if (membership.rol === 'cliente') {
-      const profiles = await this.prisma.forOrg(orgId).clientProfile.findMany({
+      const links = await this.prisma.clientMember.findMany({
         where: { userId: user.userId },
-        select: { id: true },
+        select: { clientProfileId: true },
       });
-      where.clientProfileId = { in: profiles.map((p) => p.id) };
+      where.clientProfileId = { in: links.map((l) => l.clientProfileId) };
     }
 
     return this.prisma.forOrg(orgId).invoice.findMany({
