@@ -221,20 +221,25 @@ class _HomeScreenState extends State<HomeScreen> {
               return const SizedBox.shrink();
             },
           ),
-          if (_processingCount > 0)
-            Material(
-              color: Colors.blue.shade50,
-              child: ListTile(
-                dense: true,
-                leading: const SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: CircularProgressIndicator(strokeWidth: 2.5),
-                ),
-                title: Text('Leyendo $_processingCount factura(s) con IA…'),
-                subtitle: const Text('Se actualiza solo en unos segundos'),
-              ),
-            ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOut,
+            child: _processingCount > 0
+                ? Material(
+                    color: Colors.blue.shade50,
+                    child: ListTile(
+                      dense: true,
+                      leading: const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2.5),
+                      ),
+                      title: Text('Leyendo $_processingCount factura(s) con IA…'),
+                      subtitle: const Text('Se actualiza solo en unos segundos'),
+                    ),
+                  )
+                : const SizedBox(width: double.infinity),
+          ),
           SizedBox(
             height: 56,
             child: ListView(
@@ -276,18 +281,22 @@ class _HomeScreenState extends State<HomeScreen> {
                             final color = _estadoColors[invoice.estado] ?? Colors.grey;
                             final procesando = _processingStates.contains(invoice.estado);
                             return ListTile(
-                              leading: CircleAvatar(
-                                backgroundColor: color.withOpacity(0.15),
-                                child: procesando
-                                    ? SizedBox(
-                                        width: 20,
-                                        height: 20,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2.5,
-                                          valueColor: AlwaysStoppedAnimation(color),
-                                        ),
-                                      )
-                                    : Icon(Icons.receipt_long, color: color),
+                              leading: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 300),
+                                child: CircleAvatar(
+                                  key: ValueKey(procesando),
+                                  backgroundColor: color.withOpacity(0.15),
+                                  child: procesando
+                                      ? SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2.5,
+                                            valueColor: AlwaysStoppedAnimation(color),
+                                          ),
+                                        )
+                                      : Icon(Icons.receipt_long, color: color),
+                                ),
                               ),
                               title: Text(
                                 invoice.razonSocialProveedor ??
@@ -303,13 +312,19 @@ class _HomeScreenState extends State<HomeScreen> {
                                             invoice.createdAt.toIso8601String().substring(0, 10),
                                       ].join(' · '),
                               ),
-                              trailing: Chip(
-                                label: Text(
-                                  estadoLabels[invoice.estado] ?? invoice.estado,
-                                  style: TextStyle(color: color, fontSize: 12),
+                              trailing: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 300),
+                                transitionBuilder: (child, anim) =>
+                                    FadeTransition(opacity: anim, child: child),
+                                child: Chip(
+                                  key: ValueKey(invoice.estado),
+                                  label: Text(
+                                    estadoLabels[invoice.estado] ?? invoice.estado,
+                                    style: TextStyle(color: color, fontSize: 12),
+                                  ),
+                                  backgroundColor: color.withOpacity(0.12),
+                                  side: BorderSide.none,
                                 ),
-                                backgroundColor: color.withOpacity(0.12),
-                                side: BorderSide.none,
                               ),
                               onTap: () async {
                                 await Navigator.of(context).push(

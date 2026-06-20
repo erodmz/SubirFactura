@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../api/client.dart';
+import '../widgets/logo.dart';
 import 'home_router.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -52,15 +53,21 @@ class _LoginScreenState extends State<LoginScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('FacturaRD',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      )),
-              const SizedBox(height: 8),
+              TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0, end: 1),
+                duration: const Duration(milliseconds: 500),
+                curve: Curves.easeOutBack,
+                builder: (context, t, child) => Opacity(
+                  opacity: t.clamp(0, 1),
+                  child: Transform.scale(scale: 0.85 + 0.15 * t, child: child),
+                ),
+                child: const Center(child: Logo(size: 40)),
+              ),
+              const SizedBox(height: 14),
               const Text(
                 'Fotografía tus facturas y tu contador se encarga del resto.',
                 textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey),
               ),
               const SizedBox(height: 32),
               if (_error != null)

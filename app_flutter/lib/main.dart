@@ -4,6 +4,7 @@ import 'api/client.dart';
 import 'screens/home_router.dart';
 import 'screens/login_screen.dart';
 import 'services/upload_queue.dart';
+import 'theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,10 +21,7 @@ class FacturaRdApp extends StatelessWidget {
     return MaterialApp(
       title: 'FacturaRD',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1C4ED8)),
-        useMaterial3: true,
-      ),
+      theme: buildTheme(),
       home: ApiClient.instance.hasSession ? const HomeRouter() : const LoginScreen(),
     );
   }
