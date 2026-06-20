@@ -34,6 +34,11 @@ echo " listo."
 
 # 4. Dependencias, Prisma, migraciones y seeds (idempotente)
 set -a; . ./.env; set +a
+
+# IP LAN de la Mac: las URL firmadas de las imágenes deben usar un host que el
+# navegador Y el teléfono puedan alcanzar (localhost no sirve desde el celular).
+LAN_IP="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo localhost)"
+export S3_PUBLIC_URL="http://$LAN_IP:9000"
 say "Instalando dependencias…";            pnpm install --frozen-lockfile >/dev/null
 say "Generando cliente Prisma…";           pnpm db:generate >/dev/null
 say "Aplicando migraciones…";              pnpm db:deploy >/dev/null
@@ -69,7 +74,7 @@ curl -s -X POST http://localhost:3000/api/auth/register \
   >/dev/null 2>&1 || true
 
 # 8. Banner
-IP="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo TU_IP)"
+IP="$LAN_IP"
 printf "\n\033[1;36m──────────────────────────────────────────────────────────────\033[0m\n"
 cat <<BANNER
   FacturaRD está corriendo 🚀

@@ -48,7 +48,9 @@ services:
     volumes:
       - miniodata:/data
     ports:
-      - '127.0.0.1:9000:9000'
+      # 9000 en todas las interfaces para que el navegador y el TELÉFONO puedan
+      # cargar las imágenes vía la IP LAN (en prod va detrás de Caddy, sin puerto).
+      - '9000:9000'
       - '127.0.0.1:9001:9001'
     healthcheck:
       test: ['CMD', 'mc', 'ready', 'local']
@@ -83,6 +85,9 @@ services:
       APP_DATABASE_URL: postgresql://facturard_app:${POSTGRES_APP_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URL: redis://redis:6379
       S3_ENDPOINT: http://minio:9000
+      # Host público para las URL firmadas (navegador/teléfono). En prod, la URL
+      # pública de MinIO (p. ej. https://tu-dominio expuesto por Caddy).
+      S3_PUBLIC_URL: ${S3_PUBLIC_URL:-http://minio:9000}
       S3_BUCKET: ${S3_BUCKET}
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}

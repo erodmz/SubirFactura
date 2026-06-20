@@ -17,14 +17,27 @@ export class StorageService implements OnModuleInit {
   private readonly logger = new Logger(StorageService.name);
   readonly bucket = process.env.S3_BUCKET ?? 'invoices';
 
+  private readonly credentials = {
+    accessKeyId: process.env.S3_ACCESS_KEY ?? process.env.MINIO_ROOT_USER ?? '',
+    secretAccessKey: process.env.S3_SECRET_KEY ?? process.env.MINIO_ROOT_PASSWORD ?? '',
+  };
+  private readonly region = process.env.S3_REGION ?? 'us-east-1';
+
+  // Endpoint interno: lo usa el API para subir (PUT) las imágenes.
   private readonly client = new S3Client({
     endpoint: process.env.S3_ENDPOINT ?? 'http://localhost:9000',
-    region: process.env.S3_REGION ?? 'us-east-1',
-    credentials: {
-      accessKeyId: process.env.S3_ACCESS_KEY ?? process.env.MINIO_ROOT_USER ?? '',
-      secretAccessKey: process.env.S3_SECRET_KEY ?? process.env.MINIO_ROOT_PASSWORD ?? '',
-    },
+    region: this.region,
+    credentials: this.credentials,
     forcePathStyle: true, // requerido por MinIO
+  });
+
+  // Endpoint público: host alcanzable desde el navegador y el teléfono. Las URL
+  // firmadas se generan contra este host (en dev, la IP LAN de la Mac).
+  private readonly presignClient = new S3Client({
+    endpoint: process.env.S3_PUBLIC_URL ?? process.env.S3_ENDPOINT ?? 'http://localhost:9000',
+    region: this.region,
+    credentials: this.credentials,
+    forcePathStyle: true,
   });
 
   async onModuleInit() {
@@ -49,7 +62,7 @@ export class StorageService implements OnModuleInit {
   /** URL firmada temporal para ver la imagen (default 1 hora). */
   presignedGetUrl(key: string, expiresInSeconds = 3600): Promise<string> {
     return getSignedUrl(
-      this.client,
+      this.presignClient,
       new GetObjectCommand({ Bucket: this.bucket, Key: key }),
       { expiresIn: expiresInSeconds },
     );

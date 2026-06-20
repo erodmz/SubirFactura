@@ -901,3 +901,15 @@ main.app-content {
     padding: 20px 16px 48px;
   }
 }
+
+/* Foto de la factura en la cola de revisión */
+.invoice-photo {
+  width: 100%;
+  max-height: 420px;
+  object-fit: contain;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-soft);
+  margin: 4px 0 14px;
+  cursor: zoom-in;
+}

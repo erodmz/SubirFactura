@@ -145,6 +145,13 @@ function ReviewPanel({
   });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    api<{ imageUrl?: string }>(`/api/organizations/${orgId}/invoices/${invoice.id}`)
+      .then((d) => setImageUrl(d.imageUrl ?? null))
+      .catch(() => {});
+  }, [orgId, invoice.id]);
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -188,6 +195,13 @@ function ReviewPanel({
   return (
     <div className="card">
       <h2>Revisar factura</h2>
+      {imageUrl ? (
+        <a href={imageUrl} target="_blank" rel="noreferrer" title="Ver imagen completa">
+          <img src={imageUrl} alt="Foto de la factura" className="invoice-photo" />
+        </a>
+      ) : (
+        <p className="muted">Cargando imagen…</p>
+      )}
       {invoice.confianzaPorCampo?.error && (
         <div className="notice">OCR: {invoice.confianzaPorCampo.error}</div>
       )}
