@@ -7,6 +7,43 @@ double? parseNum(dynamic value) {
   return double.tryParse(value.toString());
 }
 
+class Me {
+  Me({
+    required this.userId,
+    required this.email,
+    required this.nombre,
+    required this.isSuperAdmin,
+    required this.memberships,
+  });
+
+  factory Me.fromJson(Map<String, dynamic> json) => Me(
+        userId: json['userId'] as String,
+        email: json['email'] as String,
+        nombre: json['nombre'] as String?,
+        isSuperAdmin: json['isSuperAdmin'] as bool? ?? false,
+        memberships: (json['memberships'] as List)
+            .map((e) => Membership.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
+
+  final String userId;
+  final String email;
+  final String? nombre;
+  final bool isSuperAdmin;
+  final List<Membership> memberships;
+
+  String get displayName => nombre?.isNotEmpty == true ? nombre! : email;
+
+  String get initials {
+    final n = nombre?.trim();
+    if (n != null && n.isNotEmpty) {
+      final parts = n.split(RegExp(r'\s+'));
+      return (parts[0][0] + (parts.length > 1 ? parts[1][0] : '')).toUpperCase();
+    }
+    return email.substring(0, email.length >= 2 ? 2 : 1).toUpperCase();
+  }
+}
+
 class Membership {
   Membership({
     required this.membershipId,

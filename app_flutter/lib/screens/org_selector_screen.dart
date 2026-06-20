@@ -5,29 +5,29 @@ import '../models.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
 
-/// Selector de empresa: un usuario puede pertenecer a varias con roles
-/// distintos (ESPECIFICACION.md §4).
+/// Selector de empresa (cuando el usuario pertenece a varias, §4).
 class OrgSelectorScreen extends StatefulWidget {
-  const OrgSelectorScreen({super.key});
+  const OrgSelectorScreen({super.key, this.me});
+
+  /// Si ya se cargó el perfil (desde HomeRouter), se reutiliza sin re-pedirlo.
+  final Me? me;
 
   @override
   State<OrgSelectorScreen> createState() => _OrgSelectorScreenState();
 }
 
 class _OrgSelectorScreenState extends State<OrgSelectorScreen> {
-  late Future<List<Membership>> _memberships;
+  late Future<Me> _me;
 
   @override
   void initState() {
     super.initState();
-    _memberships = _load();
+    _me = widget.me != null ? Future.value(widget.me) : _load();
   }
 
-  Future<List<Membership>> _load() async {
+  Future<Me> _load() async {
     final data = await ApiClient.instance.get('/api/me') as Map<String, dynamic>;
-    return (data['memberships'] as List)
-        .map((e) => Membership.fromJson(e as Map<String, dynamic>))
-        .toList();
+    return Me.fromJson(data);
   }
 
   Future<void> _logout() async {
@@ -48,8 +48,8 @@ class _OrgSelectorScreenState extends State<OrgSelectorScreen> {
           IconButton(onPressed: _logout, icon: const Icon(Icons.logout), tooltip: 'Salir'),
         ],
       ),
-      body: FutureBuilder<List<Membership>>(
-        future: _memberships,
+      body: FutureBuilder<Me>(
+        future: _me,
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
             return const Center(child: CircularProgressIndicator());
@@ -57,35 +57,42 @@ class _OrgSelectorScreenState extends State<OrgSelectorScreen> {
           if (snapshot.hasError) {
             return Center(child: Text('Error: ${snapshot.error}'));
           }
-          final memberships = snapshot.data!;
-          if (memberships.isEmpty) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
+          final me = snapshot.data!;
+          final memberships = me.memberships;
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8, left: 4),
                 child: Text(
-                  'Aún no perteneces a ninguna empresa.\nPide a tu contador una invitación.',
-                  textAlign: TextAlign.center,
+                  'Hola, ${me.displayName.split(' ').first} 👋',
+                  style: Theme.of(context).textTheme.titleLarge,
                 ),
               ),
-            );
-          }
-          return ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: memberships.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 8),
-            itemBuilder: (context, index) {
-              final m = memberships[index];
-              return Card(
-                child: ListTile(
-                  title: Text(m.orgNombre),
-                  subtitle: Text(m.rol.replaceAll('_', ' ')),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => HomeScreen(membership: m)),
+              const Padding(
+                padding: EdgeInsets.only(bottom: 12, left: 4),
+                child: Text('Elige una empresa para continuar.',
+                    style: TextStyle(color: Colors.grey)),
+              ),
+              for (final m in memberships)
+                Card(
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      child: Text(
+                        (m.orgNombre.isNotEmpty ? m.orgNombre[0] : '?').toUpperCase(),
+                      ),
+                    ),
+                    title: Text(m.orgNombre),
+                    subtitle: Text(m.rol.replaceAll('_', ' ')),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => HomeScreen(membership: m, me: me, canSwitchOrg: true),
+                      ),
+                    ),
                   ),
                 ),
-              );
-            },
+            ],
           );
         },
       ),

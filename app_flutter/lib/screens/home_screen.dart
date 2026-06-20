@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../api/client.dart';
@@ -5,6 +7,7 @@ import '../models.dart';
 import '../services/upload_queue.dart';
 import 'capture_screen.dart';
 import 'invoice_detail_screen.dart';
+import 'login_screen.dart';
 
 const _estadoColors = <String, Color>{
   'subida': Colors.blueGrey,
@@ -18,10 +21,21 @@ const _estadoColors = <String, Color>{
   'duplicada': Colors.red,
 };
 
+/// Estados que el worker aún está moviendo: mientras haya alguno, refrescamos
+/// en vivo para que el usuario vea el resultado sin cambiar de pantalla.
+const _processingStates = {'subida', 'procesando'};
+
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, required this.membership});
+  const HomeScreen({
+    super.key,
+    required this.membership,
+    this.me,
+    this.canSwitchOrg = false,
+  });
 
   final Membership membership;
+  final Me? me;
+  final bool canSwitchOrg;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -32,6 +46,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _filtro;
   String? _error;
   bool _loading = true;
+  Timer? _poll;
 
   @override
   void initState() {
@@ -42,12 +57,27 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    _poll?.cancel();
     UploadQueue.instance.removeListener(_onQueueChanged);
     super.dispose();
   }
 
   void _onQueueChanged() {
     if (mounted) _load();
+  }
+
+  int get _processingCount =>
+      _invoices.where((i) => _processingStates.contains(i.estado)).length;
+
+  /// Refresca cada 3 s mientras haya facturas en proceso o subidas pendientes.
+  void _syncPolling() {
+    final active = _processingCount > 0 || UploadQueue.instance.pendingCount > 0;
+    if (active) {
+      _poll ??= Timer.periodic(const Duration(seconds: 3), (_) => _load());
+    } else {
+      _poll?.cancel();
+      _poll = null;
+    }
   }
 
   Future<void> _load() async {
@@ -61,6 +91,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _loading = false;
         _error = null;
       });
+      _syncPolling();
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } catch (_) {
@@ -74,17 +105,85 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     if (queued == true && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Factura en cola: se sube automáticamente')),
+        const SnackBar(content: Text('Factura recibida — la verás procesarse aquí mismo')),
       );
+      _syncPolling();
       await _load();
     }
+  }
+
+  Future<void> _logout() async {
+    await ApiClient.instance.clearTokens();
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (_) => false,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final queue = UploadQueue.instance;
+    final me = widget.me;
     return Scaffold(
-      appBar: AppBar(title: Text(widget.membership.orgNombre)),
+      appBar: AppBar(
+        title: Text(widget.membership.orgNombre),
+        actions: [
+          PopupMenuButton<String>(
+            tooltip: 'Cuenta',
+            offset: const Offset(0, 48),
+            icon: CircleAvatar(
+              radius: 15,
+              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+              child: Text(
+                me?.initials ?? '··',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                ),
+              ),
+            ),
+            onSelected: (value) {
+              if (value == 'logout') _logout();
+              if (value == 'switch') Navigator.of(context).pop();
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem<String>(
+                enabled: false,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(me?.displayName ?? 'Mi cuenta',
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
+                    if (me != null)
+                      Text(me.email,
+                          style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              if (widget.canSwitchOrg)
+                const PopupMenuItem<String>(
+                  value: 'switch',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.swap_horiz),
+                    title: Text('Cambiar empresa'),
+                  ),
+                ),
+              const PopupMenuItem<String>(
+                value: 'logout',
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.logout),
+                  title: Text('Cerrar sesión'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _capture,
         icon: const Icon(Icons.camera_alt),
@@ -95,31 +194,47 @@ class _HomeScreenState extends State<HomeScreen> {
           ListenableBuilder(
             listenable: queue,
             builder: (context, _) {
-              if (queue.pendingCount == 0 && queue.lastRejection == null) {
-                return const SizedBox.shrink();
+              if (queue.lastRejection != null) {
+                return Material(
+                  color: Colors.red.shade50,
+                  child: ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.error_outline, color: Colors.red),
+                    title: Text(queue.lastRejection!),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      onPressed: queue.clearRejection,
+                    ),
+                  ),
+                );
               }
-              return Material(
-                color: queue.lastRejection != null ? Colors.red.shade50 : Colors.amber.shade50,
-                child: ListTile(
-                  dense: true,
-                  leading: Icon(
-                    queue.lastRejection != null ? Icons.error_outline : Icons.cloud_upload,
-                    color: queue.lastRejection != null ? Colors.red : Colors.amber.shade800,
+              if (queue.pendingCount > 0) {
+                return Material(
+                  color: Colors.amber.shade50,
+                  child: ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.cloud_upload, color: Colors.amber),
+                    title: Text('${queue.pendingCount} factura(s) subiendo…'),
                   ),
-                  title: Text(
-                    queue.lastRejection ??
-                        '${queue.pendingCount} factura(s) esperando conexión para subir',
-                  ),
-                  trailing: queue.lastRejection != null
-                      ? IconButton(
-                          icon: const Icon(Icons.close, size: 18),
-                          onPressed: queue.clearRejection,
-                        )
-                      : null,
-                ),
-              );
+                );
+              }
+              return const SizedBox.shrink();
             },
           ),
+          if (_processingCount > 0)
+            Material(
+              color: Colors.blue.shade50,
+              child: ListTile(
+                dense: true,
+                leading: const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2.5),
+                ),
+                title: Text('Leyendo $_processingCount factura(s) con IA…'),
+                subtitle: const Text('Se actualiza solo en unos segundos'),
+              ),
+            ),
           SizedBox(
             height: 56,
             child: ListView(
@@ -159,22 +274,34 @@ class _HomeScreenState extends State<HomeScreen> {
                           itemBuilder: (context, index) {
                             final invoice = _invoices[index];
                             final color = _estadoColors[invoice.estado] ?? Colors.grey;
+                            final procesando = _processingStates.contains(invoice.estado);
                             return ListTile(
                               leading: CircleAvatar(
                                 backgroundColor: color.withOpacity(0.15),
-                                child: Icon(Icons.receipt_long, color: color),
+                                child: procesando
+                                    ? SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2.5,
+                                          valueColor: AlwaysStoppedAnimation(color),
+                                        ),
+                                      )
+                                    : Icon(Icons.receipt_long, color: color),
                               ),
                               title: Text(
                                 invoice.razonSocialProveedor ??
                                     invoice.clientRazonSocial ??
-                                    'Factura',
+                                    (procesando ? 'Factura nueva' : 'Factura'),
                               ),
                               subtitle: Text(
-                                [
-                                  if (invoice.ncf != null) invoice.ncf,
-                                  invoice.fecha ??
-                                      invoice.createdAt.toIso8601String().substring(0, 10),
-                                ].join(' · '),
+                                procesando
+                                    ? 'Leyendo los datos…'
+                                    : [
+                                        if (invoice.ncf != null) invoice.ncf,
+                                        invoice.fecha ??
+                                            invoice.createdAt.toIso8601String().substring(0, 10),
+                                      ].join(' · '),
                               ),
                               trailing: Chip(
                                 label: Text(

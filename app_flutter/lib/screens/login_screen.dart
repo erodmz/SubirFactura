@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../api/client.dart';
-import 'org_selector_screen.dart';
+import 'home_router.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -31,7 +31,7 @@ class _LoginScreenState extends State<LoginScreen> {
           .saveTokens(tokens['accessToken'] as String, tokens['refreshToken'] as String);
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const OrgSelectorScreen()),
+        MaterialPageRoute(builder: (_) => const HomeRouter()),
       );
     } on ApiException catch (e) {
       setState(() => _error = e.message);

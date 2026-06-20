@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'api/client.dart';
+import 'screens/home_router.dart';
 import 'screens/login_screen.dart';
-import 'screens/org_selector_screen.dart';
 import 'services/upload_queue.dart';
 
 Future<void> main() async {
@@ -24,7 +24,7 @@ class FacturaRdApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1C4ED8)),
         useMaterial3: true,
       ),
-      home: ApiClient.instance.hasSession ? const OrgSelectorScreen() : const LoginScreen(),
+      home: ApiClient.instance.hasSession ? const HomeRouter() : const LoginScreen(),
     );
   }
 }
