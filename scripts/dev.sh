@@ -69,30 +69,39 @@ curl -s -X POST http://localhost:3000/api/auth/register \
   >/dev/null 2>&1 || true
 
 # 8. Banner
-IP="$(ipconfig getifaddr en0 2>/dev/null || echo TU_IP)"
+IP="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo TU_IP)"
+printf "\n\033[1;36m──────────────────────────────────────────────────────────────\033[0m\n"
 cat <<BANNER
-
-\033[1;36m────────────────────────────────────────────────────────────\033[0m
   FacturaRD está corriendo 🚀
 
-  Panel web :  http://localhost:3001
-  API       :  http://localhost:3000/health
+  🌐 Panel web :  http://localhost:3001
+     API       :  http://localhost:3000/health
 
-  Cuenta de prueba:
-    correo     : elmer.test@facturard.do
-    contraseña : clave-segura-123
+  👤 Cuenta de prueba:
+       correo     : elmer.test@facturard.do
+       contraseña : clave-segura-123
 
-  App móvil (Flutter):
-    Simulador iOS : flutter run --dart-define=API_URL=http://localhost:3000
-    iPhone físico : flutter run --release --dart-define=API_URL=http://$IP:3000
+  📱 PROBAR EN EL MÓVIL (Flutter):
+     1) Tu teléfono y tu Mac deben estar en la MISMA red WiFi.
+     2) Conoce la IP de tu Mac (corre esto y copia el número):
+            ipconfig getifaddr en0
+        → tu IP ahora es:  $IP
+     3) En OTRA terminal:
+            cd app_flutter
+        iPhone físico:
+            flutter run --release --dart-define=API_URL=http://$IP:3000
+        Simulador iOS (usa galería en vez de cámara):
+            flutter run --dart-define=API_URL=http://localhost:3000
+        Emulador Android:
+            flutter run --dart-define=API_URL=http://10.0.2.2:3000
 
-  OCR real con Claude (opcional):
-    pon ANTHROPIC_API_KEY=sk-ant-... y ANTHROPIC_MODEL=claude-haiku-4-5 en .env
-    (sin la key, las facturas caen a revisión para captura manual)
+  🤖 OCR real con Claude (opcional):
+       pon ANTHROPIC_API_KEY=sk-ant-... y ANTHROPIC_MODEL=claude-haiku-4-5 en .env
+       (sin la key, las facturas caen a revisión para captura manual)
 
-  Logs   : tail -f logs/api.log logs/worker.log logs/web.log
-  Detener: Ctrl+C  (o ./scripts/stop.sh para apagar también la infra)
-\033[1;36m────────────────────────────────────────────────────────────\033[0m
+  📜 Logs   : tail -f logs/api.log logs/worker.log logs/web.log
+  ⏹  Detener: Ctrl+C (detiene node) · ./scripts/stop.sh (baja TODO)
 BANNER
+printf "\033[1;36m──────────────────────────────────────────────────────────────\033[0m\n"
 
 wait
