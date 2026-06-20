@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getTokens } from '../lib/api';
 import ThemeToggle from '../components/ThemeToggle';
+import Logo from '../components/Logo';
 
 const FEATURES = [
   {
@@ -47,7 +48,7 @@ export default function Landing() {
   return (
     <div className="landing">
       <header className="landing-nav">
-        <span className="brand">FacturaRD</span>
+        <Logo size={30} />
         <div className="landing-nav-actions">
           <ThemeToggle />
           {authed ? (

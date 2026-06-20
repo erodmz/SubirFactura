@@ -42,12 +42,19 @@ export class AuthController {
   /** Perfil + membresías (selector de empresa de la app móvil — Fase 2). */
   @Get('me')
   async me(@CurrentUser() user: AuthenticatedUser) {
-    const memberships = await this.prisma.membership.findMany({
-      where: { userId: user.userId },
-      include: { organization: { select: { id: true, nombre: true, estadoSuscripcion: true } } },
-    });
+    const [profile, memberships] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: user.userId },
+        select: { nombre: true },
+      }),
+      this.prisma.membership.findMany({
+        where: { userId: user.userId },
+        include: { organization: { select: { id: true, nombre: true, estadoSuscripcion: true } } },
+      }),
+    ]);
     return {
       ...user,
+      nombre: profile?.nombre ?? null,
       memberships: memberships.map((m) => ({
         membershipId: m.id,
         rol: m.rol,

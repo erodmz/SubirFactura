@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api, saveTokens, PENDING_INVITE_KEY, type Tokens } from '../../lib/api';
 import ThemeToggle from '../../components/ThemeToggle';
+import Logo from '../../components/Logo';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -37,7 +38,9 @@ export default function LoginPage() {
         <ThemeToggle />
       </div>
       <div className="auth-box">
-        <h1 className="hero-title gradient">FacturaRD</h1>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
+          <Logo size={44} />
+        </div>
         <p className="muted" style={{ textAlign: 'center', marginBottom: 24 }}>
           Digitaliza y reporta los gastos de tus clientes ante la DGII.
         </p>

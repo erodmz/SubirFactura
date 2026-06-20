@@ -1,6 +1,7 @@
 export interface Me {
   userId: string;
   email: string;
+  nombre: string | null;
   isSuperAdmin: boolean;
   memberships: {
     membershipId: string;

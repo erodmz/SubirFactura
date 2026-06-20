@@ -623,3 +623,281 @@ th {
     transform: none;
   }
 }
+
+/* ── Logo ───────────────────────────────────────────────────────────────── */
+.logo-word {
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  line-height: 1;
+}
+
+/* ── App shell con sidebar (estilo Monday) ──────────────────────────────── */
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+}
+.sidebar {
+  width: 232px;
+  flex-shrink: 0;
+  background: var(--card);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 18px 14px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+.sidebar-logo {
+  padding: 6px 8px 18px;
+}
+.side-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+.side-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: var(--text);
+  font-weight: 600;
+  font-size: 14.5px;
+  border-left: 3px solid transparent;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease,
+    transform 0.06s ease;
+}
+.side-link:hover {
+  background: var(--bg-soft);
+  color: var(--text);
+}
+.side-link.active {
+  background: color-mix(in srgb, var(--brand) 12%, transparent);
+  color: var(--brand);
+  border-left-color: var(--brand);
+}
+.side-icon {
+  font-size: 17px;
+  width: 20px;
+  text-align: center;
+}
+.sidebar-foot {
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.app-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.app-topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 28px;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.org-name {
+  font-weight: 700;
+  font-size: 16px;
+}
+main.app-content {
+  max-width: none;
+  margin: 0;
+  padding: 28px 32px 56px;
+  animation: fadeInUp 0.35s ease both;
+}
+
+/* ── Menú de usuario ────────────────────────────────────────────────────── */
+.user-menu {
+  position: relative;
+}
+.user-chip {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 5px 12px 5px 5px;
+  color: var(--text);
+}
+.user-chip:hover {
+  background: var(--bg-soft);
+  border-color: var(--brand);
+}
+.avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(135deg, var(--m-blue), var(--m-purple));
+}
+.user-name {
+  font-size: 14px;
+  font-weight: 600;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chev {
+  font-size: 11px;
+  color: var(--muted);
+}
+.user-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  min-width: 230px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 6px;
+  z-index: 20;
+  animation: popIn 0.12s ease both;
+}
+.user-dropdown-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.user-dropdown-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  margin: 0;
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.user-dropdown-item:hover {
+  background: var(--bg-soft);
+  color: var(--text);
+}
+.danger-item {
+  color: var(--danger);
+}
+
+/* ── Página selector de empresa ─────────────────────────────────────────── */
+.select-page {
+  max-width: 880px;
+}
+.greeting {
+  margin-bottom: 2px;
+  font-size: 30px;
+}
+.greeting-sub {
+  margin-top: 0;
+  margin-bottom: 20px;
+}
+.org-card-new,
+.org-card-form {
+  cursor: pointer;
+  text-align: left;
+  margin-top: 0;
+  border-style: dashed;
+}
+.org-card-new {
+  background: var(--card);
+}
+.org-card-form {
+  cursor: default;
+}
+.org-initial-ghost {
+  background: var(--bg-soft);
+  color: var(--brand);
+  font-size: 26px;
+}
+
+/* ── Animaciones ────────────────────────────────────────────────────────── */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.org-grid .org-card {
+  animation: fadeInUp 0.3s ease both;
+}
+.feature-card {
+  animation: fadeInUp 0.4s ease both;
+}
+
+@media (max-width: 820px) {
+  .app-shell {
+    flex-direction: column;
+  }
+  .sidebar {
+    width: auto;
+    height: auto;
+    position: static;
+    flex-direction: row;
+    align-items: center;
+    overflow-x: auto;
+    padding: 10px 12px;
+  }
+  .sidebar-logo {
+    padding: 0 12px 0 4px;
+  }
+  .side-nav {
+    flex-direction: row;
+    flex: 1;
+  }
+  .side-link {
+    border-left: none;
+    border-bottom: 3px solid transparent;
+    white-space: nowrap;
+  }
+  .side-link.active {
+    border-left: none;
+    border-bottom-color: var(--brand);
+  }
+  .sidebar-foot {
+    border-top: none;
+    padding-top: 0;
+  }
+  main.app-content {
+    padding: 20px 16px 48px;
+  }
+}
