@@ -155,15 +155,48 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
               padding: const EdgeInsets.all(16),
               children: [
                 if (invoice.imageUrl != null)
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.network(
-                      invoice.imageUrl!,
-                      height: 260,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const SizedBox(
-                        height: 80,
-                        child: Center(child: Text('No se pudo cargar la imagen')),
+                  GestureDetector(
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        fullscreenDialog: true,
+                        builder: (_) => _PhotoViewer(url: invoice.imageUrl!),
+                      ),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Stack(
+                        children: [
+                          Image.network(
+                            invoice.imageUrl!,
+                            height: 260,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const SizedBox(
+                              height: 80,
+                              child: Center(child: Text('No se pudo cargar la imagen')),
+                            ),
+                          ),
+                          Positioned(
+                            right: 8,
+                            bottom: 8,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.black54,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.zoom_in, color: Colors.white, size: 16),
+                                  SizedBox(width: 4),
+                                  Text('Ampliar',
+                                      style: TextStyle(color: Colors.white, fontSize: 12)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -297,4 +330,75 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
         'montoFacturado' => 'monto_facturado',
         _ => key,
       };
+}
+
+/// Visor de imagen a pantalla completa con zoom de pellizco, paneo y doble-tap.
+class _PhotoViewer extends StatefulWidget {
+  const _PhotoViewer({required this.url});
+
+  final String url;
+
+  @override
+  State<_PhotoViewer> createState() => _PhotoViewerState();
+}
+
+class _PhotoViewerState extends State<_PhotoViewer> {
+  final _controller = TransformationController();
+  TapDownDetails? _doubleTapDetails;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _handleDoubleTap() {
+    if (_controller.value != Matrix4.identity()) {
+      _controller.value = Matrix4.identity(); // ya con zoom → restablecer
+    } else {
+      final pos = _doubleTapDetails!.localPosition;
+      _controller.value = Matrix4.identity()
+        ..translate(-pos.dx * 1.5, -pos.dy * 1.5)
+        ..scale(2.5);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: const Text('Factura', style: TextStyle(color: Colors.white)),
+      ),
+      body: GestureDetector(
+        onDoubleTapDown: (d) => _doubleTapDetails = d,
+        onDoubleTap: _handleDoubleTap,
+        child: InteractiveViewer(
+          transformationController: _controller,
+          minScale: 1,
+          maxScale: 5,
+          child: Center(
+            child: Image.network(
+              widget.url,
+              fit: BoxFit.contain,
+              loadingBuilder: (context, child, progress) => progress == null
+                  ? child
+                  : const Center(child: CircularProgressIndicator(color: Colors.white)),
+              errorBuilder: (_, __, ___) => const Center(
+                child: Text('No se pudo cargar la imagen',
+                    style: TextStyle(color: Colors.white)),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
