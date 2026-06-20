@@ -24,7 +24,7 @@ export default function LoginPage() {
       });
       saveTokens(tokens);
       const pendingInvite = localStorage.getItem(PENDING_INVITE_KEY);
-      router.push(pendingInvite ? `/invitations/${pendingInvite}` : '/');
+      router.push(pendingInvite ? `/invitations/${pendingInvite}` : '/app');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error inesperado');
       setBusy(false);

@@ -1,95 +1,144 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { api, clearTokens, getTokens } from '../lib/api';
-import type { Me } from '../lib/types';
+import { getTokens } from '../lib/api';
+import ThemeToggle from '../components/ThemeToggle';
 
-/** Selector de empresa: un usuario puede pertenecer a varias con roles distintos (§4). */
-export default function HomePage() {
-  const router = useRouter();
-  const [me, setMe] = useState<Me | null>(null);
-  const [nombre, setNombre] = useState('');
-  const [rnc, setRnc] = useState('');
-  const [error, setError] = useState('');
-  const [creating, setCreating] = useState(false);
+const FEATURES = [
+  {
+    color: 'var(--m-blue)',
+    icon: '📸',
+    title: 'Captura desde el móvil',
+    text: 'Tus clientes fotografían sus facturas. La cola offline-first las sube sola al recuperar señal.',
+  },
+  {
+    color: 'var(--m-purple)',
+    icon: '🤖',
+    title: 'Lectura con IA',
+    text: 'Claude extrae NCF, RNC, fecha, montos e ITBIS con confianza por campo. Lo dudoso va a revisión.',
+  },
+  {
+    color: 'var(--m-green)',
+    icon: '📄',
+    title: 'Reportes 606 / 607',
+    text: 'Genera el TXT oficial de la DGII y el Excel del período en un clic, con validación del padrón RNC.',
+  },
+  {
+    color: 'var(--m-orange)',
+    icon: '🏢',
+    title: 'Multi-empresa',
+    text: 'Un despacho, varios contadores y clientes. Cada quien ve solo lo suyo, con datos aislados por tenant.',
+  },
+];
 
-  useEffect(() => {
-    if (!getTokens()) {
-      router.replace('/login');
-      return;
-    }
-    api<Me>('/api/me').then(setMe).catch(() => {});
-  }, [router]);
+// Mockup tipo tablero de Monday: facturas con chips de estado de colores.
+const BOARD = [
+  { cliente: 'Colmado Don José', ncf: 'B0100000123', estado: 'Validada', color: 'var(--m-green)' },
+  { cliente: 'Ferretería Popular', ncf: 'B0200004511', estado: 'En revisión', color: 'var(--m-orange)' },
+  { cliente: 'CEIDI', ncf: 'B0100008820', estado: 'En 606', color: 'var(--m-blue)' },
+  { cliente: 'Farmacia Carol', ncf: 'E310000000071', estado: 'Procesando', color: 'var(--m-purple)' },
+];
 
-  async function createOrg(e: React.FormEvent) {
-    e.preventDefault();
-    setError('');
-    try {
-      const org = await api<{ id: string }>('/api/organizations', {
-        method: 'POST',
-        body: { nombre, rnc: rnc || undefined },
-      });
-      router.push(`/orgs/${org.id}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error inesperado');
-    }
-  }
-
-  function logout() {
-    clearTokens();
-    router.replace('/login');
-  }
-
-  if (!me) return <main className="muted">Cargando…</main>;
+export default function Landing() {
+  const [authed, setAuthed] = useState(false);
+  useEffect(() => setAuthed(!!getTokens()), []);
 
   return (
-    <main>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1>Mis empresas</h1>
-        <div>
-          {me.isSuperAdmin && (
-            <Link href="/admin" style={{ marginRight: 16 }}>
-              Panel super-admin
+    <div className="landing">
+      <header className="landing-nav">
+        <span className="brand">FacturaRD</span>
+        <div className="landing-nav-actions">
+          <ThemeToggle />
+          {authed ? (
+            <Link className="btn btn-primary" href="/app">
+              Ir al panel
             </Link>
+          ) : (
+            <>
+              <Link className="btn btn-ghost" href="/login">
+                Iniciar sesión
+              </Link>
+              <Link className="btn btn-primary" href="/register">
+                Comenzar gratis
+              </Link>
+            </>
           )}
-          <button className="secondary" onClick={logout}>
-            Cerrar sesión
-          </button>
         </div>
-      </div>
+      </header>
 
-      {me.memberships.length === 0 && (
-        <p className="muted">Aún no perteneces a ninguna empresa. Crea la tuya:</p>
-      )}
-
-      {me.memberships.map((m) => (
-        <Link key={m.membershipId} href={`/orgs/${m.organization.id}`}>
-          <div className="card" style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <strong>{m.organization.nombre}</strong>
-            <span className="badge">{m.rol}</span>
+      <section className="hero">
+        <div className="hero-copy">
+          <span className="pill">Para contadores de República Dominicana 🇩🇴</span>
+          <h1>
+            Los gastos de tus clientes,{' '}
+            <span className="hl-blue">capturados</span>,{' '}
+            <span className="hl-purple">leídos por IA</span> y{' '}
+            <span className="hl-green">listos para la DGII</span>.
+          </h1>
+          <p className="hero-sub">
+            Deja de perseguir facturas físicas. FacturaRD recolecta, digitaliza y reporta el 606/607
+            por ti — desde la foto hasta el TXT oficial.
+          </p>
+          <div className="hero-cta">
+            <Link className="btn btn-primary btn-lg" href={authed ? '/app' : '/login'}>
+              Entrar a la app →
+            </Link>
+            <Link className="btn btn-ghost btn-lg" href="/register">
+              Crear cuenta
+            </Link>
           </div>
-        </Link>
-      ))}
+          <p className="hero-note">Sin tarjeta. Activación inmediata.</p>
+        </div>
 
-      <div className="card">
-        <h2>{creating ? 'Nueva empresa contable' : ''}</h2>
-        {!creating ? (
-          <button className="secondary" style={{ marginTop: 0 }} onClick={() => setCreating(true)}>
-            + Crear empresa contable
-          </button>
-        ) : (
-          <form onSubmit={createOrg}>
-            {error && <div className="error">{error}</div>}
-            <label>Nombre de la empresa</label>
-            <input value={nombre} onChange={(e) => setNombre(e.target.value)} required />
-            <label>RNC (opcional)</label>
-            <input value={rnc} onChange={(e) => setRnc(e.target.value)} />
-            <button>Crear</button>
-          </form>
-        )}
-      </div>
-    </main>
+        <div className="hero-visual" aria-hidden>
+          <div className="board">
+            <div className="board-head">
+              <span className="board-dot" style={{ background: 'var(--m-red)' }} />
+              <span className="board-dot" style={{ background: 'var(--m-orange)' }} />
+              <span className="board-dot" style={{ background: 'var(--m-green)' }} />
+              <span className="board-title">Facturas · Mayo 2026</span>
+            </div>
+            <div className="board-row board-row-head">
+              <span>Cliente</span>
+              <span>NCF</span>
+              <span>Estado</span>
+            </div>
+            {BOARD.map((r) => (
+              <div className="board-row" key={r.ncf}>
+                <span className="board-client">{r.cliente}</span>
+                <span className="board-ncf">{r.ncf}</span>
+                <span className="status-chip" style={{ background: r.color }}>
+                  {r.estado}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="features">
+        {FEATURES.map((f) => (
+          <div className="feature-card" key={f.title}>
+            <span className="feature-icon" style={{ background: f.color }}>
+              {f.icon}
+            </span>
+            <h3>{f.title}</h3>
+            <p>{f.text}</p>
+          </div>
+        ))}
+      </section>
+
+      <section className="cta-strip">
+        <h2>Tu próximo cierre del 606, sin estrés.</h2>
+        <Link className="btn btn-primary btn-lg" href={authed ? '/app' : '/login'}>
+          Iniciar sesión
+        </Link>
+      </section>
+
+      <footer className="landing-footer">
+        <span>FacturaRD · Digitalización de facturas y reportes DGII</span>
+      </footer>
+    </div>
   );
 }

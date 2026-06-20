@@ -29,7 +29,7 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
       <div className="topbar">
-        <Link href="/" className="brand">
+        <Link href="/app" className="brand">
           FacturaRD
         </Link>
         <nav>

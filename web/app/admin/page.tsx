@@ -41,7 +41,7 @@ export default function AdminPage() {
 
   return (
     <main>
-      <Link href="/">← Volver</Link>
+      <Link href="/app">← Volver</Link>
       <h1>Suscripciones (super-admin)</h1>
       {error && <div className="error">{error}</div>}
 
