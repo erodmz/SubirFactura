@@ -913,3 +913,18 @@ main.app-content {
   margin: 4px 0 14px;
   cursor: zoom-in;
 }
+
+/* Galería de páginas (factura multi-foto) */
+.invoice-photos {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  margin-bottom: 10px;
+}
+.invoice-photo-multi {
+  width: 200px;
+  height: 260px;
+  flex: 0 0 auto;
+  margin: 0;
+}

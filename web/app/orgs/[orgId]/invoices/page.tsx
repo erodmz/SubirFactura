@@ -145,11 +145,13 @@ function ReviewPanel({
   });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imageUrls, setImageUrls] = useState<string[] | null>(null);
 
   useEffect(() => {
-    api<{ imageUrl?: string }>(`/api/organizations/${orgId}/invoices/${invoice.id}`)
-      .then((d) => setImageUrl(d.imageUrl ?? null))
+    api<{ imageUrl?: string; imageUrls?: string[] }>(
+      `/api/organizations/${orgId}/invoices/${invoice.id}`,
+    )
+      .then((d) => setImageUrls(d.imageUrls ?? (d.imageUrl ? [d.imageUrl] : [])))
       .catch(() => {});
   }, [orgId, invoice.id]);
 
@@ -195,12 +197,27 @@ function ReviewPanel({
   return (
     <div className="card">
       <h2>Revisar factura</h2>
-      {imageUrl ? (
-        <a href={imageUrl} target="_blank" rel="noreferrer" title="Ver imagen completa">
-          <img src={imageUrl} alt="Foto de la factura" className="invoice-photo" />
-        </a>
-      ) : (
+      {imageUrls === null ? (
         <p className="muted">Cargando imagen…</p>
+      ) : imageUrls.length === 0 ? (
+        <p className="muted">Sin imagen.</p>
+      ) : (
+        <>
+          {imageUrls.length > 1 && (
+            <p className="muted">{imageUrls.length} páginas · clic para ampliar</p>
+          )}
+          <div className={imageUrls.length > 1 ? 'invoice-photos' : undefined}>
+            {imageUrls.map((url, i) => (
+              <a key={i} href={url} target="_blank" rel="noreferrer" title="Ver imagen completa">
+                <img
+                  src={url}
+                  alt={`Página ${i + 1} de la factura`}
+                  className={imageUrls.length > 1 ? 'invoice-photo invoice-photo-multi' : 'invoice-photo'}
+                />
+              </a>
+            ))}
+          </div>
+        </>
       )}
       {invoice.confianzaPorCampo?.error && (
         <div className="notice">OCR: {invoice.confianzaPorCampo.error}</div>
