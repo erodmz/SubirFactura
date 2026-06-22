@@ -2,14 +2,15 @@ import 'package:flutter/material.dart';
 
 import '../api/client.dart';
 import '../models.dart';
+import 'client_home_screen.dart';
+import 'client_picker_screen.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
 import 'org_selector_screen.dart';
 
-/// Decide a dónde entrar tras iniciar sesión:
-/// - 0 empresas  → mensaje (pide invitación)
-/// - 1 empresa   → directo a sus facturas (sin selector)
-/// - 2+ empresas → selector de empresa
+/// Decide a dónde entrar según el rol y los accesos:
+/// - Contador/admin → despacho(s) contable(s): 1 → directo, varios → selector.
+/// - Cliente → sus negocios: 0 → aviso, 1 → directo a sus facturas, varios → selector.
 class HomeRouter extends StatefulWidget {
   const HomeRouter({super.key});
 
@@ -39,6 +40,21 @@ class _HomeRouterState extends State<HomeRouter> {
       (_) => false,
     );
   }
+
+  Widget _message(String text) => Scaffold(
+        appBar: AppBar(
+          title: const Text('FacturaRD'),
+          actions: [
+            IconButton(onPressed: _logout, icon: const Icon(Icons.logout), tooltip: 'Salir'),
+          ],
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(text, textAlign: TextAlign.center),
+          ),
+        ),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -73,31 +89,31 @@ class _HomeRouterState extends State<HomeRouter> {
         }
 
         final me = snapshot.data!;
-        if (me.memberships.isEmpty) {
-          return Scaffold(
-            appBar: AppBar(
-              title: const Text('FacturaRD'),
-              actions: [
-                IconButton(onPressed: _logout, icon: const Icon(Icons.logout), tooltip: 'Salir'),
-              ],
-            ),
-            body: const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text(
-                  'Aún no perteneces a ninguna empresa.\nPide a tu contador un enlace de invitación.',
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            ),
+
+        // Contador/admin: trabaja a nivel de despacho.
+        final despachos = me.contadorMemberships;
+        if (despachos.isNotEmpty) {
+          if (despachos.length == 1) {
+            return HomeScreen(
+              membership: despachos.first,
+              me: me,
+              canSwitchOrg: false,
+            );
+          }
+          return OrgSelectorScreen(me: me, memberships: despachos);
+        }
+
+        // Cliente: ve sus negocios, no el despacho.
+        final negocios = me.clientProfiles;
+        if (negocios.isEmpty) {
+          return _message(
+            'Aún no tienes un negocio asignado.\nPide a tu contador que te habilite para subir facturas.',
           );
         }
-
-        if (me.memberships.length == 1) {
-          return HomeScreen(membership: me.memberships.first, me: me, canSwitchOrg: false);
+        if (negocios.length == 1) {
+          return ClientHomeScreen(client: negocios.first, me: me, canSwitch: false);
         }
-
-        return OrgSelectorScreen(me: me);
+        return ClientPickerScreen(me: me);
       },
     );
   }

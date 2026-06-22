@@ -52,6 +52,38 @@ export class AuthController {
         include: { organization: { select: { id: true, nombre: true, estadoSuscripcion: true } } },
       }),
     ]);
+
+    // Negocios (client_profiles) que el usuario puede subir como cliente.
+    // Para un cliente, "sus empresas" son estos negocios, no el despacho.
+    const links = await this.prisma.clientMember.findMany({
+      where: { userId: user.userId },
+      select: { clientProfileId: true },
+    });
+    const profileIds = links.map((l) => l.clientProfileId);
+    const clientProfiles: {
+      id: string;
+      razonSocial: string;
+      rncOCedula: string;
+      organizationId: string;
+      organizationNombre: string;
+    }[] = [];
+    if (profileIds.length > 0) {
+      // client_profiles está bajo RLS: leer por cada org del usuario (forOrg)
+      for (const m of memberships) {
+        const profiles = await this.prisma.forOrg(m.organizationId).clientProfile.findMany({
+          where: { id: { in: profileIds } },
+          select: { id: true, razonSocial: true, rncOCedula: true },
+        });
+        for (const p of profiles) {
+          clientProfiles.push({
+            ...p,
+            organizationId: m.organizationId,
+            organizationNombre: m.organization.nombre,
+          });
+        }
+      }
+    }
+
     return {
       ...user,
       nombre: profile?.nombre ?? null,
@@ -60,6 +92,7 @@ export class AuthController {
         rol: m.rol,
         organization: m.organization,
       })),
+      clientProfiles,
     };
   }
 }

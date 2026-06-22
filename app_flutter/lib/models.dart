@@ -14,6 +14,7 @@ class Me {
     required this.nombre,
     required this.isSuperAdmin,
     required this.memberships,
+    required this.clientProfiles,
   });
 
   factory Me.fromJson(Map<String, dynamic> json) => Me(
@@ -24,6 +25,9 @@ class Me {
         memberships: (json['memberships'] as List)
             .map((e) => Membership.fromJson(e as Map<String, dynamic>))
             .toList(),
+        clientProfiles: ((json['clientProfiles'] as List?) ?? [])
+            .map((e) => ClientAccess.fromJson(e as Map<String, dynamic>))
+            .toList(),
       );
 
   final String userId;
@@ -31,6 +35,13 @@ class Me {
   final String? nombre;
   final bool isSuperAdmin;
   final List<Membership> memberships;
+
+  /// Negocios (client_profiles) que el usuario puede subir como cliente.
+  final List<ClientAccess> clientProfiles;
+
+  /// Despachos donde administra/contabiliza (no incluye rol cliente).
+  List<Membership> get contadorMemberships =>
+      memberships.where((m) => m.rol != 'cliente').toList();
 
   String get displayName => nombre?.isNotEmpty == true ? nombre! : email;
 
@@ -66,6 +77,32 @@ class Membership {
   final String rol;
   final String orgId;
   final String orgNombre;
+}
+
+/// Un negocio (client_profile) al que un cliente puede subirle facturas,
+/// con el despacho (organización) al que pertenece.
+class ClientAccess {
+  ClientAccess({
+    required this.id,
+    required this.razonSocial,
+    required this.rncOCedula,
+    required this.organizationId,
+    required this.organizationNombre,
+  });
+
+  factory ClientAccess.fromJson(Map<String, dynamic> json) => ClientAccess(
+        id: json['id'] as String,
+        razonSocial: json['razonSocial'] as String,
+        rncOCedula: json['rncOCedula'] as String,
+        organizationId: json['organizationId'] as String,
+        organizationNombre: json['organizationNombre'] as String,
+      );
+
+  final String id;
+  final String razonSocial;
+  final String rncOCedula;
+  final String organizationId;
+  final String organizationNombre;
 }
 
 class ClientProfile {

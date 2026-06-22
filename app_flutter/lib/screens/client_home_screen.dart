@@ -20,33 +20,33 @@ const _estadoColors = <String, Color>{
   'rechazada': Colors.red,
   'duplicada': Colors.red,
 };
-
-/// Estados que el worker aún está moviendo: mientras haya alguno, refrescamos
-/// en vivo para que el usuario vea el resultado sin cambiar de pantalla.
 const _processingStates = {'subida', 'procesando'};
 
-class HomeScreen extends StatefulWidget {
-  const HomeScreen({
+/// Inicio de un CLIENTE para un negocio concreto: sus facturas + subir.
+/// El negocio ya está elegido, así que la subida se archiva ahí directo.
+class ClientHomeScreen extends StatefulWidget {
+  const ClientHomeScreen({
     super.key,
-    required this.membership,
-    this.me,
-    this.canSwitchOrg = false,
+    required this.client,
+    required this.me,
+    this.canSwitch = false,
   });
 
-  final Membership membership;
-  final Me? me;
-  final bool canSwitchOrg;
+  final ClientAccess client;
+  final Me me;
+  final bool canSwitch;
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  State<ClientHomeScreen> createState() => _ClientHomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _ClientHomeScreenState extends State<ClientHomeScreen> {
   List<Invoice> _invoices = [];
-  String? _filtro;
   String? _error;
   bool _loading = true;
   Timer? _poll;
+
+  String get _orgId => widget.client.organizationId;
 
   @override
   void initState() {
@@ -69,7 +69,6 @@ class _HomeScreenState extends State<HomeScreen> {
   int get _processingCount =>
       _invoices.where((i) => _processingStates.contains(i.estado)).length;
 
-  /// Refresca cada 3 s mientras haya facturas en proceso o subidas pendientes.
   void _syncPolling() {
     final active = _processingCount > 0 || UploadQueue.instance.pendingCount > 0;
     if (active) {
@@ -82,9 +81,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _load() async {
     try {
-      final query = _filtro == null ? '' : '?estado=$_filtro';
-      final data = await ApiClient.instance
-          .get('/api/organizations/${widget.membership.orgId}/invoices$query') as List;
+      final data = await ApiClient.instance.get(
+        '/api/organizations/$_orgId/invoices?clientProfileId=${widget.client.id}',
+      ) as List;
       if (!mounted) return;
       setState(() {
         _invoices = data.map((e) => Invoice.fromJson(e as Map<String, dynamic>)).toList();
@@ -101,7 +100,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _capture() async {
     final queued = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => CaptureScreen(orgId: widget.membership.orgId)),
+      MaterialPageRoute(
+        builder: (_) => CaptureScreen(
+          orgId: _orgId,
+          fixedClientId: widget.client.id,
+          fixedClientName: widget.client.razonSocial,
+        ),
+      ),
     );
     if (queued == true && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -124,10 +129,9 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final queue = UploadQueue.instance;
-    final me = widget.me;
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.membership.orgNombre),
+        title: Text(widget.client.razonSocial),
         actions: [
           PopupMenuButton<String>(
             tooltip: 'Cuenta',
@@ -136,7 +140,7 @@ class _HomeScreenState extends State<HomeScreen> {
               radius: 15,
               backgroundColor: Theme.of(context).colorScheme.primaryContainer,
               child: Text(
-                me?.initials ?? '··',
+                widget.me.initials,
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
@@ -154,22 +158,22 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(me?.displayName ?? 'Mi cuenta',
-                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
-                    if (me != null)
-                      Text(me.email,
-                          style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                    Text(widget.me.displayName,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, color: Colors.black87)),
+                    Text(widget.me.email,
+                        style: const TextStyle(fontSize: 12, color: Colors.black54)),
                   ],
                 ),
               ),
               const PopupMenuDivider(),
-              if (widget.canSwitchOrg)
+              if (widget.canSwitch)
                 const PopupMenuItem<String>(
                   value: 'switch',
                   child: ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: Icon(Icons.swap_horiz),
-                    title: Text('Cambiar empresa'),
+                    title: Text('Cambiar negocio'),
                   ),
                 ),
               const PopupMenuItem<String>(
@@ -240,23 +244,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   )
                 : const SizedBox(width: double.infinity),
           ),
-          SizedBox(
-            height: 56,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              children: [
-                _chip(null, 'Todas'),
-                for (final estado in ['en_revision', 'procesando', 'extraida', 'validada'])
-                  _chip(estado, estadoLabels[estado]!),
-              ],
-            ),
-          ),
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text(_error!, style: const TextStyle(color: Colors.orange)),
-            ),
           Expanded(
             child: RefreshIndicator(
               onRefresh: _load,
@@ -264,14 +251,21 @@ class _HomeScreenState extends State<HomeScreen> {
                   ? const Center(child: CircularProgressIndicator())
                   : _invoices.isEmpty
                       ? ListView(
-                          children: const [
-                            Padding(
+                          children: [
+                            const Padding(
                               padding: EdgeInsets.all(32),
                               child: Text(
                                 'Sin facturas todavía.\nToca "Subir factura" para fotografiar la primera.',
                                 textAlign: TextAlign.center,
                               ),
                             ),
+                            if (_error != null)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                child: Text(_error!,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(color: Colors.orange)),
+                              ),
                           ],
                         )
                       : ListView.builder(
@@ -281,26 +275,21 @@ class _HomeScreenState extends State<HomeScreen> {
                             final color = _estadoColors[invoice.estado] ?? Colors.grey;
                             final procesando = _processingStates.contains(invoice.estado);
                             return ListTile(
-                              leading: AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 300),
-                                child: CircleAvatar(
-                                  key: ValueKey(procesando),
-                                  backgroundColor: color.withOpacity(0.15),
-                                  child: procesando
-                                      ? SizedBox(
-                                          width: 20,
-                                          height: 20,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2.5,
-                                            valueColor: AlwaysStoppedAnimation(color),
-                                          ),
-                                        )
-                                      : Icon(Icons.receipt_long, color: color),
-                                ),
+                              leading: CircleAvatar(
+                                backgroundColor: color.withValues(alpha: 0.15),
+                                child: procesando
+                                    ? SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2.5,
+                                          valueColor: AlwaysStoppedAnimation(color),
+                                        ),
+                                      )
+                                    : Icon(Icons.receipt_long, color: color),
                               ),
                               title: Text(
                                 invoice.razonSocialProveedor ??
-                                    invoice.clientRazonSocial ??
                                     (procesando ? 'Factura nueva' : 'Factura'),
                               ),
                               subtitle: Text(
@@ -312,25 +301,24 @@ class _HomeScreenState extends State<HomeScreen> {
                                             invoice.createdAt.toIso8601String().substring(0, 10),
                                       ].join(' · '),
                               ),
-                              trailing: AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 300),
-                                transitionBuilder: (child, anim) =>
-                                    FadeTransition(opacity: anim, child: child),
-                                child: Chip(
-                                  key: ValueKey(invoice.estado),
-                                  label: Text(
-                                    estadoLabels[invoice.estado] ?? invoice.estado,
-                                    style: TextStyle(color: color, fontSize: 12),
-                                  ),
-                                  backgroundColor: color.withOpacity(0.12),
-                                  side: BorderSide.none,
+                              trailing: Chip(
+                                label: Text(
+                                  estadoLabels[invoice.estado] ?? invoice.estado,
+                                  style: TextStyle(color: color, fontSize: 12),
                                 ),
+                                backgroundColor: color.withValues(alpha: 0.12),
+                                side: BorderSide.none,
                               ),
                               onTap: () async {
                                 await Navigator.of(context).push(
                                   MaterialPageRoute(
                                     builder: (_) => InvoiceDetailScreen(
-                                      membership: widget.membership,
+                                      membership: Membership(
+                                        membershipId: '',
+                                        rol: 'cliente',
+                                        orgId: _orgId,
+                                        orgNombre: widget.client.razonSocial,
+                                      ),
                                       invoiceId: invoice.id,
                                     ),
                                   ),
@@ -343,21 +331,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _chip(String? estado, String label) {
-    final selected = _filtro == estado;
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: FilterChip(
-        label: Text(label),
-        selected: selected,
-        onSelected: (_) {
-          setState(() => _filtro = selected ? null : estado);
-          _load();
-        },
       ),
     );
   }

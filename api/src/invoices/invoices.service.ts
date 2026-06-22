@@ -147,7 +147,13 @@ export class InvoicesService {
         where: { userId: user.userId },
         select: { clientProfileId: true },
       });
-      where.clientProfileId = { in: links.map((l) => l.clientProfileId) };
+      const allowed = links.map((l) => l.clientProfileId);
+      // Si pide un negocio concreto, respétalo (si está permitido); si no, todos los suyos.
+      where.clientProfileId = query.clientProfileId
+        ? allowed.includes(query.clientProfileId)
+          ? query.clientProfileId
+          : '__none__'
+        : { in: allowed };
     }
 
     return this.prisma.forOrg(orgId).invoice.findMany({

@@ -9,10 +9,20 @@ import '../services/upload_queue.dart';
 
 /// Captura de factura: una o varias fotos (páginas) de un mismo comprobante.
 /// Útil para recibos largos que no caben en una sola foto (§5.1).
+///
+/// Cliente: se pasa [fixedClientId] (el negocio ya está elegido, sin selector).
+/// Contador: se cargan los clientes del despacho para elegir.
 class CaptureScreen extends StatefulWidget {
-  const CaptureScreen({super.key, required this.membership});
+  const CaptureScreen({
+    super.key,
+    required this.orgId,
+    this.fixedClientId,
+    this.fixedClientName,
+  });
 
-  final Membership membership;
+  final String orgId;
+  final String? fixedClientId;
+  final String? fixedClientName;
 
   @override
   State<CaptureScreen> createState() => _CaptureScreenState();
@@ -25,16 +35,27 @@ class _CaptureScreenState extends State<CaptureScreen> {
   String? _error;
   bool _loading = true;
 
+  bool get _clientFixed => widget.fixedClientId != null;
+
   @override
   void initState() {
     super.initState();
-    _loadClients();
+    if (_clientFixed) {
+      _selected = ClientProfile(
+        id: widget.fixedClientId!,
+        razonSocial: widget.fixedClientName ?? '',
+        rncOCedula: '',
+      );
+      _loading = false;
+    } else {
+      _loadClients();
+    }
   }
 
   Future<void> _loadClients() async {
     try {
       final data = await ApiClient.instance
-          .get('/api/organizations/${widget.membership.orgId}/clients') as List;
+          .get('/api/organizations/${widget.orgId}/clients') as List;
       if (!mounted) return;
       setState(() {
         _clients = data.map((e) => ClientProfile.fromJson(e as Map<String, dynamic>)).toList();
@@ -65,7 +86,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
   Future<void> _submit() async {
     if (_selected == null || _photos.isEmpty) return;
     await UploadQueue.instance.enqueue(
-      orgId: widget.membership.orgId,
+      orgId: widget.orgId,
       clientProfileId: _selected!.id,
       images: List.of(_photos),
     );
