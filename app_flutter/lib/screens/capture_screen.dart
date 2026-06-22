@@ -7,8 +7,8 @@ import '../api/client.dart';
 import '../models.dart';
 import '../services/upload_queue.dart';
 
-/// Captura con guías de encuadre (ESPECIFICACION.md §5.1). La foto se comprime
-/// (~1–2 MB JPEG) y entra a la cola offline-first.
+/// Captura de factura: una o varias fotos (páginas) de un mismo comprobante.
+/// Útil para recibos largos que no caben en una sola foto (§5.1).
 class CaptureScreen extends StatefulWidget {
   const CaptureScreen({super.key, required this.membership});
 
@@ -21,7 +21,7 @@ class CaptureScreen extends StatefulWidget {
 class _CaptureScreenState extends State<CaptureScreen> {
   List<ClientProfile> _clients = [];
   ClientProfile? _selected;
-  File? _photo;
+  final List<File> _photos = [];
   String? _error;
   bool _loading = true;
 
@@ -51,23 +51,23 @@ class _CaptureScreenState extends State<CaptureScreen> {
     }
   }
 
-  Future<void> _takePhoto(ImageSource source) async {
+  Future<void> _addPhoto(ImageSource source) async {
     final picked = await ImagePicker().pickImage(
       source: source,
       maxWidth: 1600, // suficiente para leer NCF/RNC sin pasar de ~1–2 MB
       imageQuality: 85,
     );
     if (picked != null && mounted) {
-      setState(() => _photo = File(picked.path));
+      setState(() => _photos.add(File(picked.path)));
     }
   }
 
   Future<void> _submit() async {
-    if (_selected == null || _photo == null) return;
+    if (_selected == null || _photos.isEmpty) return;
     await UploadQueue.instance.enqueue(
       orgId: widget.membership.orgId,
       clientProfileId: _selected!.id,
-      image: _photo!,
+      images: List.of(_photos),
     );
     if (mounted) Navigator.of(context).pop(true);
   }
@@ -85,7 +85,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
                   Text(_error!, style: const TextStyle(color: Colors.red)),
                 if (_clients.length > 1) ...[
                   DropdownButtonFormField<ClientProfile>(
-                    value: _selected,
+                    initialValue: _selected,
                     decoration: const InputDecoration(
                       labelText: 'Cliente',
                       border: OutlineInputBorder(),
@@ -115,15 +115,19 @@ class _CaptureScreenState extends State<CaptureScreen> {
                         Text('• Apóyala sobre una superficie plana y oscura'),
                         Text('• Evita sombras, reflejos y dedos sobre el papel'),
                         Text('• El NCF, RNC y los montos deben leerse con claridad'),
+                        SizedBox(height: 8),
+                        Text('¿Recibo muy largo? Tómale varias fotos por secciones '
+                            '(de arriba hacia abajo) y agrégalas como páginas: la IA las lee juntas.',
+                            style: TextStyle(fontStyle: FontStyle.italic)),
                       ],
                     ),
                   ),
                 ),
                 const SizedBox(height: 16),
-                if (_photo != null) ...[
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.file(_photo!, height: 320, fit: BoxFit.cover),
+                if (_photos.isNotEmpty) ...[
+                  _PagesStrip(
+                    photos: _photos,
+                    onRemove: (i) => setState(() => _photos.removeAt(i)),
                   ),
                   const SizedBox(height: 16),
                 ],
@@ -131,14 +135,14 @@ class _CaptureScreenState extends State<CaptureScreen> {
                   children: [
                     Expanded(
                       child: FilledButton.icon(
-                        onPressed: () => _takePhoto(ImageSource.camera),
+                        onPressed: () => _addPhoto(ImageSource.camera),
                         icon: const Icon(Icons.camera_alt),
-                        label: Text(_photo == null ? 'Tomar foto' : 'Re-tomar'),
+                        label: Text(_photos.isEmpty ? 'Tomar foto' : 'Agregar página'),
                       ),
                     ),
                     const SizedBox(width: 12),
                     OutlinedButton.icon(
-                      onPressed: () => _takePhoto(ImageSource.gallery),
+                      onPressed: () => _addPhoto(ImageSource.gallery),
                       icon: const Icon(Icons.photo_library),
                       label: const Text('Galería'),
                     ),
@@ -146,12 +150,68 @@ class _CaptureScreenState extends State<CaptureScreen> {
                 ),
                 const SizedBox(height: 16),
                 FilledButton(
-                  onPressed: _photo != null && _selected != null ? _submit : null,
+                  onPressed: _photos.isNotEmpty && _selected != null ? _submit : null,
                   style: FilledButton.styleFrom(padding: const EdgeInsets.all(16)),
-                  child: const Text('Subir factura'),
+                  child: Text(
+                    _photos.length <= 1
+                        ? 'Subir factura'
+                        : 'Subir factura (${_photos.length} páginas)',
+                  ),
                 ),
               ],
             ),
+    );
+  }
+}
+
+/// Tira horizontal de páginas capturadas, con número y botón de quitar.
+class _PagesStrip extends StatelessWidget {
+  const _PagesStrip({required this.photos, required this.onRemove});
+
+  final List<File> photos;
+  final void Function(int index) onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 150,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: photos.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (context, i) => Stack(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Image.file(photos[i], width: 110, height: 150, fit: BoxFit.cover),
+            ),
+            Positioned(
+              left: 6,
+              top: 6,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text('${i + 1}',
+                    style: const TextStyle(color: Colors.white, fontSize: 12)),
+              ),
+            ),
+            Positioned(
+              right: 2,
+              top: 2,
+              child: IconButton(
+                icon: const Icon(Icons.cancel, color: Colors.white),
+                style: IconButton.styleFrom(backgroundColor: Colors.black38),
+                iconSize: 20,
+                visualDensity: VisualDensity.compact,
+                onPressed: () => onRemove(i),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

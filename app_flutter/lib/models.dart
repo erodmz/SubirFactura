@@ -100,6 +100,7 @@ class Invoice {
     this.tipoComprobante,
     this.periodoFiscal,
     this.imageUrl,
+    this.imageUrls = const [],
     this.camposBajaConfianza = const [],
     this.erroresValidacion = const [],
   });
@@ -129,6 +130,7 @@ class Invoice {
       tipoComprobante: json['tipoComprobante'] as String?,
       periodoFiscal: json['periodoFiscal'] as String?,
       imageUrl: json['imageUrl'] as String?,
+      imageUrls: (json['imageUrls'] as List?)?.cast<String>() ?? const [],
       camposBajaConfianza:
           (evaluation?['camposBajaConfianza'] as List?)?.cast<String>() ?? const [],
       erroresValidacion: errores,
@@ -151,6 +153,7 @@ class Invoice {
   final String? tipoComprobante;
   final String? periodoFiscal;
   final String? imageUrl;
+  final List<String> imageUrls;
   final List<String> camposBajaConfianza;
   final List<String> erroresValidacion;
 }

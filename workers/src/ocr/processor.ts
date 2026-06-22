@@ -36,8 +36,15 @@ export async function processOcrJob(job: Job<OcrJobData>) {
 
   await prisma.invoice.update({ where: { id: invoiceId }, data: { estado: 'procesando' } });
 
-  const image = await getImageBase64(invoice.imagenUrl);
-  const extraction = await extractInvoice(image.data, image.mediaType);
+  // Todas las páginas del comprobante (1 = imagenUrl, 2+ = invoice_images)
+  const extraImages = await prisma.invoiceImage.findMany({
+    where: { invoiceId },
+    orderBy: { orderIndex: 'asc' },
+    select: { key: true },
+  });
+  const keys = [invoice.imagenUrl, ...extraImages.map((i) => i.key)];
+  const images = await Promise.all(keys.map((k) => getImageBase64(k)));
+  const extraction = await extractInvoice(images);
 
   const threshold = Number(process.env.OCR_CONFIDENCE_THRESHOLD ?? DEFAULT_CONFIDENCE_THRESHOLD);
   const evaluation = evaluateExtraction(extraction, threshold);

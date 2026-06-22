@@ -44,12 +44,16 @@ Reglas:
 ${CATEGORIAS}
 - confianza: tu certeza real de 0 a 1 por campo. Sé honesto: si un dígito es dudoso, baja la confianza. Usa valor null cuando el campo no aparezca o no se distinga.
 - es_legible: false si la foto está demasiado borrosa, cortada u oscura para extraer los campos críticos.
-- notas: observaciones breves (p.ej. "factura térmica desvanecida").`;
+- notas: observaciones breves (p.ej. "factura térmica desvanecida").
 
-export async function extractInvoice(
-  imageBase64: string,
-  mediaType: 'image/jpeg' | 'image/png' | 'image/webp',
-): Promise<InvoiceExtraction> {
+Si recibes VARIAS imágenes, son páginas/secciones de UN MISMO comprobante (un recibo largo fotografiado por partes, en orden). Combínalas en una sola extracción: el NCF/RNC suelen estar en la primera y el total al final.`;
+
+export interface ImageInput {
+  data: string;
+  mediaType: 'image/jpeg' | 'image/png' | 'image/webp';
+}
+
+export async function extractInvoice(images: ImageInput[]): Promise<InvoiceExtraction> {
   const response = await client.messages.parse({
     // El modelo SIEMPRE viene de env (§5): nunca hardcodear
     model: process.env.ANTHROPIC_MODEL ?? 'claude-opus-4-8',
@@ -58,7 +62,13 @@ export async function extractInvoice(
       {
         role: 'user',
         content: [
-          { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } },
+          ...images.map(
+            (img) =>
+              ({
+                type: 'image',
+                source: { type: 'base64', media_type: img.mediaType, data: img.data },
+              }) as const,
+          ),
           { type: 'text', text: PROMPT },
         ],
       },

@@ -7,10 +7,10 @@ import {
   Post,
   Query,
   Req,
-  UploadedFile,
+  UploadedFiles,
   UseInterceptors,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { AnyFilesInterceptor } from '@nestjs/platform-express';
 import type { Membership } from '@facturard/shared/db';
 import { InvoicesService } from './invoices.service';
 import { OrgRoles } from '../common/decorators/org-roles.decorator';
@@ -25,18 +25,19 @@ export class InvoicesController {
 
   @Post()
   @OrgRoles('org_admin', 'contador', 'cliente')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_FILE_SIZE } }))
+  // Acepta 'file' (1 foto) o 'files' (varias páginas) en multipart/form-data
+  @UseInterceptors(AnyFilesInterceptor({ limits: { fileSize: MAX_FILE_SIZE, files: 10 } }))
   upload(
     @Param('orgId') orgId: string,
     @CurrentUser() user: AuthenticatedUser,
     @Req() req: { membership: Membership },
     @Body() dto: UploadInvoiceDto,
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFiles() files: Express.Multer.File[],
   ) {
-    if (!file) {
-      throw new Error('Falta el archivo: enviar multipart/form-data con el campo "file"');
+    if (!files || files.length === 0) {
+      throw new Error('Falta el archivo: enviar multipart/form-data con el campo "file" o "files"');
     }
-    return this.invoices.upload(orgId, user, req.membership, dto.clientProfileId, file);
+    return this.invoices.upload(orgId, user, req.membership, dto.clientProfileId, files);
   }
 
   @Get()

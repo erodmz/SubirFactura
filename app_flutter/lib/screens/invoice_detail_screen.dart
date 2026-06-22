@@ -154,52 +154,11 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                if (invoice.imageUrl != null)
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        fullscreenDialog: true,
-                        builder: (_) => _PhotoViewer(url: invoice.imageUrl!),
-                      ),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Stack(
-                        children: [
-                          Image.network(
-                            invoice.imageUrl!,
-                            height: 260,
-                            width: double.infinity,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => const SizedBox(
-                              height: 80,
-                              child: Center(child: Text('No se pudo cargar la imagen')),
-                            ),
-                          ),
-                          Positioned(
-                            right: 8,
-                            bottom: 8,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: Colors.black54,
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.zoom_in, color: Colors.white, size: 16),
-                                  SizedBox(width: 4),
-                                  Text('Ampliar',
-                                      style: TextStyle(color: Colors.white, fontSize: 12)),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                _InvoiceImages(
+                  urls: invoice.imageUrls.isNotEmpty
+                      ? invoice.imageUrls
+                      : [if (invoice.imageUrl != null) invoice.imageUrl!],
+                ),
                 const SizedBox(height: 16),
                 if (invoice.erroresValidacion.isNotEmpty)
                   Card(
@@ -398,6 +357,127 @@ class _PhotoViewerState extends State<_PhotoViewer> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Muestra las páginas de la factura. Una imagen → vista grande; varias →
+/// tira horizontal numerada. Cualquier página se toca para ampliar con zoom.
+class _InvoiceImages extends StatelessWidget {
+  const _InvoiceImages({required this.urls});
+
+  final List<String> urls;
+
+  void _open(BuildContext context, String url) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => _PhotoViewer(url: url),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (urls.isEmpty) return const SizedBox.shrink();
+
+    if (urls.length == 1) {
+      return GestureDetector(
+        onTap: () => _open(context, urls.first),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Stack(
+            children: [
+              Image.network(
+                urls.first,
+                height: 260,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const SizedBox(
+                  height: 80,
+                  child: Center(child: Text('No se pudo cargar la imagen')),
+                ),
+              ),
+              const Positioned(right: 8, bottom: 8, child: _ZoomBadge()),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text('${urls.length} páginas · toca para ampliar',
+              style: TextStyle(color: Colors.grey.shade700, fontSize: 13)),
+        ),
+        SizedBox(
+          height: 220,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: urls.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 10),
+            itemBuilder: (context, i) => GestureDetector(
+              onTap: () => _open(context, urls[i]),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Stack(
+                  children: [
+                    Image.network(
+                      urls[i],
+                      width: 160,
+                      height: 220,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const SizedBox(
+                        width: 160,
+                        child: Center(child: Text('Error')),
+                      ),
+                    ),
+                    Positioned(
+                      left: 6,
+                      top: 6,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Colors.black54,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text('${i + 1}',
+                            style: const TextStyle(color: Colors.white, fontSize: 12)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ZoomBadge extends StatelessWidget {
+  const _ZoomBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black54,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.zoom_in, color: Colors.white, size: 16),
+          SizedBox(width: 4),
+          Text('Ampliar', style: TextStyle(color: Colors.white, fontSize: 12)),
+        ],
       ),
     );
   }

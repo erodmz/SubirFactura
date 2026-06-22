@@ -125,29 +125,31 @@ class ApiClient {
     throw ApiException(response.statusCode, message);
   }
 
-  /// Subida multipart de la foto de factura.
+  /// Subida multipart de una factura con una o varias páginas (fotos).
   Future<Map<String, dynamic>> uploadInvoice({
     required String orgId,
     required String clientProfileId,
-    required File file,
+    required List<File> files,
   }) async {
     Future<http.StreamedResponse> send() {
-      final isPng = file.path.toLowerCase().endsWith('.png');
       final request = http.MultipartRequest(
         'POST',
         Uri.parse('$baseUrl/api/organizations/$orgId/invoices'),
       )
         ..headers['Authorization'] = 'Bearer $_accessToken'
-        ..fields['clientProfileId'] = clientProfileId
-        ..files.add(
+        ..fields['clientProfileId'] = clientProfileId;
+      for (final file in files) {
+        final isPng = file.path.toLowerCase().endsWith('.png');
+        request.files.add(
           http.MultipartFile(
-            'file',
+            'files',
             file.openRead(),
             file.lengthSync(),
             filename: file.uri.pathSegments.last,
             contentType: MediaType('image', isPng ? 'png' : 'jpeg'),
           ),
         );
+      }
       return request.send();
     }
 

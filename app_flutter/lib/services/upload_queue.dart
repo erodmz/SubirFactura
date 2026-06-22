@@ -14,7 +14,7 @@ class PendingUpload {
     required this.id,
     required this.orgId,
     required this.clientProfileId,
-    required this.filePath,
+    required this.filePaths,
     this.attempts = 0,
     this.lastError,
   });
@@ -23,7 +23,9 @@ class PendingUpload {
         id: json['id'] as String,
         orgId: json['orgId'] as String,
         clientProfileId: json['clientProfileId'] as String,
-        filePath: json['filePath'] as String,
+        // Compat: versiones previas guardaban una sola ruta en 'filePath'
+        filePaths: (json['filePaths'] as List?)?.cast<String>() ??
+            [if (json['filePath'] != null) json['filePath'] as String],
         attempts: json['attempts'] as int? ?? 0,
         lastError: json['lastError'] as String?,
       );
@@ -31,7 +33,7 @@ class PendingUpload {
   final String id;
   final String orgId;
   final String clientProfileId;
-  final String filePath;
+  final List<String> filePaths;
   int attempts;
   String? lastError;
 
@@ -39,7 +41,7 @@ class PendingUpload {
         'id': id,
         'orgId': orgId,
         'clientProfileId': clientProfileId,
-        'filePath': filePath,
+        'filePaths': filePaths,
         'attempts': attempts,
         'lastError': lastError,
       };
@@ -83,21 +85,25 @@ class UploadQueue extends ChangeNotifier {
   Future<void> enqueue({
     required String orgId,
     required String clientProfileId,
-    required File image,
+    required List<File> images,
   }) async {
     final dir = await getApplicationDocumentsDirectory();
     final queueDir = Directory('${dir.path}/upload_queue');
     await queueDir.create(recursive: true);
 
     final id = DateTime.now().millisecondsSinceEpoch.toString();
-    final ext = image.path.toLowerCase().endsWith('.png') ? 'png' : 'jpg';
-    final stored = await image.copy('${queueDir.path}/$id.$ext');
+    final paths = <String>[];
+    for (var i = 0; i < images.length; i++) {
+      final ext = images[i].path.toLowerCase().endsWith('.png') ? 'png' : 'jpg';
+      final stored = await images[i].copy('${queueDir.path}/${id}_$i.$ext');
+      paths.add(stored.path);
+    }
 
     _items.add(PendingUpload(
       id: id,
       orgId: orgId,
       clientProfileId: clientProfileId,
-      filePath: stored.path,
+      filePaths: paths,
     ));
     await _persist();
     notifyListeners();
@@ -113,7 +119,7 @@ class UploadQueue extends ChangeNotifier {
           await ApiClient.instance.uploadInvoice(
             orgId: item.orgId,
             clientProfileId: item.clientProfileId,
-            file: File(item.filePath),
+            files: item.filePaths.map(File.new).toList(),
           );
           await _remove(item);
         } on ApiException catch (e) {
@@ -149,9 +155,11 @@ class UploadQueue extends ChangeNotifier {
 
   Future<void> _remove(PendingUpload item) async {
     _items.remove(item);
-    try {
-      await File(item.filePath).delete();
-    } catch (_) {/* ya no existe */}
+    for (final path in item.filePaths) {
+      try {
+        await File(path).delete();
+      } catch (_) {/* ya no existe */}
+    }
   }
 
   Future<void> _persist() async {

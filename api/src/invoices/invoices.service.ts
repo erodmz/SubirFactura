@@ -32,17 +32,25 @@ export class InvoicesService {
     private readonly planLimits: PlanLimitsService,
   ) {}
 
-  /** Sube la imagen a MinIO, crea la factura en `subida` y encola el OCR (§5.1). */
+  /**
+   * Sube una o varias fotos (páginas) como UNA factura, crea en `subida` y
+   * encola el OCR (§5.1). Útil para comprobantes largos en varias fotos.
+   */
   async upload(
     orgId: string,
     user: AuthenticatedUser,
     membership: Membership,
     clientProfileId: string,
-    file: { buffer: Buffer; mimetype: string; size: number },
+    files: { buffer: Buffer; mimetype: string; size: number }[],
   ) {
-    const ext = ALLOWED_MIME.get(file.mimetype);
-    if (!ext) {
-      throw new BadRequestException('Formato no soportado: se aceptan JPEG, PNG o WebP');
+    const [primaryFile, ...restFiles] = files;
+    if (!primaryFile) {
+      throw new BadRequestException('No se recibió ninguna imagen');
+    }
+    for (const f of files) {
+      if (!ALLOWED_MIME.has(f.mimetype)) {
+        throw new BadRequestException('Formato no soportado: se aceptan JPEG, PNG o WebP');
+      }
     }
 
     const client = await this.prisma.forOrg(orgId).clientProfile.findUnique({
@@ -60,9 +68,10 @@ export class InvoicesService {
 
     const limitWarning = await this.planLimits.ensureCanAddFactura(orgId);
 
-    // Detección de duplicados por hash exacto de la imagen (§4).
-    // TODO Fase 4: hash perceptual para fotos re-tomadas de la misma factura.
-    const imageHash = createHash('sha256').update(new Uint8Array(file.buffer)).digest('hex');
+    // Duplicados por hash exacto de la primera página (§4).
+    const imageHash = createHash('sha256')
+      .update(new Uint8Array(primaryFile.buffer))
+      .digest('hex');
     const duplicate = await this.prisma.forOrg(orgId).invoice.findFirst({
       where: { imagenPhash: imageHash },
       select: { id: true },
@@ -71,16 +80,29 @@ export class InvoicesService {
       throw new ConflictException('Esta imagen ya fue subida (factura duplicada)');
     }
 
-    const key = `invoices/${orgId}/${randomUUID()}.${ext}`;
-    await this.storage.putObject(key, file.buffer, file.mimetype);
+    // Sube cada página a MinIO
+    const upload = async (f: { buffer: Buffer; mimetype: string }) => {
+      const ext = ALLOWED_MIME.get(f.mimetype)!;
+      const key = `invoices/${orgId}/${randomUUID()}.${ext}`;
+      await this.storage.putObject(key, f.buffer, f.mimetype);
+      return key;
+    };
+    const primaryKey = await upload(primaryFile);
+    const additionalKeys: string[] = [];
+    for (const f of restFiles) {
+      additionalKeys.push(await upload(f));
+    }
 
     const invoice = await this.prisma.forOrg(orgId).invoice.create({
       data: {
         organizationId: orgId,
         clientProfileId,
         estado: 'subida',
-        imagenUrl: key,
+        imagenUrl: primaryKey,
         imagenPhash: imageHash,
+        images: {
+          create: additionalKeys.map((key, i) => ({ key, orderIndex: i + 1 })),
+        },
       },
     });
 
@@ -139,12 +161,18 @@ export class InvoicesService {
   async get(orgId: string, invoiceId: string) {
     const invoice = await this.prisma.forOrg(orgId).invoice.findUnique({
       where: { id: invoiceId },
-      include: { clientProfile: { select: { id: true, razonSocial: true, rncOCedula: true } } },
+      include: {
+        clientProfile: { select: { id: true, razonSocial: true, rncOCedula: true } },
+        images: { orderBy: { orderIndex: 'asc' } },
+      },
     });
     if (!invoice) throw new NotFoundException('Factura no encontrada');
+    const keys = [invoice.imagenUrl, ...invoice.images.map((i) => i.key)];
+    const imageUrls = await Promise.all(keys.map((k) => this.storage.presignedGetUrl(k)));
     return {
       ...invoice,
-      imageUrl: await this.storage.presignedGetUrl(invoice.imagenUrl),
+      imageUrl: imageUrls[0], // compat
+      imageUrls,
     };
   }
 
