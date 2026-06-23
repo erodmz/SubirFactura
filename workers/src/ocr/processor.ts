@@ -3,6 +3,7 @@
 
 import type { Job } from 'bullmq';
 import {
+  buildFiscalValidation,
   CATEGORIAS_606,
   DEFAULT_CONFIDENCE_THRESHOLD,
   evaluateExtraction,
@@ -20,6 +21,27 @@ export interface OcrJobData {
 
 const FINAL_STATES = new Set(['validada', 'incluida_en_606', 'reportada', 'duplicada']);
 const CATEGORIA_CODES = new Set<string>(CATEGORIAS_606.map((c) => c.codigo));
+
+/** Coteja NCF/RNC contra estructura y padrón DGII (solo RNC de 9 dígitos). */
+async function runFiscalValidation(ncf: string | null, rnc: string | null, razonSocial: string | null) {
+  const normalized = rnc ? rnc.replace(/[-\s]/g, '') : null;
+  const isRnc = !!normalized && /^\d{9}$/.test(normalized);
+  const padronEntry = isRnc
+    ? await prisma.rncPadron.findUnique({ where: { rnc: normalized! } })
+    : null;
+  const padronLoaded = isRnc
+    ? padronEntry != null || (await prisma.rncPadron.findFirst({ select: { rnc: true } })) != null
+    : false;
+  return buildFiscalValidation({
+    ncf,
+    rnc,
+    razonSocial,
+    padronEntry: padronEntry
+      ? { rnc: padronEntry.rnc, razonSocial: padronEntry.razonSocial, estado: padronEntry.estado }
+      : null,
+    padronConsultado: padronLoaded,
+  });
+}
 
 export async function processOcrJob(job: Job<OcrJobData>) {
   const { invoiceId, organizationId } = job.data;
@@ -55,12 +77,20 @@ export async function processOcrJob(job: Job<OcrJobData>) {
   const categoria = extraction.categoria_606_sugerida.valor;
   const fecha = extraction.fecha.valor;
 
+  const ncfFinal = extraction.ncf.valor?.trim().toUpperCase() ?? null;
+  const rncFinal = rnc?.normalized ?? extraction.rnc_proveedor.valor ?? null;
+  const validacionDgii = await runFiscalValidation(
+    ncfFinal,
+    rncFinal,
+    extraction.razon_social.valor ?? null,
+  );
+
   try {
     await prisma.invoice.update({
       where: { id: invoiceId },
       data: {
-        ncf: extraction.ncf.valor?.trim().toUpperCase() ?? null,
-        rncProveedor: rnc?.normalized ?? extraction.rnc_proveedor.valor,
+        ncf: ncfFinal,
+        rncProveedor: rncFinal,
         razonSocialProveedor: extraction.razon_social.valor,
         fecha: fecha && fechaToPeriodoFiscal(fecha) ? new Date(fecha) : null,
         montoFacturado: extraction.monto_facturado.valor,
@@ -70,6 +100,7 @@ export async function processOcrJob(job: Job<OcrJobData>) {
         tipoComprobante: extraction.tipo_comprobante.valor,
         periodoFiscal: fecha ? fechaToPeriodoFiscal(fecha) : null,
         confianzaPorCampo: { extraction, evaluation } as object,
+        validacionDgii: validacionDgii as object,
         estado: evaluation.estado,
       },
     });

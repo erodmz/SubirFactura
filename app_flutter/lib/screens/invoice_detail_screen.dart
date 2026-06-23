@@ -162,17 +162,56 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                 const SizedBox(height: 16),
                 if (invoice.erroresValidacion.isNotEmpty)
                   Card(
-                    color: Colors.orange.shade50,
+                    color: Theme.of(context).colorScheme.tertiaryContainer,
                     child: Padding(
                       padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Por revisar:',
-                              style: TextStyle(fontWeight: FontWeight.bold)),
-                          for (final error in invoice.erroresValidacion) Text('• $error'),
-                        ],
+                      child: DefaultTextStyle.merge(
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onTertiaryContainer,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Por revisar:',
+                                style: TextStyle(fontWeight: FontWeight.bold)),
+                            for (final error in invoice.erroresValidacion) Text('• $error'),
+                          ],
+                        ),
                       ),
+                    ),
+                  ),
+                if (invoice.alertasDgii.isNotEmpty)
+                  Card(
+                    color: Theme.of(context).colorScheme.errorContainer,
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: DefaultTextStyle.merge(
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onErrorContainer,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Revisa antes de reportar a la DGII:',
+                                style: TextStyle(fontWeight: FontWeight.bold)),
+                            for (final a in invoice.alertasDgii) Text('• $a'),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                if (invoice.validacionDgiiOk)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.verified, color: Colors.green, size: 18),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text('NCF, RNC y padrón DGII verificados',
+                              style: TextStyle(color: Colors.green.shade700, fontSize: 13)),
+                        ),
+                      ],
                     ),
                   ),
                 if (_error != null)

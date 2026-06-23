@@ -140,6 +140,8 @@ class Invoice {
     this.imageUrls = const [],
     this.camposBajaConfianza = const [],
     this.erroresValidacion = const [],
+    this.alertasDgii = const [],
+    this.validacionDgiiOk = false,
   });
 
   factory Invoice.fromJson(Map<String, dynamic> json) {
@@ -150,6 +152,7 @@ class Invoice {
       ...?(evaluation?['erroresValidacion'] as List?)?.cast<String>(),
       if (confianza?['error'] is String) confianza!['error'] as String,
     ];
+    final validacion = json['validacionDgii'] as Map<String, dynamic>?;
     return Invoice(
       id: json['id'] as String,
       estado: json['estado'] as String,
@@ -171,6 +174,8 @@ class Invoice {
       camposBajaConfianza:
           (evaluation?['camposBajaConfianza'] as List?)?.cast<String>() ?? const [],
       erroresValidacion: errores,
+      alertasDgii: (validacion?['alertas'] as List?)?.cast<String>() ?? const [],
+      validacionDgiiOk: validacion?['ok'] as bool? ?? false,
     );
   }
 
@@ -193,6 +198,11 @@ class Invoice {
   final List<String> imageUrls;
   final List<String> camposBajaConfianza;
   final List<String> erroresValidacion;
+
+  /// Alertas de cotejo fiscal (NCF/RNC/padrón DGII). Vacío = sin problemas.
+  final List<String> alertasDgii;
+  /// La validación DGII pasó sin alertas.
+  final bool validacionDgiiOk;
 }
 
 const estadoLabels = <String, String>{

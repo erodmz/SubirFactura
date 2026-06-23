@@ -58,6 +58,19 @@ export interface Invoice {
     evaluation?: { camposBajaConfianza?: string[]; erroresValidacion?: string[] };
     error?: string;
   } | null;
+  validacionDgii?: {
+    ok: boolean;
+    alertas: string[];
+    ncf?: { ok: boolean };
+    rnc?: { ok: boolean };
+    padron?: {
+      consultado: boolean;
+      existe: boolean;
+      activo: boolean;
+      razonSocialCoincide: boolean;
+      razonSocialOficial?: string;
+    };
+  } | null;
 }
 
 export interface PadronAdvertencia {

@@ -227,6 +227,21 @@ function ReviewPanel({
           La IA marcó como dudosos: {[...marcados].join(', ')}. Verifícalos contra la imagen.
         </div>
       )}
+      {invoice.validacionDgii && invoice.validacionDgii.alertas.length > 0 && (
+        <div className="error">
+          <strong>Revisa antes de reportar a la DGII:</strong>
+          <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+            {invoice.validacionDgii.alertas.map((a, i) => (
+              <li key={i}>{a}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {invoice.validacionDgii?.ok && (
+        <p style={{ color: 'var(--ok)', fontSize: 14, margin: '12px 0' }}>
+          ✓ NCF, RNC y padrón DGII verificados
+        </p>
+      )}
       {error && <div className="error">{error}</div>}
 
       <div className="row">

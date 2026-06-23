@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { createHash, randomUUID } from 'node:crypto';
 import type { Membership, Prisma } from '@facturard/shared/db';
-import { fechaToPeriodoFiscal, validateInvoiceFields } from '@facturard/shared';
+import { buildFiscalValidation, fechaToPeriodoFiscal, validateInvoiceFields } from '@facturard/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { OcrQueueService } from '../queue/ocr-queue.service';
@@ -218,12 +218,16 @@ export class InvoicesService {
       merged.montoFacturado != null &&
       merged.itbis != null;
 
+    // Recotejo NCF/RNC/padrón con los valores ya corregidos por el contador.
+    const razonSocial = dto.razonSocialProveedor ?? invoice.razonSocialProveedor;
+    const validacionDgii = await this.runFiscalValidation(merged.ncf, merged.rncProveedor, razonSocial);
+
     const updated = await this.prisma.forOrg(orgId).invoice.update({
       where: { id: invoiceId },
       data: {
         ncf: merged.ncf,
         rncProveedor: merged.rncProveedor,
-        razonSocialProveedor: dto.razonSocialProveedor ?? invoice.razonSocialProveedor,
+        razonSocialProveedor: razonSocial,
         fecha: merged.fecha ? new Date(merged.fecha) : null,
         montoFacturado: merged.montoFacturado,
         itbis: merged.itbis,
@@ -232,6 +236,7 @@ export class InvoicesService {
         categoria606: dto.categoria606 ?? invoice.categoria606,
         tipoComprobante: dto.tipoComprobante ?? invoice.tipoComprobante,
         periodoFiscal: merged.fecha ? fechaToPeriodoFiscal(merged.fecha) : invoice.periodoFiscal,
+        validacionDgii: validacionDgii as object,
         estado: criticosCompletos ? 'validada' : 'en_revision',
       },
     });
@@ -245,6 +250,32 @@ export class InvoicesService {
       datos: dto as object,
     });
     return updated;
+  }
+
+  /** Coteja NCF/RNC contra estructura y padrón DGII (solo RNC de 9 dígitos). */
+  private async runFiscalValidation(
+    ncf: string | null,
+    rnc: string | null,
+    razonSocial: string | null,
+  ) {
+    const normalized = rnc ? rnc.replace(/[-\s]/g, '') : null;
+    const isRnc = !!normalized && /^\d{9}$/.test(normalized);
+    const padronEntry = isRnc
+      ? await this.prisma.rncPadron.findUnique({ where: { rnc: normalized! } })
+      : null;
+    const padronLoaded = isRnc
+      ? padronEntry != null ||
+        (await this.prisma.rncPadron.findFirst({ select: { rnc: true } })) != null
+      : false;
+    return buildFiscalValidation({
+      ncf,
+      rnc,
+      razonSocial,
+      padronEntry: padronEntry
+        ? { rnc: padronEntry.rnc, razonSocial: padronEntry.razonSocial, estado: padronEntry.estado }
+        : null,
+      padronConsultado: padronLoaded,
+    });
   }
 
   /** Re-encola el OCR (p.ej. tras un fallo). */
