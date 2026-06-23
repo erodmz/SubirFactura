@@ -1,1 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><defs><linearGradient id="g" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse"><stop stop-color="#0073EA"/><stop offset="0.55" stop-color="#6C6CFF"/><stop offset="1" stop-color="#A25DDC"/></linearGradient></defs><rect width="1024" height="1024" rx="230" fill="url(#g)"/><rect x="262" y="492" width="120" height="300" rx="60" fill="#fff" fill-opacity="0.95"/><rect x="452" y="362" width="120" height="430" rx="60" fill="#fff" fill-opacity="0.85"/><rect x="642" y="232" width="120" height="560" rx="60" fill="#fff" fill-opacity="0.72"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#0073EA"/>
+      <stop offset="0.55" stop-color="#6C6CFF"/>
+      <stop offset="1" stop-color="#A25DDC"/>
+    </linearGradient>
+  </defs>
+  <rect width="100" height="100" rx="28" fill="url(#g)"/>
+  <g fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M24 34 L24 28 Q24 24 28 24 L34 24"/>
+    <path d="M66 24 L72 24 Q76 24 76 28 L76 34"/>
+    <path d="M24 66 L24 72 Q24 76 28 76 L34 76"/>
+    <path d="M66 76 L72 76 Q76 76 76 72 L76 66"/>
+  </g>
+  <path d="M40 38 L60 38 Q62 38 62 40 L62 58 L58 62 L54 58 L50 62 L46 58 L42 62 L38 58 L38 40 Q38 38 40 38 Z" fill="#fff"/>
+</svg>

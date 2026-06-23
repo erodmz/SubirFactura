@@ -1,5 +1,5 @@
-/** Logo de FacturaRD: marca geométrica (mini-tablero) con degradado +
- *  wordmark. Estilo Monday — colorido, simple, escalable. */
+/** Logo de FacturaRD: encuadre de cámara + recibo (captura tu factura) con
+ *  degradado de marca + wordmark. Simple, original y escalable. */
 export default function Logo({
   size = 28,
   withWordmark = true,
@@ -12,23 +12,30 @@ export default function Logo({
       <svg
         width={size}
         height={size}
-        viewBox="0 0 32 32"
+        viewBox="0 0 100 100"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
         aria-hidden="true"
         style={{ flexShrink: 0 }}
       >
         <defs>
-          <linearGradient id="frdLogoGrad" x1="2" y1="2" x2="30" y2="30" gradientUnits="userSpaceOnUse">
+          <linearGradient id="frdLogoGrad" x1="0" y1="0" x2="1" y2="1">
             <stop stopColor="#0073ea" />
             <stop offset="0.55" stopColor="#6c6cff" />
             <stop offset="1" stopColor="#a25ddc" />
           </linearGradient>
         </defs>
-        <rect width="32" height="32" rx="9" fill="url(#frdLogoGrad)" />
-        <rect x="7" y="17" width="4.5" height="8" rx="2.25" fill="#fff" opacity="0.95" />
-        <rect x="13.75" y="12" width="4.5" height="13" rx="2.25" fill="#fff" opacity="0.85" />
-        <rect x="20.5" y="7" width="4.5" height="18" rx="2.25" fill="#fff" opacity="0.72" />
+        <rect width="100" height="100" rx="28" fill="url(#frdLogoGrad)" />
+        <g fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M24 34 L24 28 Q24 24 28 24 L34 24" />
+          <path d="M66 24 L72 24 Q76 24 76 28 L76 34" />
+          <path d="M24 66 L24 72 Q24 76 28 76 L34 76" />
+          <path d="M66 76 L72 76 Q76 76 76 72 L76 66" />
+        </g>
+        <path
+          d="M40 38 L60 38 Q62 38 62 40 L62 58 L58 62 L54 58 L50 62 L46 58 L42 62 L38 58 L38 40 Q38 38 40 38 Z"
+          fill="#fff"
+        />
       </svg>
       {withWordmark && (
         <span className="logo-word">
