@@ -53,6 +53,7 @@ export default function HomePage() {
         </Link>
         <div style={{ flex: 1 }} />
         {me?.isSuperAdmin && <Link href="/admin">Panel super-admin</Link>}
+        <Link href="/settings">Mi cuenta</Link>
         <ThemeToggle />
         <a onClick={logout} style={{ cursor: 'pointer' }}>
           Salir

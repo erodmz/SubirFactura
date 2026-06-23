@@ -116,6 +116,39 @@ export class AuthService {
     });
   }
 
+  /**
+   * Cambia la contraseña del usuario autenticado. Verifica la actual, revoca
+   * TODAS las sesiones (por seguridad) y emite tokens nuevos para que la sesión
+   * actual siga viva sin tener que volver a iniciar sesión.
+   */
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<AuthTokens> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !(await bcrypt.compare(currentPassword, user.passwordHash))) {
+      throw new UnauthorizedException('La contraseña actual no es correcta');
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: await bcrypt.hash(newPassword, BCRYPT_ROUNDS) },
+    });
+    await this.prisma.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    await this.audit.log({
+      userId,
+      accion: 'user.change_password',
+      entidad: 'user',
+      entidadId: userId,
+    });
+
+    return this.issueTokens(updated);
+  }
+
   private async issueTokens(user: User): Promise<AuthTokens> {
     const accessToken = await this.jwtService.signAsync({
       sub: user.id,

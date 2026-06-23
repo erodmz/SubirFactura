@@ -107,6 +107,9 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
                 <Link href="/app" className="user-dropdown-item">
                   Cambiar de empresa
                 </Link>
+                <Link href="/settings" className="user-dropdown-item">
+                  Mi cuenta
+                </Link>
                 {me.isSuperAdmin && (
                   <Link href="/admin" className="user-dropdown-item">
                     Panel super-admin

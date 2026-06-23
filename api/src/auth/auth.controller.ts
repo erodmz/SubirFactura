@@ -1,6 +1,6 @@
 import { Body, Controller, Get, HttpCode, Post } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { LoginDto, RefreshDto, RegisterDto } from './dto/auth.dto';
+import { ChangePasswordDto, LoginDto, RefreshDto, RegisterDto } from './dto/auth.dto';
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.service';
@@ -37,6 +37,16 @@ export class AuthController {
   @Post('auth/logout')
   async logout(@Body() dto: RefreshDto) {
     await this.authService.logout(dto.refreshToken);
+  }
+
+  /** Cambio de contraseña del usuario autenticado. Devuelve tokens nuevos. */
+  @HttpCode(200)
+  @Post('auth/change-password')
+  changePassword(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ChangePasswordDto,
+  ) {
+    return this.authService.changePassword(user.userId, dto.currentPassword, dto.newPassword);
   }
 
   /** Perfil + membresías (selector de empresa de la app móvil — Fase 2). */

@@ -8,6 +8,7 @@ import '../services/upload_queue.dart';
 import 'capture_screen.dart';
 import 'invoice_detail_screen.dart';
 import 'login_screen.dart';
+import 'settings_screen.dart';
 
 const _estadoColors = <String, Color>{
   'subida': Colors.blueGrey,
@@ -147,6 +148,11 @@ class _HomeScreenState extends State<HomeScreen> {
             onSelected: (value) {
               if (value == 'logout') _logout();
               if (value == 'switch') Navigator.of(context).pop();
+              if (value == 'settings' && me != null) {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => SettingsScreen(me: me)),
+                );
+              }
             },
             itemBuilder: (context) => [
               PopupMenuItem<String>(
@@ -170,6 +176,15 @@ class _HomeScreenState extends State<HomeScreen> {
                     contentPadding: EdgeInsets.zero,
                     leading: Icon(Icons.swap_horiz),
                     title: Text('Cambiar empresa'),
+                  ),
+                ),
+              if (me != null)
+                const PopupMenuItem<String>(
+                  value: 'settings',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.settings_outlined),
+                    title: Text('Mi cuenta'),
                   ),
                 ),
               const PopupMenuItem<String>(

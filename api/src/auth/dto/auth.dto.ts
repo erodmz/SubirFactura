@@ -31,3 +31,13 @@ export class RefreshDto {
   @IsNotEmpty()
   refreshToken!: string;
 }
+
+export class ChangePasswordDto {
+  @IsString()
+  @IsNotEmpty({ message: 'Ingresa tu contraseña actual' })
+  currentPassword!: string;
+
+  @IsString()
+  @MinLength(8, { message: 'La nueva contraseña debe tener al menos 8 caracteres' })
+  newPassword!: string;
+}

@@ -7,7 +7,8 @@ export const metadata: Metadata = {
 };
 
 // Fija el tema antes del primer render (evita parpadeo claro→oscuro).
-const themeScript = `(function(){try{var t=localStorage.getItem('facturard_theme');document.documentElement.dataset.theme=(t==='light'||t==='dark')?t:'light';}catch(e){document.documentElement.dataset.theme='light';}})();`;
+// Sin preferencia guardada → sigue al sistema operativo.
+const themeScript = `(function(){try{var t=localStorage.getItem('facturard_theme');var sys=(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';document.documentElement.dataset.theme=(t==='light'||t==='dark')?t:sys;}catch(e){document.documentElement.dataset.theme='light';}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
