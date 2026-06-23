@@ -27,6 +27,29 @@ export interface Generate606Result extends Formato606Result {
   advertencias: PadronValidation[];
 }
 
+export interface CierreEstado {
+  periodo: string;
+  fechaLimite: string; // AAAA-MM-DD (día 15 del mes siguiente)
+  diasRestantes: number;
+  vencido: boolean;
+  semaforo: 'verde' | 'amarillo' | 'rojo' | 'vacio';
+  listoParaCerrar: boolean;
+  totales: {
+    total: number;
+    enProceso: number;
+    enRevision: number;
+    reportables: number;
+    rechazadas: number;
+    duplicadas: number;
+    conAlertasDgii: number;
+    sinDatos606: number;
+  };
+  /** Qué impide cerrar (bloqueos duros). */
+  bloqueos: string[];
+  /** Avisos que no bloquean pero conviene revisar. */
+  avisos: string[];
+}
+
 @Injectable()
 export class DgiiService {
   constructor(
@@ -103,6 +126,85 @@ export class DgiiService {
     const { count } = await this.padron.status();
     if (count === 0) return []; // validación inactiva sin padrón cargado
     return this.padron.findProblems(validables);
+  }
+
+  /**
+   * Semáforo de cierre del 606: qué falta para reportar el período y cuánto
+   * tiempo queda (la DGII recibe el 606 hasta el día 15 del mes siguiente).
+   */
+  async cierreEstado(orgId: string, periodo: string): Promise<CierreEstado> {
+    const org = await this.prisma.organization.findUniqueOrThrow({ where: { id: orgId } });
+    const invoices = await this.prisma.forOrg(orgId).invoice.findMany({
+      where: { periodoFiscal: periodo },
+    });
+
+    const t = {
+      total: invoices.length,
+      enProceso: 0,
+      enRevision: 0,
+      reportables: 0,
+      rechazadas: 0,
+      duplicadas: 0,
+      conAlertasDgii: 0,
+      sinDatos606: 0,
+    };
+    for (const inv of invoices) {
+      if (inv.estado === 'subida' || inv.estado === 'procesando') t.enProceso++;
+      else if (inv.estado === 'en_revision' || inv.estado === 'extraida') t.enRevision++;
+      else if (inv.estado === 'rechazada') t.rechazadas++;
+      else if (inv.estado === 'duplicada') t.duplicadas++;
+      else if ((REPORTABLE as readonly string[]).includes(inv.estado)) {
+        t.reportables++;
+        if ('error' in this.toDetail(inv)) t.sinDatos606++;
+        const val = inv.validacionDgii as { ok?: boolean } | null;
+        if (val && val.ok === false) t.conAlertasDgii++;
+      }
+    }
+
+    const fechaLimite = this.fechaLimite606(periodo);
+    const hoy = new Date();
+    const diasRestantes = Math.ceil(
+      (Date.UTC(fechaLimite.getUTCFullYear(), fechaLimite.getUTCMonth(), fechaLimite.getUTCDate()) -
+        Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), hoy.getUTCDate())) /
+        86_400_000,
+    );
+
+    const bloqueos: string[] = [];
+    if (!org.rnc) bloqueos.push('La empresa no tiene RNC configurado');
+    if (t.enProceso > 0) bloqueos.push(`${t.enProceso} factura(s) aún procesándose`);
+    if (t.enRevision > 0) bloqueos.push(`${t.enRevision} factura(s) en revisión`);
+    if (t.sinDatos606 > 0) bloqueos.push(`${t.sinDatos606} validada(s) sin datos completos para el 606`);
+
+    const avisos: string[] = [];
+    if (t.conAlertasDgii > 0) avisos.push(`${t.conAlertasDgii} con alertas de la DGII (RNC/padrón)`);
+
+    const listoParaCerrar = bloqueos.length === 0 && t.reportables > 0;
+    let semaforo: CierreEstado['semaforo'];
+    if (t.total === 0) semaforo = 'vacio';
+    else if (bloqueos.length > 0) semaforo = 'rojo';
+    else if (avisos.length > 0) semaforo = 'amarillo';
+    else semaforo = 'verde';
+
+    return {
+      periodo,
+      fechaLimite: fechaLimite.toISOString().slice(0, 10),
+      diasRestantes,
+      vencido: diasRestantes < 0,
+      semaforo,
+      listoParaCerrar,
+      totales: t,
+      bloqueos,
+      avisos,
+    };
+  }
+
+  /** Día 15 del mes siguiente al período AAAAMM (fecha límite del 606 ante la DGII). */
+  private fechaLimite606(periodo: string): Date {
+    const year = Number(periodo.slice(0, 4));
+    const month = Number(periodo.slice(4, 6)); // 1-12
+    const ny = month === 12 ? year + 1 : year;
+    const nm = month === 12 ? 1 : month + 1; // 1-12
+    return new Date(Date.UTC(ny, nm - 1, 15));
   }
 
   /** Genera el 606 sin modificar estados (vista previa / descarga). */

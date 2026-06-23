@@ -28,6 +28,13 @@ export class DgiiController {
     return periodo;
   }
 
+  /** Semáforo de cierre del período: qué falta y cuánto tiempo queda. */
+  @Get('606/cierre')
+  @OrgRoles('org_admin', 'contador')
+  async cierre(@Param('orgId') orgId: string, @Query('periodo') periodo?: string) {
+    return this.dgii.cierreEstado(orgId, this.assertPeriodo(periodo));
+  }
+
   /** Vista previa: resumen + facturas omitidas, sin modificar estados. */
   @Get('606/preview')
   @OrgRoles('org_admin', 'contador')

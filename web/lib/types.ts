@@ -88,6 +88,27 @@ export interface Preview606 {
   advertencias: PadronAdvertencia[];
 }
 
+export interface CierreEstado {
+  periodo: string;
+  fechaLimite: string;
+  diasRestantes: number;
+  vencido: boolean;
+  semaforo: 'verde' | 'amarillo' | 'rojo' | 'vacio';
+  listoParaCerrar: boolean;
+  totales: {
+    total: number;
+    enProceso: number;
+    enRevision: number;
+    reportables: number;
+    rechazadas: number;
+    duplicadas: number;
+    conAlertasDgii: number;
+    sinDatos606: number;
+  };
+  bloqueos: string[];
+  avisos: string[];
+}
+
 /** Las 11 categorías de gasto del Formato 606. */
 export const CATEGORIAS_606: Record<string, string> = {
   '01': 'Gastos de personal',

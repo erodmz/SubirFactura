@@ -1,9 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { api, apiDownload } from '../../../../lib/api';
-import type { PadronAdvertencia, Preview606 } from '../../../../lib/types';
+import type { CierreEstado, PadronAdvertencia, Preview606 } from '../../../../lib/types';
+
+const SEMAFORO: Record<CierreEstado['semaforo'], { color: string; label: string }> = {
+  verde: { color: 'var(--ok)', label: 'Listo para cerrar' },
+  amarillo: { color: 'var(--m-orange)', label: 'Casi listo — revisa los avisos' },
+  rojo: { color: 'var(--danger)', label: 'Aún no se puede cerrar' },
+  vacio: { color: 'var(--muted)', label: 'Sin facturas en el período' },
+};
 
 function advertenciaTexto(a: PadronAdvertencia): string {
   if (!a.existe) return `RNC ${a.rnc} no figura en el padrón de la DGII`;
@@ -29,10 +36,29 @@ export default function DgiiPage() {
   const [periodo, setPeriodo] = useState(periodoActual());
   const [preview, setPreview] = useState<Preview606 | null>(null);
   const [cierre, setCierre] = useState<CierreResult | null>(null);
+  const [estado, setEstado] = useState<CierreEstado | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
   const validPeriodo = /^\d{6}$/.test(periodo);
+
+  const loadEstado = useCallback(async () => {
+    if (!/^\d{6}$/.test(periodo)) {
+      setEstado(null);
+      return;
+    }
+    try {
+      setEstado(
+        await api<CierreEstado>(`/api/organizations/${orgId}/dgii/606/cierre?periodo=${periodo}`),
+      );
+    } catch {
+      setEstado(null);
+    }
+  }, [orgId, periodo]);
+
+  useEffect(() => {
+    loadEstado();
+  }, [loadEstado]);
 
   async function doPreview() {
     setBusy(true);
@@ -86,6 +112,7 @@ export default function DgiiPage() {
         }),
       );
       setPreview(null);
+      await loadEstado();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error');
     } finally {
@@ -126,6 +153,75 @@ export default function DgiiPage() {
           </div>
         </div>
       </div>
+
+      {estado && (
+        <div className="card">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+            <span
+              style={{
+                width: 14,
+                height: 14,
+                borderRadius: '50%',
+                background: SEMAFORO[estado.semaforo].color,
+                flexShrink: 0,
+              }}
+            />
+            <h2 style={{ margin: 0 }}>Cierre del período · {SEMAFORO[estado.semaforo].label}</h2>
+          </div>
+
+          {estado.semaforo !== 'vacio' && (
+            <p
+              style={{
+                color: estado.vencido || estado.diasRestantes <= 3 ? 'var(--danger)' : 'var(--muted)',
+                margin: '0 0 12px',
+              }}
+            >
+              Fecha límite DGII: <strong>{estado.fechaLimite}</strong>{' '}
+              {estado.vencido
+                ? `· venció hace ${Math.abs(estado.diasRestantes)} día(s)`
+                : `· faltan ${estado.diasRestantes} día(s)`}
+            </p>
+          )}
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+            <span className="badge">{estado.totales.reportables} listas</span>
+            {estado.totales.enRevision > 0 && (
+              <span className="badge">{estado.totales.enRevision} en revisión</span>
+            )}
+            {estado.totales.enProceso > 0 && (
+              <span className="badge">{estado.totales.enProceso} procesando</span>
+            )}
+            {estado.totales.conAlertasDgii > 0 && (
+              <span className="badge">{estado.totales.conAlertasDgii} con alertas DGII</span>
+            )}
+          </div>
+
+          {estado.bloqueos.length > 0 && (
+            <div className="error">
+              <strong>Falta para poder cerrar:</strong>
+              <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+                {estado.bloqueos.map((b, i) => (
+                  <li key={i}>{b}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {estado.avisos.length > 0 && (
+            <div className="notice">
+              <ul style={{ margin: 0, paddingLeft: 18 }}>
+                {estado.avisos.map((a, i) => (
+                  <li key={i}>{a}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {estado.listoParaCerrar && (
+            <p style={{ color: 'var(--ok)', margin: '8px 0 0' }}>
+              ✓ Todo en orden. Usa “Vista previa” y luego cierra el período.
+            </p>
+          )}
+        </div>
+      )}
 
       {preview && (
         <div className="card">
