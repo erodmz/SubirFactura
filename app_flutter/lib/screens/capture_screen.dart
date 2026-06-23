@@ -137,7 +137,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
                               style: TextStyle(fontWeight: FontWeight.bold)),
                           SizedBox(height: 8),
                           Text('• Encuadra la factura completa, los 4 bordes visibles'),
-                          Text('• Apóyala sobre una superficie plana y oscura'),
+                          Text('• Apóyala sobre una superficie plana y con buena luz'),
                           Text('• Evita sombras, reflejos y dedos sobre el papel'),
                           Text('• El NCF, RNC y los montos deben leerse con claridad'),
                           SizedBox(height: 8),

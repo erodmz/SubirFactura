@@ -52,6 +52,9 @@ export default function RegisterPage() {
           ¿Ya tienes cuenta? <Link href="/login">Inicia sesión</Link>
         </p>
       </div>
+      <p className="muted" style={{ textAlign: 'center', marginTop: 18 }}>
+        <Link href="/">← Volver al inicio</Link>
+      </p>
     </main>
   );
 }
