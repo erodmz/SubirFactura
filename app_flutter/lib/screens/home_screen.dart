@@ -162,10 +162,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(me?.displayName ?? 'Mi cuenta',
-                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: scheme.onSurface)),
                     if (me != null)
                       Text(me.email,
-                          style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                          style: TextStyle(
+                              fontSize: 12, color: scheme.onSurfaceVariant)),
                   ],
                 ),
               ),

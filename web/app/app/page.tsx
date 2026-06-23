@@ -40,7 +40,7 @@ export default function HomePage() {
 
   function logout() {
     clearTokens();
-    router.replace('/login');
+    router.replace('/');
   }
 
   const primerNombre = me?.nombre?.split(' ')[0] ?? '';

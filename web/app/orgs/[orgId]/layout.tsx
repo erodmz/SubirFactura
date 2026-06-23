@@ -54,7 +54,7 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
 
   function logout() {
     clearTokens();
-    router.replace('/login');
+    router.replace('/');
   }
 
   const base = `/orgs/${orgId}`;

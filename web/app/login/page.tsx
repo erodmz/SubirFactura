@@ -39,7 +39,9 @@ export default function LoginPage() {
       </div>
       <div className="auth-box">
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
-          <Logo size={44} />
+          <Link href="/" aria-label="Volver al inicio">
+            <Logo size={44} />
+          </Link>
         </div>
         <p className="muted" style={{ textAlign: 'center', marginBottom: 24 }}>
           Digitaliza y reporta los gastos de tus clientes ante la DGII.
@@ -62,6 +64,9 @@ export default function LoginPage() {
           ¿No tienes cuenta? <Link href="/register">Regístrate</Link>
         </p>
         </div>
+        <p className="muted" style={{ textAlign: 'center', marginTop: 18 }}>
+          <Link href="/">← Volver al inicio</Link>
+        </p>
       </div>
     </div>
   );

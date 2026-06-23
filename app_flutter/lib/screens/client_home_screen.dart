@@ -166,10 +166,11 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(widget.me.displayName,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold, color: Colors.black87)),
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold, color: scheme.onSurface)),
                     Text(widget.me.email,
-                        style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                        style: TextStyle(
+                            fontSize: 12, color: scheme.onSurfaceVariant)),
                   ],
                 ),
               ),
