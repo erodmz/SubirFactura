@@ -26,21 +26,41 @@ function fechaCorta(fecha: string | null): string {
 export default function InvoicesPage() {
   const { orgId } = useParams<{ orgId: string }>();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [clientes, setClientes] = useState<{ id: string; razonSocial: string }[]>([]);
+  const [clientId, setClientId] = useState<string>('');
   const [estado, setEstado] = useState<string>('en_revision');
+  const [busqueda, setBusqueda] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    api<{ id: string; razonSocial: string }[]>(`/api/organizations/${orgId}/clients`)
+      .then(setClientes)
+      .catch(() => {});
+  }, [orgId]);
+
   const load = useCallback(() => {
     setLoading(true);
-    const q = estado ? `?estado=${estado}` : '';
+    const params = new URLSearchParams();
+    if (estado) params.set('estado', estado);
+    if (clientId) params.set('clientProfileId', clientId);
+    const q = params.toString() ? `?${params}` : '';
     api<Invoice[]>(`/api/organizations/${orgId}/invoices${q}`)
       .then(setInvoices)
       .catch((e) => setError(e instanceof Error ? e.message : 'Error'))
       .finally(() => setLoading(false));
-  }, [orgId, estado]);
+  }, [orgId, estado, clientId]);
 
   useEffect(load, [load]);
+
+  const term = busqueda.trim().toLowerCase();
+  const visibles = term
+    ? invoices.filter((i) =>
+        [i.razonSocialProveedor, i.ncf, i.clientProfile?.razonSocial]
+          .some((f) => (f ?? '').toLowerCase().includes(term)),
+      )
+    : invoices;
 
   return (
     <>
@@ -48,15 +68,38 @@ export default function InvoicesPage() {
       {error && <div className="error">{error}</div>}
 
       <div className="card">
-        <label>Filtrar por estado</label>
-        <select value={estado} onChange={(e) => setEstado(e.target.value)} style={{ maxWidth: 260 }}>
-          <option value="">Todas</option>
-          {ESTADOS.map((s) => (
-            <option key={s} value={s}>
-              {ESTADO_LABELS[s]}
-            </option>
-          ))}
-        </select>
+        <div className="row">
+          <div>
+            <label>Cliente</label>
+            <select value={clientId} onChange={(e) => setClientId(e.target.value)}>
+              <option value="">Todos los clientes</option>
+              {clientes.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.razonSocial}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label>Estado</label>
+            <select value={estado} onChange={(e) => setEstado(e.target.value)}>
+              <option value="">Todas</option>
+              {ESTADOS.map((s) => (
+                <option key={s} value={s}>
+                  {ESTADO_LABELS[s]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label>Buscar (proveedor o NCF)</label>
+            <input
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Ej. Ferretería o B0100…"
+            />
+          </div>
+        </div>
       </div>
 
       <div className="card">
@@ -76,7 +119,7 @@ export default function InvoicesPage() {
               </tr>
             </thead>
             <tbody>
-              {invoices.map((inv) => (
+              {visibles.map((inv) => (
                 <tr key={inv.id}>
                   <td>{inv.clientProfile?.razonSocial ?? '—'}</td>
                   <td>{inv.razonSocialProveedor ?? '—'}</td>
@@ -96,10 +139,12 @@ export default function InvoicesPage() {
                   </td>
                 </tr>
               ))}
-              {invoices.length === 0 && (
+              {visibles.length === 0 && (
                 <tr>
                   <td colSpan={7} className="muted">
-                    No hay facturas en este estado
+                    {invoices.length === 0
+                      ? 'No hay facturas con estos filtros'
+                      : 'Ninguna factura coincide con la búsqueda'}
                   </td>
                 </tr>
               )}
@@ -108,16 +153,19 @@ export default function InvoicesPage() {
         )}
       </div>
 
-      {expanded && (
-        <ReviewPanel
-          orgId={orgId}
-          invoice={invoices.find((i) => i.id === expanded)!}
-          onSaved={() => {
-            setExpanded(null);
-            load();
-          }}
-        />
-      )}
+      {(() => {
+        const sel = expanded ? invoices.find((i) => i.id === expanded) : undefined;
+        return sel ? (
+          <ReviewPanel
+            orgId={orgId}
+            invoice={sel}
+            onSaved={() => {
+              setExpanded(null);
+              load();
+            }}
+          />
+        ) : null;
+      })()}
     </>
   );
 }
