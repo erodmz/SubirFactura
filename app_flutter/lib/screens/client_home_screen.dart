@@ -8,6 +8,7 @@ import '../services/upload_queue.dart';
 import 'capture_screen.dart';
 import 'invoice_detail_screen.dart';
 import 'login_screen.dart';
+import 'resumen_gastos_screen.dart';
 import 'settings_screen.dart';
 
 const _estadoColors = <String, Color>{
@@ -135,6 +136,15 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
       appBar: AppBar(
         title: Text(widget.client.razonSocial),
         actions: [
+          IconButton(
+            tooltip: 'Resumen de gastos',
+            icon: const Icon(Icons.insights),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => ResumenGastosScreen(client: widget.client),
+              ),
+            ),
+          ),
           PopupMenuButton<String>(
             tooltip: 'Cuenta',
             offset: const Offset(0, 48),

@@ -51,6 +51,22 @@ export class InvoicesController {
     return this.invoices.list(orgId, user, req.membership, query);
   }
 
+  /** Resumen de gastos (analítica para el cliente y el contador). */
+  @Get('resumen')
+  @OrgRoles('org_admin', 'contador', 'cliente')
+  resumen(
+    @Param('orgId') orgId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: { membership: Membership },
+    @Query('clientProfileId') clientProfileId?: string,
+    @Query('meses') meses?: string,
+  ) {
+    return this.invoices.resumen(orgId, user, req.membership, {
+      clientProfileId,
+      meses: meses ? Number(meses) : undefined,
+    });
+  }
+
   @Get(':invoiceId')
   @OrgRoles('org_admin', 'contador', 'cliente')
   get(@Param('orgId') orgId: string, @Param('invoiceId') invoiceId: string) {

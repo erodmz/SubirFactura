@@ -7,7 +7,12 @@ import {
 } from '@nestjs/common';
 import { createHash, randomUUID } from 'node:crypto';
 import type { Membership, Prisma } from '@facturard/shared/db';
-import { buildFiscalValidation, fechaToPeriodoFiscal, validateInvoiceFields } from '@facturard/shared';
+import {
+  buildFiscalValidation,
+  CATEGORIAS_606,
+  fechaToPeriodoFiscal,
+  validateInvoiceFields,
+} from '@facturard/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { OcrQueueService } from '../queue/ocr-queue.service';
@@ -162,6 +167,118 @@ export class InvoicesService {
       orderBy: { createdAt: 'desc' },
       take: 200,
     });
+  }
+
+  /**
+   * Resumen de gastos para analítica (valor para el cliente): total, ITBIS,
+   * desglose por categoría 606, comparativo mensual y top proveedores.
+   * Respeta el alcance por rol igual que list().
+   */
+  async resumen(
+    orgId: string,
+    user: AuthenticatedUser,
+    membership: Membership,
+    query: { clientProfileId?: string; meses?: number },
+  ) {
+    const where: Prisma.InvoiceWhereInput = {
+      estado: { in: ['validada', 'incluida_en_606', 'reportada'] },
+    };
+    if (membership.rol === 'contador') {
+      const assignments = await this.prisma.assignment.findMany({
+        where: { contadorMembershipId: membership.id },
+        select: { clientProfileId: true },
+      });
+      const allowed = assignments.map((a) => a.clientProfileId);
+      where.clientProfileId = query.clientProfileId
+        ? allowed.includes(query.clientProfileId)
+          ? query.clientProfileId
+          : '__none__'
+        : { in: allowed };
+    } else if (membership.rol === 'cliente') {
+      const links = await this.prisma.clientMember.findMany({
+        where: { userId: user.userId },
+        select: { clientProfileId: true },
+      });
+      const allowed = links.map((l) => l.clientProfileId);
+      where.clientProfileId = query.clientProfileId
+        ? allowed.includes(query.clientProfileId)
+          ? query.clientProfileId
+          : '__none__'
+        : { in: allowed };
+    } else if (query.clientProfileId) {
+      where.clientProfileId = query.clientProfileId;
+    }
+
+    const invoices = await this.prisma.forOrg(orgId).invoice.findMany({
+      where,
+      select: {
+        montoFacturado: true,
+        itbis: true,
+        categoria606: true,
+        periodoFiscal: true,
+        razonSocialProveedor: true,
+      },
+    });
+
+    const num = (d: Prisma.Decimal | null) => (d ? d.toNumber() : 0);
+    let totalGastado = 0;
+    let totalItbis = 0;
+    const catMap = new Map<string, { total: number; cantidad: number }>();
+    const mesMap = new Map<string, { total: number; itbis: number; cantidad: number }>();
+    const provMap = new Map<string, { total: number; cantidad: number }>();
+
+    for (const inv of invoices) {
+      const monto = num(inv.montoFacturado);
+      const itbis = num(inv.itbis);
+      totalGastado += monto;
+      totalItbis += itbis;
+
+      const cat = inv.categoria606 ?? 'sin';
+      const c = catMap.get(cat) ?? { total: 0, cantidad: 0 };
+      catMap.set(cat, { total: c.total + monto, cantidad: c.cantidad + 1 });
+
+      if (inv.periodoFiscal) {
+        const m = mesMap.get(inv.periodoFiscal) ?? { total: 0, itbis: 0, cantidad: 0 };
+        mesMap.set(inv.periodoFiscal, {
+          total: m.total + monto,
+          itbis: m.itbis + itbis,
+          cantidad: m.cantidad + 1,
+        });
+      }
+
+      const prov = inv.razonSocialProveedor ?? 'Sin nombre';
+      const p = provMap.get(prov) ?? { total: 0, cantidad: 0 };
+      provMap.set(prov, { total: p.total + monto, cantidad: p.cantidad + 1 });
+    }
+
+    const nombreCat = new Map<string, string>(CATEGORIAS_606.map((c) => [c.codigo, c.nombre]));
+    const porCategoria = [...catMap.entries()]
+      .map(([codigo, v]) => ({
+        codigo,
+        nombre: codigo === 'sin' ? 'Sin categoría' : nombreCat.get(codigo) ?? codigo,
+        ...v,
+      }))
+      .sort((a, b) => b.total - a.total);
+
+    const meses = query.meses && query.meses > 0 ? query.meses : 6;
+    const porMes = [...mesMap.entries()]
+      .map(([periodo, v]) => ({ periodo, ...v }))
+      .sort((a, b) => a.periodo.localeCompare(b.periodo))
+      .slice(-meses);
+
+    const topProveedores = [...provMap.entries()]
+      .map(([razonSocial, v]) => ({ razonSocial, ...v }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5);
+
+    return {
+      totalGastado,
+      totalItbis,
+      cantidad: invoices.length,
+      porCategoria,
+      porMes,
+      topProveedores,
+    };
   }
 
   async get(orgId: string, invoiceId: string) {

@@ -105,6 +105,78 @@ class ClientAccess {
   final String organizationNombre;
 }
 
+/// Resumen de gastos de un negocio (analítica para el cliente).
+class ResumenGastos {
+  ResumenGastos({
+    required this.totalGastado,
+    required this.totalItbis,
+    required this.cantidad,
+    required this.porCategoria,
+    required this.porMes,
+    required this.topProveedores,
+  });
+
+  factory ResumenGastos.fromJson(Map<String, dynamic> json) => ResumenGastos(
+        totalGastado: (json['totalGastado'] as num?)?.toDouble() ?? 0,
+        totalItbis: (json['totalItbis'] as num?)?.toDouble() ?? 0,
+        cantidad: json['cantidad'] as int? ?? 0,
+        porCategoria: ((json['porCategoria'] as List?) ?? [])
+            .map((e) => GastoCategoria.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        porMes: ((json['porMes'] as List?) ?? [])
+            .map((e) => GastoMes.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        topProveedores: ((json['topProveedores'] as List?) ?? [])
+            .map((e) => GastoProveedor.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
+
+  final double totalGastado;
+  final double totalItbis;
+  final int cantidad;
+  final List<GastoCategoria> porCategoria;
+  final List<GastoMes> porMes;
+  final List<GastoProveedor> topProveedores;
+}
+
+class GastoCategoria {
+  GastoCategoria({required this.nombre, required this.total, required this.cantidad});
+  factory GastoCategoria.fromJson(Map<String, dynamic> j) => GastoCategoria(
+        nombre: j['nombre'] as String? ?? '—',
+        total: (j['total'] as num?)?.toDouble() ?? 0,
+        cantidad: j['cantidad'] as int? ?? 0,
+      );
+  final String nombre;
+  final double total;
+  final int cantidad;
+}
+
+class GastoMes {
+  GastoMes({required this.periodo, required this.total, required this.itbis, required this.cantidad});
+  factory GastoMes.fromJson(Map<String, dynamic> j) => GastoMes(
+        periodo: j['periodo'] as String? ?? '',
+        total: (j['total'] as num?)?.toDouble() ?? 0,
+        itbis: (j['itbis'] as num?)?.toDouble() ?? 0,
+        cantidad: j['cantidad'] as int? ?? 0,
+      );
+  final String periodo;
+  final double total;
+  final double itbis;
+  final int cantidad;
+}
+
+class GastoProveedor {
+  GastoProveedor({required this.razonSocial, required this.total, required this.cantidad});
+  factory GastoProveedor.fromJson(Map<String, dynamic> j) => GastoProveedor(
+        razonSocial: j['razonSocial'] as String? ?? '—',
+        total: (j['total'] as num?)?.toDouble() ?? 0,
+        cantidad: j['cantidad'] as int? ?? 0,
+      );
+  final String razonSocial;
+  final double total;
+  final int cantidad;
+}
+
 class ClientProfile {
   ClientProfile({required this.id, required this.razonSocial, required this.rncOCedula});
 
