@@ -130,6 +130,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final queue = UploadQueue.instance;
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.client.razonSocial),
@@ -214,13 +215,16 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
             builder: (context, _) {
               if (queue.lastRejection != null) {
                 return Material(
-                  color: Colors.red.shade50,
+                  color: scheme.errorContainer,
                   child: ListTile(
                     dense: true,
-                    leading: const Icon(Icons.error_outline, color: Colors.red),
+                    iconColor: scheme.onErrorContainer,
+                    textColor: scheme.onErrorContainer,
+                    leading: const Icon(Icons.error_outline),
                     title: Text(queue.lastRejection!),
                     trailing: IconButton(
                       icon: const Icon(Icons.close, size: 18),
+                      color: scheme.onErrorContainer,
                       onPressed: queue.clearRejection,
                     ),
                   ),
@@ -228,10 +232,12 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
               }
               if (queue.pendingCount > 0) {
                 return Material(
-                  color: Colors.amber.shade50,
+                  color: scheme.secondaryContainer,
                   child: ListTile(
                     dense: true,
-                    leading: const Icon(Icons.cloud_upload, color: Colors.amber),
+                    iconColor: scheme.onSecondaryContainer,
+                    textColor: scheme.onSecondaryContainer,
+                    leading: const Icon(Icons.cloud_upload),
                     title: Text('${queue.pendingCount} factura(s) subiendo…'),
                   ),
                 );
@@ -244,16 +250,25 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
             curve: Curves.easeOut,
             child: _processingCount > 0
                 ? Material(
-                    color: Colors.blue.shade50,
+                    color: scheme.primaryContainer,
                     child: ListTile(
                       dense: true,
-                      leading: const SizedBox(
+                      textColor: scheme.onPrimaryContainer,
+                      leading: SizedBox(
                         width: 22,
                         height: 22,
-                        child: CircularProgressIndicator(strokeWidth: 2.5),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          color: scheme.onPrimaryContainer,
+                        ),
                       ),
                       title: Text('Leyendo $_processingCount factura(s) con IA…'),
-                      subtitle: const Text('Se actualiza solo en unos segundos'),
+                      subtitle: Text(
+                        'Se actualiza solo en unos segundos',
+                        style: TextStyle(
+                          color: scheme.onPrimaryContainer.withValues(alpha: 0.7),
+                        ),
+                      ),
                     ),
                   )
                 : const SizedBox(width: double.infinity),

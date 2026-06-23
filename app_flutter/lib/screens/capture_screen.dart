@@ -123,24 +123,29 @@ class _CaptureScreenState extends State<CaptureScreen> {
                   const SizedBox(height: 16),
                 ],
                 Card(
-                  color: Colors.blue.shade50,
-                  child: const Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Guías para una buena foto',
-                            style: TextStyle(fontWeight: FontWeight.bold)),
-                        SizedBox(height: 8),
-                        Text('• Encuadra la factura completa, los 4 bordes visibles'),
-                        Text('• Apóyala sobre una superficie plana y oscura'),
-                        Text('• Evita sombras, reflejos y dedos sobre el papel'),
-                        Text('• El NCF, RNC y los montos deben leerse con claridad'),
-                        SizedBox(height: 8),
-                        Text('¿Recibo muy largo? Tómale varias fotos por secciones '
-                            '(de arriba hacia abajo) y agrégalas como páginas: la IA las lee juntas.',
-                            style: TextStyle(fontStyle: FontStyle.italic)),
-                      ],
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: DefaultTextStyle.merge(
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onPrimaryContainer,
+                      ),
+                      child: const Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Guías para una buena foto',
+                              style: TextStyle(fontWeight: FontWeight.bold)),
+                          SizedBox(height: 8),
+                          Text('• Encuadra la factura completa, los 4 bordes visibles'),
+                          Text('• Apóyala sobre una superficie plana y oscura'),
+                          Text('• Evita sombras, reflejos y dedos sobre el papel'),
+                          Text('• El NCF, RNC y los montos deben leerse con claridad'),
+                          SizedBox(height: 8),
+                          Text('¿Recibo muy largo? Tómale varias fotos por secciones '
+                              '(de arriba hacia abajo) y agrégalas como páginas: la IA las lee juntas.',
+                              style: TextStyle(fontStyle: FontStyle.italic)),
+                        ],
+                      ),
                     ),
                   ),
                 ),
