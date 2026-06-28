@@ -22,7 +22,7 @@ ocrWorker.on('failed', (job, err) => {
   void handleOcrFailure(job, err);
 });
 
-console.log(`Worker FacturaRD escuchando la cola "${QUEUE_OCR}"`);
+console.log(`Worker SubirFactura escuchando la cola "${QUEUE_OCR}"`);
 
 async function shutdown(signal: string) {
   console.log(`${signal} recibido, cerrando worker...`);

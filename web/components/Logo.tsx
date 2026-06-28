@@ -1,4 +1,4 @@
-/** Logo de FacturaRD: encuadre de cámara + recibo (captura tu factura) con
+/** Logo de SubirFactura: encuadre de cámara + recibo (captura tu factura) con
  *  degradado de marca + wordmark. Simple, original y escalable. */
 export default function Logo({
   size = 28,
@@ -36,10 +36,12 @@ export default function Logo({
           d="M40 38 L60 38 Q62 38 62 40 L62 58 L58 62 L54 58 L50 62 L46 58 L42 62 L38 58 L38 40 Q38 38 40 38 Z"
           fill="#fff"
         />
+        <polygon points="50,40 43,49 57,49" fill="#0073ea" />
+        <rect x="48" y="47" width="4" height="11" rx="1" fill="#0073ea" />
       </svg>
       {withWordmark && (
         <span className="logo-word">
-          Factura<span className="gradient">RD</span>
+          <span className="gradient">Subir</span>Factura
         </span>
       )}
     </span>

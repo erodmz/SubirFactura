@@ -20,7 +20,7 @@ async function bootstrap() {
 
   const port = Number(process.env.PORT ?? 3000);
   await app.listen(port);
-  console.log(`FacturaRD API escuchando en puerto ${port}`);
+  console.log(`SubirFactura API escuchando en puerto ${port}`);
 }
 
 void bootstrap();

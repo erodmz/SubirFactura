@@ -219,7 +219,7 @@ export class DgiiService {
     const { rnc, detalles } = await this.collect(orgId, periodo);
 
     const wb = new ExcelJS.Workbook();
-    wb.creator = 'FacturaRD';
+    wb.creator = 'SubirFactura';
     const ws = wb.addWorksheet(`606_${periodo}`);
     ws.columns = [
       { header: 'RNC/Cédula', key: 'rnc', width: 14 },

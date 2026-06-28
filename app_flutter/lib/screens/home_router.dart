@@ -43,7 +43,7 @@ class _HomeRouterState extends State<HomeRouter> {
 
   Widget _message(String text) => Scaffold(
         appBar: AppBar(
-          title: const Text('FacturaRD'),
+          title: const Text('SubirFactura'),
           actions: [
             IconButton(onPressed: _logout, icon: const Icon(Icons.logout), tooltip: 'Salir'),
           ],

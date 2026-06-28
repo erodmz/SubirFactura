@@ -24,7 +24,7 @@ class FacturaRdApp extends StatelessWidget {
       valueListenable: ThemeController.instance.mode,
       builder: (context, mode, _) {
         return MaterialApp(
-          title: 'FacturaRD',
+          title: 'SubirFactura',
           debugShowCheckedModeBanner: false,
           theme: buildTheme(),
           darkTheme: buildDarkTheme(),

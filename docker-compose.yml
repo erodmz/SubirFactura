@@ -1,4 +1,4 @@
-# FacturaRD — orquestación completa (ESPECIFICACION.md §3, §8)
+# SubirFactura — orquestación completa (ESPECIFICACION.md §3, §8)
 # PostgreSQL, Redis y MinIO viven SOLO en la red interna; al exterior solo Caddy (80/443).
 # Los puertos 127.0.0.1:* son comodidad de desarrollo local — eliminarlos en el servidor.
 

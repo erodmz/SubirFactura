@@ -1,4 +1,4 @@
-# FacturaRD
+# SubirFactura
 
 Plataforma SaaS multi-tenant para que contadores de República Dominicana recolecten,
 digitalicen y reporten facturas de gastos de sus clientes ante la DGII (Formatos 606/607).

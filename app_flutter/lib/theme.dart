@@ -1,7 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
-/// Tema de FacturaRD alineado con el panel web (estética Monday): azul de marca,
+/// Tema de SubirFactura alineado con el panel web (estética Monday): azul de marca,
 /// superficies blancas en claro y azul-noche en oscuro, tarjetas redondeadas.
 const brandBlue = Color(0xFF0073EA);
 const brandPurple = Color(0xFFA25DDC);

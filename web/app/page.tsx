@@ -78,7 +78,7 @@ export default function Landing() {
             <span className="hl-green">listos para la DGII</span>.
           </h1>
           <p className="hero-sub">
-            Deja de perseguir facturas físicas. FacturaRD recolecta, digitaliza y reporta el 606/607
+            Deja de perseguir facturas físicas. SubirFactura recolecta, digitaliza y reporta el 606/607
             por ti — desde la foto hasta el TXT oficial.
           </p>
           <div className="hero-cta">
@@ -138,7 +138,7 @@ export default function Landing() {
       </section>
 
       <footer className="landing-footer">
-        <span>FacturaRD · Digitalización de facturas y reportes DGII</span>
+        <span>SubirFactura · Digitalización de facturas y reportes DGII</span>
       </footer>
     </div>
   );

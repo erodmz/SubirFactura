@@ -1,4 +1,4 @@
-# FacturaRD — App móvil (Flutter)
+# SubirFactura — App móvil (Flutter)
 
 App para que el **cliente final** fotografíe sus facturas de gasto y el contador
 las reciba digitalizadas (ESPECIFICACION.md, Fase 2).

@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../theme.dart';
 
-/// Logo de FacturaRD (igual al del web): marca con degradado (mini-tablero) +
-/// wordmark con "RD" en degradado.
+/// Logo de SubirFactura (igual al del web): encuadre de cámara + recibo con
+/// flecha hacia arriba ("subir"), con degradado de marca + wordmark.
 class Logo extends StatelessWidget {
   const Logo({super.key, this.size = 30, this.withWordmark = true});
 
@@ -12,16 +12,6 @@ class Logo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final inner = size * 0.6;
-    Widget bar(double hFrac, double opacity) => Container(
-          width: inner * 0.2,
-          height: inner * hFrac,
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: opacity),
-            borderRadius: BorderRadius.circular(inner * 0.1),
-          ),
-        );
-
     final mark = Container(
       width: size,
       height: size,
@@ -33,17 +23,17 @@ class Logo extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(size * 0.28),
       ),
-      child: Padding(
-        padding: EdgeInsets.all(size * 0.2),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [bar(0.5, 0.95), bar(0.75, 0.85), bar(1.0, 0.72)],
-        ),
-      ),
+      child: CustomPaint(painter: _MarkPainter(), size: Size(size, size)),
     );
 
     if (!withWordmark) return mark;
+
+    final wordStyle = TextStyle(
+      color: textInk,
+      fontSize: size * 0.62,
+      fontWeight: FontWeight.w800,
+      letterSpacing: -0.5,
+    );
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -53,36 +43,88 @@ class Logo extends StatelessWidget {
         Text.rich(
           TextSpan(
             children: [
-              TextSpan(
-                text: 'Factura',
-                style: TextStyle(
-                  color: textInk,
-                  fontSize: size * 0.62,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.5,
-                ),
-              ),
               WidgetSpan(
                 alignment: PlaceholderAlignment.middle,
                 child: ShaderMask(
                   shaderCallback: (bounds) => const LinearGradient(
                     colors: [brandBlue, brandPurple],
                   ).createShader(bounds),
-                  child: Text(
-                    'RD',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: size * 0.62,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
+                  child: Text('Subir',
+                      style: wordStyle.copyWith(color: Colors.white)),
                 ),
               ),
+              TextSpan(text: 'Factura', style: wordStyle),
             ],
           ),
         ),
       ],
     );
   }
+}
+
+/// Dibuja el glifo (encuadre + recibo + flecha) en coordenadas 0..100.
+class _MarkPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.width / 100;
+    final stroke = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4 * s
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final corners = Path()
+      ..moveTo(24 * s, 34 * s)
+      ..lineTo(24 * s, 28 * s)
+      ..quadraticBezierTo(24 * s, 24 * s, 28 * s, 24 * s)
+      ..lineTo(34 * s, 24 * s)
+      ..moveTo(66 * s, 24 * s)
+      ..lineTo(72 * s, 24 * s)
+      ..quadraticBezierTo(76 * s, 24 * s, 76 * s, 28 * s)
+      ..lineTo(76 * s, 34 * s)
+      ..moveTo(24 * s, 66 * s)
+      ..lineTo(24 * s, 72 * s)
+      ..quadraticBezierTo(24 * s, 76 * s, 28 * s, 76 * s)
+      ..lineTo(34 * s, 76 * s)
+      ..moveTo(66 * s, 76 * s)
+      ..lineTo(72 * s, 76 * s)
+      ..quadraticBezierTo(76 * s, 76 * s, 76 * s, 72 * s)
+      ..lineTo(76 * s, 66 * s);
+    canvas.drawPath(corners, stroke);
+
+    final receipt = Path()
+      ..moveTo(40 * s, 38 * s)
+      ..lineTo(60 * s, 38 * s)
+      ..quadraticBezierTo(62 * s, 38 * s, 62 * s, 40 * s)
+      ..lineTo(62 * s, 58 * s)
+      ..lineTo(58 * s, 62 * s)
+      ..lineTo(54 * s, 58 * s)
+      ..lineTo(50 * s, 62 * s)
+      ..lineTo(46 * s, 58 * s)
+      ..lineTo(42 * s, 62 * s)
+      ..lineTo(38 * s, 58 * s)
+      ..lineTo(38 * s, 40 * s)
+      ..quadraticBezierTo(38 * s, 38 * s, 40 * s, 38 * s)
+      ..close();
+    canvas.drawPath(receipt, Paint()..color = Colors.white);
+
+    final arrowPaint = Paint()..color = brandBlue;
+    final head = Path()
+      ..moveTo(50 * s, 40 * s)
+      ..lineTo(43 * s, 49 * s)
+      ..lineTo(57 * s, 49 * s)
+      ..close();
+    canvas.drawPath(head, arrowPaint);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(48 * s, 47 * s, 4 * s, 11 * s),
+        Radius.circular(1 * s),
+      ),
+      arrowPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _MarkPainter oldDelegate) => false;
 }

@@ -1,4 +1,4 @@
-# FacturaRD — Especificación del Proyecto
+# SubirFactura — Especificación del Proyecto
 
 > Documento de arranque para Claude Code. Colócalo en la raíz del repositorio.
 > Plataforma SaaS multi-tenant para que contadores de República Dominicana
