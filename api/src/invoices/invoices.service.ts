@@ -303,7 +303,13 @@ export class InvoicesService {
    * Edición campo a campo desde la cola de revisión. Si las validaciones
    * determinísticas pasan y los campos críticos están completos → `validada`.
    */
-  async review(orgId: string, invoiceId: string, user: AuthenticatedUser, dto: ReviewInvoiceDto) {
+  async review(
+    orgId: string,
+    invoiceId: string,
+    user: AuthenticatedUser,
+    membership: Membership,
+    dto: ReviewInvoiceDto,
+  ) {
     const invoice = await this.prisma.forOrg(orgId).invoice.findUnique({
       where: { id: invoiceId },
     });
@@ -334,6 +340,12 @@ export class InvoicesService {
     // se persiste el avance del contador aunque falten datos (botones §5).
     let nuevoEstado: string = invoice.estado === 'validada' ? 'validada' : 'en_revision';
     if (dto.validar) {
+      // Un cliente solo valida si el contador se lo habilitó (confianza, §perfil usuario).
+      if (membership.rol === 'cliente' && !membership.puedeValidar) {
+        throw new ForbiddenException(
+          'No tienes permiso para validar facturas. Tu contador debe habilitarlo.',
+        );
+      }
       const org = await this.prisma.organization.findUniqueOrThrow({ where: { id: orgId } });
       const errores = validateInvoiceFields(merged, {
         validarAritmetica: org.requiereValidacionAritmetica,

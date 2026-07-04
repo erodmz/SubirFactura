@@ -27,6 +27,7 @@ export interface OrgUsage {
 export interface Member {
   id: string;
   rol: 'org_admin' | 'contador' | 'cliente';
+  puedeValidar?: boolean;
   user: { id: string; email: string; nombre: string; telefono: string | null };
 }
 

@@ -100,6 +100,7 @@ export class AuthController {
       memberships: memberships.map((m) => ({
         membershipId: m.id,
         rol: m.rol,
+        puedeValidar: m.puedeValidar,
         organization: m.organization,
       })),
       clientProfiles,

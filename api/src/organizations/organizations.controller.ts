@@ -6,6 +6,7 @@ import { OrgRoles } from '../common/decorators/org-roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-user.decorator';
 import {
   CreateOrganizationDto,
+  SetValidatePermissionDto,
   UpdateMemberRoleDto,
   UpdateOrganizationDto,
 } from './dto/organizations.dto';
@@ -61,6 +62,17 @@ export class OrganizationsController {
     @Body() dto: UpdateMemberRoleDto,
   ) {
     return this.members.updateRole(orgId, membershipId, dto.rol, user.userId);
+  }
+
+  @Patch(':orgId/members/:membershipId/validate-permission')
+  @OrgRoles('org_admin', 'contador')
+  setValidatePermission(
+    @Param('orgId') orgId: string,
+    @Param('membershipId') membershipId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: SetValidatePermissionDto,
+  ) {
+    return this.members.setValidatePermission(orgId, membershipId, dto.puedeValidar, user.userId);
   }
 
   @Delete(':orgId/members/:membershipId')

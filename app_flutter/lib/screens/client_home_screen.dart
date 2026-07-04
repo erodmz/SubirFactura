@@ -360,6 +360,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                                         orgNombre: widget.client.razonSocial,
                                       ),
                                       invoiceId: invoice.id,
+                                      canValidate:
+                                          widget.me.canValidateInOrg(_orgId),
                                     ),
                                   ),
                                 );

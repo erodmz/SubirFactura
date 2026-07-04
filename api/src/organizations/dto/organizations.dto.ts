@@ -29,3 +29,8 @@ export class UpdateMemberRoleDto {
   @IsIn(['org_admin', 'contador', 'cliente'])
   rol!: 'org_admin' | 'contador' | 'cliente';
 }
+
+export class SetValidatePermissionDto {
+  @IsBoolean()
+  puedeValidar!: boolean;
+}

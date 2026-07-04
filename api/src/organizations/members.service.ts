@@ -55,6 +55,29 @@ export class MembersService {
     return updated;
   }
 
+  /** Habilita/inhabilita a un cliente para validar facturas (confianza del contador). */
+  async setValidatePermission(
+    orgId: string,
+    membershipId: string,
+    puedeValidar: boolean,
+    actorUserId: string,
+  ) {
+    await this.getInOrg(orgId, membershipId);
+    const updated = await this.prisma.membership.update({
+      where: { id: membershipId },
+      data: { puedeValidar },
+    });
+    await this.audit.log({
+      organizationId: orgId,
+      userId: actorUserId,
+      accion: 'membership.set_validate_permission',
+      entidad: 'membership',
+      entidadId: membershipId,
+      datos: { puedeValidar },
+    });
+    return updated;
+  }
+
   async remove(orgId: string, membershipId: string, actorUserId: string) {
     const membership = await this.getInOrg(orgId, membershipId);
     if (membership.rol === 'org_admin') {

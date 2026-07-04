@@ -43,6 +43,12 @@ class Me {
   List<Membership> get contadorMemberships =>
       memberships.where((m) => m.rol != 'cliente').toList();
 
+  /// ¿Puede validar facturas en esta org? Contador/admin siempre; cliente solo
+  /// si el contador se lo habilitó.
+  bool canValidateInOrg(String orgId) => memberships
+      .where((m) => m.orgId == orgId)
+      .any((m) => m.rol != 'cliente' || m.puedeValidar);
+
   String get displayName => nombre?.isNotEmpty == true ? nombre! : email;
 
   String get initials {
@@ -61,6 +67,7 @@ class Membership {
     required this.rol,
     required this.orgId,
     required this.orgNombre,
+    this.puedeValidar = false,
   });
 
   factory Membership.fromJson(Map<String, dynamic> json) {
@@ -70,6 +77,7 @@ class Membership {
       rol: json['rol'] as String,
       orgId: org['id'] as String,
       orgNombre: org['nombre'] as String,
+      puedeValidar: json['puedeValidar'] as bool? ?? false,
     );
   }
 
@@ -77,6 +85,9 @@ class Membership {
   final String rol;
   final String orgId;
   final String orgNombre;
+
+  /// El contador habilitó a este cliente para validar (no solo guardar).
+  final bool puedeValidar;
 }
 
 /// Un negocio (client_profile) al que un cliente puede subirle facturas,

@@ -79,9 +79,10 @@ export class InvoicesController {
     @Param('orgId') orgId: string,
     @Param('invoiceId') invoiceId: string,
     @CurrentUser() user: AuthenticatedUser,
+    @Req() req: { membership: Membership },
     @Body() dto: ReviewInvoiceDto,
   ) {
-    return this.invoices.review(orgId, invoiceId, user, dto);
+    return this.invoices.review(orgId, invoiceId, user, req.membership, dto);
   }
 
   @Post(':invoiceId/retry')

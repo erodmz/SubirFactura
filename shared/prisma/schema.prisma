@@ -114,6 +114,9 @@ model Membership {
   userId         String         @map("user_id")
   organizationId String         @map("organization_id")
   rol            MembershipRole
+  // El contador puede habilitar a un cliente de confianza para VALIDAR facturas
+  // (no solo guardarlas). Por defecto, un cliente solo guarda; el contador valida.
+  puedeValidar   Boolean        @default(false) @map("puede_validar")
   createdAt      DateTime       @default(now()) @map("created_at")
   user           User           @relation(fields: [userId], references: [id])
   organization   Organization   @relation(fields: [organizationId], references: [id])

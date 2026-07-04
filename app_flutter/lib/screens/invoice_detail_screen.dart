@@ -10,10 +10,14 @@ class InvoiceDetailScreen extends StatefulWidget {
     super.key,
     required this.membership,
     required this.invoiceId,
+    this.canValidate = true,
   });
 
   final Membership membership;
   final String invoiceId;
+
+  /// Si es false (cliente sin permiso), solo puede Guardar, no Validar.
+  final bool canValidate;
 
   @override
   State<InvoiceDetailScreen> createState() => _InvoiceDetailScreenState();
@@ -282,25 +286,41 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
         onChanged: (value) => setState(() => _categoria = value),
       ),
       const SizedBox(height: 16),
-      Row(
-        children: [
-          Expanded(
-            child: OutlinedButton(
-              onPressed: _saving ? null : () => _save(validar: false),
-              style: OutlinedButton.styleFrom(padding: const EdgeInsets.all(16)),
-              child: const Text('Guardar'),
+      if (widget.canValidate)
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: _saving ? null : () => _save(validar: false),
+                style: OutlinedButton.styleFrom(padding: const EdgeInsets.all(16)),
+                child: const Text('Guardar'),
+              ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: FilledButton(
-              onPressed: _saving ? null : () => _save(validar: true),
-              style: FilledButton.styleFrom(padding: const EdgeInsets.all(16)),
-              child: Text(_saving ? 'Guardando…' : 'Guardar y validar'),
+            const SizedBox(width: 12),
+            Expanded(
+              child: FilledButton(
+                onPressed: _saving ? null : () => _save(validar: true),
+                style: FilledButton.styleFrom(padding: const EdgeInsets.all(16)),
+                child: Text(_saving ? 'Guardando…' : 'Guardar y validar'),
+              ),
             ),
+          ],
+        )
+      else ...[
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton(
+            onPressed: _saving ? null : () => _save(validar: false),
+            style: FilledButton.styleFrom(padding: const EdgeInsets.all(16)),
+            child: Text(_saving ? 'Guardando…' : 'Guardar'),
           ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Tu contador revisará y validará esta factura.',
+          style: TextStyle(fontSize: 12, color: Theme.of(context).hintColor),
+        ),
+      ],
       const SizedBox(height: 32),
     ];
   }

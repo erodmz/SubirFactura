@@ -53,6 +53,19 @@ export default function MembersPage() {
     }
   }
 
+  async function setPuedeValidar(membershipId: string, puedeValidar: boolean) {
+    setMembers((ms) => ms.map((m) => (m.id === membershipId ? { ...m, puedeValidar } : m)));
+    try {
+      await api(`/api/organizations/${orgId}/members/${membershipId}/validate-permission`, {
+        method: 'PATCH',
+        body: { puedeValidar },
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error inesperado');
+      load(); // revertir al estado real
+    }
+  }
+
   async function remove(membershipId: string) {
     if (!confirm('¿Quitar a este miembro de la organización?')) return;
     setError('');
@@ -112,6 +125,7 @@ export default function MembersPage() {
               <th>Nombre</th>
               <th>Correo</th>
               <th>Rol</th>
+              <th>Puede validar</th>
               <th></th>
             </tr>
           </thead>
@@ -126,6 +140,24 @@ export default function MembersPage() {
                     <option value="contador">Contador</option>
                     <option value="cliente">Cliente</option>
                   </select>
+                </td>
+                <td>
+                  {m.rol === 'cliente' ? (
+                    <label
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, margin: 0, cursor: 'pointer' }}
+                      title="Permite a este cliente validar facturas (no solo guardarlas)"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={m.puedeValidar ?? false}
+                        onChange={(e) => setPuedeValidar(m.id, e.target.checked)}
+                        style={{ width: 'auto' }}
+                      />
+                      {m.puedeValidar ? 'Sí' : 'No'}
+                    </label>
+                  ) : (
+                    <span className="muted">—</span>
+                  )}
                 </td>
                 <td style={{ textAlign: 'right' }}>
                   <button className="danger" style={{ marginTop: 0 }} onClick={() => remove(m.id)}>
