@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../api/client.dart';
 import '../models.dart';
 import '../services/upload_queue.dart';
+import '../widgets/connectivity_badge.dart';
 import 'capture_screen.dart';
 import 'invoice_detail_screen.dart';
 import 'login_screen.dart';
@@ -131,6 +132,7 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: Text(widget.membership.orgNombre),
         actions: [
+          const ConnectivityBadge(),
           PopupMenuButton<String>(
             tooltip: 'Cuenta',
             offset: const Offset(0, 48),

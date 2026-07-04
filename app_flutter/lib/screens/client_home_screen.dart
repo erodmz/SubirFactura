@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../api/client.dart';
 import '../models.dart';
 import '../services/upload_queue.dart';
+import '../widgets/connectivity_badge.dart';
 import 'capture_screen.dart';
 import 'invoice_detail_screen.dart';
 import 'login_screen.dart';
@@ -136,6 +137,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
       appBar: AppBar(
         title: Text(widget.client.razonSocial),
         actions: [
+          const ConnectivityBadge(),
           IconButton(
             tooltip: 'Resumen de gastos',
             icon: const Icon(Icons.insights),

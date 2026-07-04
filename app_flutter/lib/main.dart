@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'api/client.dart';
 import 'screens/home_router.dart';
 import 'screens/login_screen.dart';
+import 'services/connectivity_service.dart';
 import 'services/theme_controller.dart';
 import 'services/upload_queue.dart';
 import 'theme.dart';
@@ -11,6 +12,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await ApiClient.instance.loadTokens();
   await ThemeController.instance.load();
+  await ConnectivityService.instance.init();
   await UploadQueue.instance.init();
   runApp(const FacturaRdApp());
 }
