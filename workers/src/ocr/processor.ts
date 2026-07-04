@@ -85,6 +85,17 @@ export async function processOcrJob(job: Job<OcrJobData>) {
     extraction.razon_social.valor ?? null,
   );
 
+  // Normaliza los campos 606 sugeridos por la IA (solo valores válidos).
+  const formaPago = /^[1-7]$/.test(extraction.forma_pago.valor ?? '')
+    ? extraction.forma_pago.valor
+    : null;
+  const tipoBienServicio =
+    extraction.tipo_bien_servicio.valor === 'bienes' ||
+    extraction.tipo_bien_servicio.valor === 'servicios'
+      ? extraction.tipo_bien_servicio.valor
+      : null;
+  const ncfModificado = extraction.ncf_modificado.valor?.trim().toUpperCase() || null;
+
   try {
     await prisma.invoice.update({
       where: { id: invoiceId },
@@ -99,6 +110,12 @@ export async function processOcrJob(job: Job<OcrJobData>) {
         categoria606: categoria && CATEGORIA_CODES.has(categoria) ? categoria : null,
         tipoComprobante: extraction.tipo_comprobante.valor,
         periodoFiscal: fecha ? fechaToPeriodoFiscal(fecha) : null,
+        // Campos 606 sugeridos por la IA (Fase 3)
+        impuestoSelectivo: extraction.impuesto_selectivo.valor,
+        otrosImpuestos: extraction.otros_impuestos.valor,
+        formaPago,
+        tipoBienServicio,
+        ncfModificado,
         confianzaPorCampo: { extraction, evaluation } as object,
         validacionDgii: validacionDgii as object,
         estado: evaluation.estado,

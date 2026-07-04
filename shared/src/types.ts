@@ -18,6 +18,12 @@ export interface InvoiceExtraction {
   monto_total: ExtractedField<number>;
   categoria_606_sugerida: ExtractedField<string>;
   tipo_comprobante: ExtractedField<string>;
+  // Campos adicionales del 606 (Fase 3): mejoran el autollenado del contador.
+  impuesto_selectivo: ExtractedField<number>; // ISC (col. 20)
+  otros_impuestos: ExtractedField<number>; // suma de cargos sin campo propio (col. 21)
+  forma_pago: ExtractedField<string>; // '1'..'7' (col. 23)
+  tipo_bien_servicio: ExtractedField<string>; // 'bienes' | 'servicios'
+  ncf_modificado: ExtractedField<string>; // NCF referenciado en notas créd./déb. (col. 5)
   es_legible: boolean;
   notas: string;
 }

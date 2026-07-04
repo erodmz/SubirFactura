@@ -26,6 +26,11 @@ const ExtractionSchema = z.object({
   monto_total: campo(z.number()),
   categoria_606_sugerida: campo(z.string()),
   tipo_comprobante: campo(z.string()),
+  impuesto_selectivo: campo(z.number()),
+  otros_impuestos: campo(z.number()),
+  forma_pago: campo(z.string()),
+  tipo_bien_servicio: campo(z.string()),
+  ncf_modificado: campo(z.string()),
   es_legible: z.boolean(),
   notas: z.string(),
 });
@@ -42,6 +47,11 @@ Reglas:
 - tipo_comprobante: los 2 dígitos de tipo del NCF (p.ej. "01" para crédito fiscal).
 - categoria_606_sugerida: la categoría de gasto del Formato 606 que mejor aplique:
 ${CATEGORIAS}
+- impuesto_selectivo: el Impuesto Selectivo al Consumo (ISC) si aparece desglosado (común en combustibles, telecomunicaciones, alcohol, tabaco). null si no hay.
+- otros_impuestos: la SUMA de otros impuestos o cargos fiscales que NO tengan su propio campo (p.ej. cargos regulatorios/CDT en facturas de teléfono, recargos). No incluyas ITBIS, selectivo ni propina aquí. null si no hay.
+- forma_pago: "1" efectivo, "2" cheque/transferencia/depósito, "3" tarjeta crédito/débito, "4" compra a crédito, "5" permuta, "6" nota de crédito, "7" mixto/otras. null si no se indica.
+- tipo_bien_servicio: "bienes" si la factura es por productos/mercancía, "servicios" si es por servicios (honorarios, telecomunicaciones, alquiler, mantenimiento). null si no se distingue.
+- ncf_modificado: SOLO en notas de crédito/débito, el NCF de la factura original que modifican. null en facturas normales.
 - confianza: tu certeza real de 0 a 1 por campo. Sé honesto: si un dígito es dudoso, baja la confianza. Usa valor null cuando el campo no aparezca o no se distinga.
 - es_legible: false si la foto está demasiado borrosa, cortada u oscura para extraer los campos críticos.
 - notas: observaciones breves (p.ej. "factura térmica desvanecida").
