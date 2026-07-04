@@ -412,6 +412,41 @@ export class InvoicesService {
     return updated;
   }
 
+  /**
+   * Cambia el estado de una factura manualmente (corregir errores; p.ej. una
+   * factura validada por error se regresa a revisión). No se pueden mover las
+   * que ya entraron a un reporte 606.
+   */
+  async changeStatus(
+    orgId: string,
+    invoiceId: string,
+    estado: string,
+    user: AuthenticatedUser,
+  ) {
+    const invoice = await this.prisma.forOrg(orgId).invoice.findUnique({
+      where: { id: invoiceId },
+    });
+    if (!invoice) throw new NotFoundException('Factura no encontrada');
+    if (invoice.estado === 'reportada' || invoice.estado === 'incluida_en_606') {
+      throw new ConflictException(
+        'La factura ya fue incluida en un reporte; reabre el período para cambiarla',
+      );
+    }
+    const updated = await this.prisma.forOrg(orgId).invoice.update({
+      where: { id: invoiceId },
+      data: { estado: estado as typeof invoice.estado },
+    });
+    await this.audit.log({
+      organizationId: orgId,
+      userId: user.userId,
+      accion: 'invoice.change_status',
+      entidad: 'invoice',
+      entidadId: invoiceId,
+      datos: { de: invoice.estado, a: estado },
+    });
+    return updated;
+  }
+
   /** Coteja NCF/RNC contra estructura y padrón DGII (solo RNC de 9 dígitos). */
   private async runFiscalValidation(
     ncf: string | null,

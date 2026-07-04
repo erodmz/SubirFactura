@@ -14,6 +14,7 @@ const NAV = [
   { key: '/dgii', label: '606', icon: '🧾' },
   { key: '/clients', label: 'Clientes', icon: '👥' },
   { key: '/members', label: 'Equipo', icon: '🤝' },
+  { key: '/settings', label: 'Configuración', icon: '⚙️' },
 ];
 
 function initials(name: string | null, email: string): string {

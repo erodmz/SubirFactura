@@ -16,6 +16,14 @@ export class UploadInvoiceDto {
   clientProfileId!: string;
 }
 
+/** Estados a los que el contador puede mover una factura manualmente (corregir errores). */
+export const ESTADOS_MANUALES = ['en_revision', 'validada', 'rechazada'] as const;
+
+export class ChangeStatusDto {
+  @IsIn(ESTADOS_MANUALES, { message: 'Estado no permitido (usa en_revision, validada o rechazada)' })
+  estado!: (typeof ESTADOS_MANUALES)[number];
+}
+
 export class ListInvoicesQueryDto {
   @IsOptional()
   @IsIn(INVOICE_STATUSES)

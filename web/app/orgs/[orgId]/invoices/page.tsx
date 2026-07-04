@@ -130,11 +130,8 @@ export default function InvoicesPage() {
                     <span className="badge">{ESTADO_LABELS[inv.estado] ?? inv.estado}</span>
                   </td>
                   <td style={{ textAlign: 'right' }}>
-                    <a
-                      style={{ cursor: 'pointer' }}
-                      onClick={() => setExpanded(expanded === inv.id ? null : inv.id)}
-                    >
-                      {expanded === inv.id ? 'Cerrar' : 'Revisar'}
+                    <a style={{ cursor: 'pointer' }} onClick={() => setExpanded(inv.id)}>
+                      Revisar
                     </a>
                   </td>
                 </tr>
@@ -155,16 +152,35 @@ export default function InvoicesPage() {
 
       {(() => {
         const sel = expanded ? invoices.find((i) => i.id === expanded) : undefined;
-        return sel ? (
-          <ReviewPanel
-            orgId={orgId}
-            invoice={sel}
-            onSaved={() => {
-              setExpanded(null);
-              load();
+        if (!sel) return null;
+        return (
+          <div
+            onClick={() => setExpanded(null)}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(10, 12, 24, 0.55)',
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'center',
+              padding: '32px 16px',
+              overflowY: 'auto',
+              zIndex: 50,
             }}
-          />
-        ) : null;
+          >
+            <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 760 }}>
+              <ReviewPanel
+                orgId={orgId}
+                invoice={sel}
+                onClose={() => setExpanded(null)}
+                onSaved={() => {
+                  setExpanded(null);
+                  load();
+                }}
+              />
+            </div>
+          </div>
+        );
       })()}
     </>
   );
@@ -174,10 +190,12 @@ function ReviewPanel({
   orgId,
   invoice,
   onSaved,
+  onClose,
 }: {
   orgId: string;
   invoice: Invoice;
   onSaved: () => void;
+  onClose: () => void;
 }) {
   const marcados = dudosos(invoice);
   const str = (v: number | string | null | undefined) => (v == null ? '' : v.toString());
@@ -297,9 +315,56 @@ function ReviewPanel({
     }
   }
 
+  // Corregir el estado manualmente (p. ej. desvalidar una factura marcada por error).
+  async function changeStatus(estado: string) {
+    if (!estado || estado === invoice.estado) return;
+    setBusy(true);
+    setError('');
+    try {
+      await api(`/api/organizations/${orgId}/invoices/${invoice.id}/estado`, {
+        method: 'PATCH',
+        body: { estado },
+      });
+      onSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo cambiar el estado');
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="card">
-      <h2>Revisar factura</h2>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+        <h2 style={{ margin: 0, flex: 1 }}>Revisar factura</h2>
+        <span className="badge">{ESTADO_LABELS[invoice.estado] ?? invoice.estado}</span>
+        <button
+          type="button"
+          className="secondary"
+          onClick={onClose}
+          style={{ margin: 0, padding: '4px 12px' }}
+          aria-label="Cerrar"
+        >
+          ✕
+        </button>
+      </div>
+
+      <div className="row" style={{ alignItems: 'center', marginBottom: 12 }}>
+        <div>
+          <label style={{ margin: '0 0 4px' }}>Cambiar estado (corregir error)</label>
+          <select
+            value=""
+            onChange={(e) => changeStatus(e.target.value)}
+            disabled={busy}
+          >
+            <option value="">Mover a…</option>
+            <option value="en_revision">En revisión</option>
+            <option value="validada">Validada</option>
+            <option value="rechazada">Rechazada</option>
+          </select>
+        </div>
+        <div style={{ flex: 2 }} />
+      </div>
+
       {imageUrls === null ? (
         <p className="muted">Cargando imagen…</p>
       ) : imageUrls.length === 0 ? (

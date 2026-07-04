@@ -134,6 +134,18 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     }
   }
 
+  Future<void> _changeStatus(String estado) async {
+    try {
+      await ApiClient.instance.patch('$_base/estado', {'estado': estado});
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Estado: ${estadoLabels[estado] ?? estado}')));
+      await _load();
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final invoice = _invoice;
@@ -150,6 +162,24 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
               onPressed: _retryOcr,
               icon: const Icon(Icons.auto_awesome),
               tooltip: 'Reprocesar con IA',
+            ),
+          // Corregir el estado manualmente (contador); no si ya está en un reporte.
+          if (invoice != null &&
+              widget.membership.rol != 'cliente' &&
+              !['reportada', 'incluida_en_606'].contains(invoice.estado))
+            PopupMenuButton<String>(
+              tooltip: 'Cambiar estado',
+              icon: const Icon(Icons.more_vert),
+              onSelected: _changeStatus,
+              itemBuilder: (context) => const [
+                PopupMenuItem(
+                  enabled: false,
+                  child: Text('Cambiar estado', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+                PopupMenuItem(value: 'en_revision', child: Text('En revisión')),
+                PopupMenuItem(value: 'validada', child: Text('Validada')),
+                PopupMenuItem(value: 'rechazada', child: Text('Rechazada')),
+              ],
             ),
         ],
       ),

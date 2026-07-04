@@ -15,7 +15,12 @@ import type { Membership } from '@facturard/shared/db';
 import { InvoicesService } from './invoices.service';
 import { OrgRoles } from '../common/decorators/org-roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-user.decorator';
-import { ListInvoicesQueryDto, ReviewInvoiceDto, UploadInvoiceDto } from './dto/invoices.dto';
+import {
+  ChangeStatusDto,
+  ListInvoicesQueryDto,
+  ReviewInvoiceDto,
+  UploadInvoiceDto,
+} from './dto/invoices.dto';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // la app comprime a ~1–2 MB (§5.1)
 
@@ -83,6 +88,17 @@ export class InvoicesController {
     @Body() dto: ReviewInvoiceDto,
   ) {
     return this.invoices.review(orgId, invoiceId, user, req.membership, dto);
+  }
+
+  @Patch(':invoiceId/estado')
+  @OrgRoles('org_admin', 'contador')
+  changeStatus(
+    @Param('orgId') orgId: string,
+    @Param('invoiceId') invoiceId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ChangeStatusDto,
+  ) {
+    return this.invoices.changeStatus(orgId, invoiceId, dto.estado, user);
   }
 
   @Post(':invoiceId/retry')
