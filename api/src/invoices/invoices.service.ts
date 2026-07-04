@@ -323,17 +323,32 @@ export class InvoicesService {
       montoTotal: dto.montoTotal ?? null,
     };
 
-    const errores = validateInvoiceFields(merged);
-    if (errores.length > 0) {
-      throw new BadRequestException({ message: errores, error: 'Validación fiscal' });
-    }
-
     const criticosCompletos =
       merged.ncf != null &&
       merged.rncProveedor != null &&
       merged.fecha != null &&
       merged.montoFacturado != null &&
       merged.itbis != null;
+
+    // Solo al VALIDAR se exigen las validaciones determinísticas; al solo GUARDAR
+    // se persiste el avance del contador aunque falten datos (botones §5).
+    let nuevoEstado: string = invoice.estado === 'validada' ? 'validada' : 'en_revision';
+    if (dto.validar) {
+      const org = await this.prisma.organization.findUniqueOrThrow({ where: { id: orgId } });
+      const errores = validateInvoiceFields(merged, {
+        validarAritmetica: org.requiereValidacionAritmetica,
+      });
+      if (errores.length > 0) {
+        throw new BadRequestException({ message: errores, error: 'Validación fiscal' });
+      }
+      if (!criticosCompletos) {
+        throw new BadRequestException({
+          message: ['Faltan campos críticos (NCF, RNC, fecha, monto e ITBIS) para validar'],
+          error: 'Validación fiscal',
+        });
+      }
+      nuevoEstado = 'validada';
+    }
 
     // Recotejo NCF/RNC/padrón con los valores ya corregidos por el contador.
     const razonSocial = dto.razonSocialProveedor ?? invoice.razonSocialProveedor;
@@ -354,7 +369,7 @@ export class InvoicesService {
         tipoComprobante: dto.tipoComprobante ?? invoice.tipoComprobante,
         periodoFiscal: merged.fecha ? fechaToPeriodoFiscal(merged.fecha) : invoice.periodoFiscal,
         validacionDgii: validacionDgii as object,
-        estado: criticosCompletos ? 'validada' : 'en_revision',
+        estado: nuevoEstado as typeof invoice.estado,
       },
     });
 

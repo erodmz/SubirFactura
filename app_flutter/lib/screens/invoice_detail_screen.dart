@@ -87,7 +87,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     return text.isEmpty ? null : text;
   }
 
-  Future<void> _save() async {
+  Future<void> _save({required bool validar}) async {
     setState(() {
       _saving = true;
       _error = null;
@@ -104,10 +104,12 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
         if (_num('propinaLegal') != null) 'propinaLegal': _num('propinaLegal'),
         if (_num('montoTotal') != null) 'montoTotal': _num('montoTotal'),
         if (_categoria != null) 'categoria606': _categoria,
+        'validar': validar,
       });
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Factura validada')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(validar ? 'Factura validada' : 'Cambios guardados')),
+      );
       await _load();
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
@@ -280,10 +282,24 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
         onChanged: (value) => setState(() => _categoria = value),
       ),
       const SizedBox(height: 16),
-      FilledButton(
-        onPressed: _saving ? null : _save,
-        style: FilledButton.styleFrom(padding: const EdgeInsets.all(16)),
-        child: Text(_saving ? 'Guardando…' : 'Confirmar datos'),
+      Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: _saving ? null : () => _save(validar: false),
+              style: OutlinedButton.styleFrom(padding: const EdgeInsets.all(16)),
+              child: const Text('Guardar'),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: FilledButton(
+              onPressed: _saving ? null : () => _save(validar: true),
+              style: FilledButton.styleFrom(padding: const EdgeInsets.all(16)),
+              child: Text(_saving ? 'Guardando…' : 'Guardar y validar'),
+            ),
+          ),
+        ],
       ),
       const SizedBox(height: 32),
     ];

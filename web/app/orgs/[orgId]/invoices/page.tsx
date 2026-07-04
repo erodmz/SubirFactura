@@ -216,20 +216,32 @@ function ReviewPanel({
     </div>
   );
 
-  async function save() {
+  // Suma esperada según los montos capturados (para validar contra el total impreso).
+  const sumaCalculada = (['montoFacturado', 'itbis', 'propinaLegal'] as const).reduce(
+    (acc, k) => acc + (Number(form[k]) || 0),
+    0,
+  );
+
+  // validar: pasar a "validada". soloValidar: no reenviar ediciones, validar lo guardado.
+  async function save(validar: boolean, soloValidar = false) {
     setBusy(true);
     setError('');
     try {
-      const body: Record<string, unknown> = {
-        ncf: form.ncf || undefined,
-        rncProveedor: form.rncProveedor || undefined,
-        razonSocialProveedor: form.razonSocialProveedor || undefined,
-        fecha: form.fecha || undefined,
-        categoria606: form.categoria606 || undefined,
-      };
-      for (const k of ['montoFacturado', 'itbis', 'propinaLegal', 'montoTotal'] as const) {
-        if (form[k] !== '') body[k] = Number(form[k]);
+      const body: Record<string, unknown> = soloValidar
+        ? {}
+        : {
+            ncf: form.ncf || undefined,
+            rncProveedor: form.rncProveedor || undefined,
+            razonSocialProveedor: form.razonSocialProveedor || undefined,
+            fecha: form.fecha || undefined,
+            categoria606: form.categoria606 || undefined,
+          };
+      if (!soloValidar) {
+        for (const k of ['montoFacturado', 'itbis', 'propinaLegal', 'montoTotal'] as const) {
+          if (form[k] !== '') body[k] = Number(form[k]);
+        }
       }
+      body.validar = validar;
       await api(`/api/organizations/${orgId}/invoices/${invoice.id}/review`, {
         method: 'PATCH',
         body,
@@ -339,14 +351,32 @@ function ReviewPanel({
         <div>
           <label>Total impreso (verifica aritmética)</label>
           <input value={form.montoTotal} onChange={set('montoTotal')} inputMode="decimal" />
+          <p className="muted" style={{ marginTop: 4 }}>
+            Suma calculada (subtotal + ITBIS + propina):{' '}
+            <strong>{sumaCalculada.toFixed(2)}</strong>
+            {form.montoTotal !== '' &&
+              Math.abs(sumaCalculada - Number(form.montoTotal)) > 0.01 && (
+                <span style={{ color: 'var(--danger)' }}> · no coincide con el total impreso</span>
+              )}
+          </p>
         </div>
       </div>
 
-      <button onClick={save} disabled={busy}>
-        {busy ? 'Guardando…' : 'Guardar y validar'}
-      </button>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14 }}>
+        <button className="secondary" onClick={() => save(false)} disabled={busy}>
+          Guardar
+        </button>
+        <button className="secondary" onClick={() => save(true, true)} disabled={busy}>
+          Validar
+        </button>
+        <button onClick={() => save(true)} disabled={busy}>
+          {busy ? 'Guardando…' : 'Guardar y validar'}
+        </button>
+      </div>
       <p className="muted" style={{ marginTop: 8 }}>
-        Si los campos críticos quedan completos y la aritmética cuadra, la factura pasa a “Validada”.
+        <strong>Guardar</strong>: guarda el avance sin validar · <strong>Validar</strong>: valida lo
+        guardado · <strong>Guardar y validar</strong>: guarda tus cambios y valida. Para validar, los
+        campos críticos deben estar completos (y la aritmética cuadrar, si está activada).
       </p>
     </div>
   );

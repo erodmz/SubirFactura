@@ -120,7 +120,7 @@ function buildDetailLine(d: Formato606Detail): string {
 export interface Formato606Result {
   /** Contenido del archivo .TXT, líneas separadas por CRLF. */
   contenido: string;
-  /** Nombre sugerido: DGII_F_606_<RNC>_<AAAAMM>.TXT */
+  /** Nombre sugerido: <AAAAMM>_<RNC>_F_606.txt */
   nombreArchivo: string;
   cantidadRegistros: number;
 }
@@ -149,7 +149,7 @@ export function generateFormato606(input: Formato606Input): Formato606Result {
 
   return {
     contenido: lines.join('\r\n'),
-    nombreArchivo: `DGII_F_606_${rnc}_${input.periodo}.TXT`,
+    nombreArchivo: `${input.periodo}_${rnc}_F_606.txt`,
     cantidadRegistros: cantidad,
   };
 }

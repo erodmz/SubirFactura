@@ -35,7 +35,7 @@ describe('generateFormato606', () => {
       detalles: [],
     });
     expect(r.contenido).toBe('606|131000001|202605|0');
-    expect(r.nombreArchivo).toBe('DGII_F_606_131000001_202605.TXT');
+    expect(r.nombreArchivo).toBe('202605_131000001_F_606.txt');
   });
 
   it('serializa las 23 columnas en orden, separadas por pipe', () => {

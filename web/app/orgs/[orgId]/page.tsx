@@ -29,13 +29,30 @@ function UsageCard({ title, usage }: { title: string; usage: LimitUsage | null }
 export default function OrgDashboard() {
   const { orgId } = useParams<{ orgId: string }>();
   const [usage, setUsage] = useState<OrgUsage | null>(null);
+  const [aritmetica, setAritmetica] = useState<boolean | null>(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
     api<OrgUsage>(`/api/organizations/${orgId}/usage`)
       .then(setUsage)
       .catch((err) => setError(err instanceof Error ? err.message : 'Error'));
+    api<{ requiereValidacionAritmetica: boolean }>(`/api/organizations/${orgId}`)
+      .then((o) => setAritmetica(o.requiereValidacionAritmetica))
+      .catch(() => {});
   }, [orgId]);
+
+  async function toggleAritmetica(value: boolean) {
+    setAritmetica(value);
+    try {
+      await api(`/api/organizations/${orgId}`, {
+        method: 'PATCH',
+        body: { requiereValidacionAritmetica: value },
+      });
+    } catch (err) {
+      setAritmetica(!value); // revertir si falla
+      setError(err instanceof Error ? err.message : 'Error');
+    }
+  }
 
   return (
     <>
@@ -53,6 +70,26 @@ export default function OrgDashboard() {
             <UsageCard title="Facturas este mes" usage={usage.facturasMes} />
           </div>
         </>
+      )}
+
+      {aritmetica !== null && (
+        <div className="card">
+          <h2>Configuración</h2>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={aritmetica}
+              onChange={(e) => toggleAritmetica(e.target.checked)}
+              style={{ width: 'auto' }}
+            />
+            <span>
+              Exigir validación aritmética (subtotal + impuestos = total) antes de validar una factura
+            </span>
+          </label>
+          <p className="muted" style={{ marginTop: 6 }}>
+            Si lo apagas, el contador puede validar aunque los montos no cuadren exactamente.
+          </p>
+        </div>
       )}
     </>
   );

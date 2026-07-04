@@ -1,4 +1,4 @@
-import { IsIn, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsIn, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class CreateOrganizationDto {
   @IsString()
@@ -19,6 +19,10 @@ export class UpdateOrganizationDto {
   @IsOptional()
   @IsString()
   rnc?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  requiereValidacionAritmetica?: boolean;
 }
 
 export class UpdateMemberRoleDto {

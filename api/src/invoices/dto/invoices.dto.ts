@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsIn,
   IsNotEmpty,
   IsNumber,
@@ -80,4 +81,9 @@ export class ReviewInvoiceDto {
   @IsOptional()
   @IsString()
   tipoComprobante?: string;
+
+  /** true → guardar y validar (pasa a "validada" si cumple). false/omitido → solo guardar. */
+  @IsOptional()
+  @IsBoolean()
+  validar?: boolean;
 }

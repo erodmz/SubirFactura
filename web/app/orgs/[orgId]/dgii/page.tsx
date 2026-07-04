@@ -37,10 +37,20 @@ export default function DgiiPage() {
   const [preview, setPreview] = useState<Preview606 | null>(null);
   const [cierre, setCierre] = useState<CierreResult | null>(null);
   const [estado, setEstado] = useState<CierreEstado | null>(null);
+  const [rnc, setRnc] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
   const validPeriodo = /^\d{6}$/.test(periodo);
+
+  useEffect(() => {
+    api<{ rnc: string | null }>(`/api/organizations/${orgId}`)
+      .then((o) => setRnc(o.rnc ?? ''))
+      .catch(() => {});
+  }, [orgId]);
+
+  // Nombre de archivo DGII: AAAAMM_RNC_F_606.<ext>
+  const fileName = (ext: string) => `${periodo}_${rnc || 'SINRNC'}_F_606.${ext}`;
 
   const loadEstado = useCallback(async () => {
     if (!/^\d{6}$/.test(periodo)) {
@@ -81,7 +91,7 @@ export default function DgiiPage() {
     try {
       await apiDownload(
         `/api/organizations/${orgId}/dgii/606?periodo=${periodo}`,
-        `DGII_F_606_${periodo}.TXT`,
+        fileName('txt'),
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error');
@@ -93,7 +103,7 @@ export default function DgiiPage() {
     try {
       await apiDownload(
         `/api/organizations/${orgId}/dgii/606/excel?periodo=${periodo}`,
-        `DGII_F_606_${periodo}.xlsx`,
+        fileName('xlsx'),
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error');

@@ -23,16 +23,20 @@ export interface ExtractionEvaluation {
 const ISO_DATE_REGEX = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 
 /** Validación estructural de los campos fiscales; reutilizable para la revisión manual. */
-export function validateInvoiceFields(fields: {
-  ncf?: string | null;
-  rncProveedor?: string | null;
-  fecha?: string | null;
-  montoFacturado?: number | null;
-  itbis?: number | null;
-  propinaLegal?: number | null;
-  otrosImpuestos?: number | null;
-  montoTotal?: number | null;
-}): string[] {
+export function validateInvoiceFields(
+  fields: {
+    ncf?: string | null;
+    rncProveedor?: string | null;
+    fecha?: string | null;
+    montoFacturado?: number | null;
+    itbis?: number | null;
+    propinaLegal?: number | null;
+    otrosImpuestos?: number | null;
+    montoTotal?: number | null;
+  },
+  options: { validarAritmetica?: boolean } = {},
+): string[] {
+  const { validarAritmetica = true } = options;
   const errores: string[] = [];
 
   if (fields.ncf != null) {
@@ -50,8 +54,8 @@ export function validateInvoiceFields(fields: {
     errores.push('El monto facturado no puede ser negativo');
   }
 
-  // Coherencia aritmética solo cuando hay subtotal y total (§5.4)
-  if (fields.montoFacturado != null && fields.montoTotal != null) {
+  // Coherencia aritmética solo cuando hay subtotal y total (§5.4) y el toggle está activo
+  if (validarAritmetica && fields.montoFacturado != null && fields.montoTotal != null) {
     const result = checkInvoiceArithmetic({
       subtotal: toCents(fields.montoFacturado),
       itbis: fields.itbis != null ? toCents(fields.itbis) : 0,

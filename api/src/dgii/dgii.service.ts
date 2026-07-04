@@ -266,7 +266,7 @@ export class DgiiService {
     });
 
     const buffer = Buffer.from(await wb.xlsx.writeBuffer());
-    return { buffer, nombreArchivo: `DGII_F_606_${rnc}_${periodo}.xlsx` };
+    return { buffer, nombreArchivo: `${periodo}_${rnc}_F_606.xlsx` };
   }
 
   /**
