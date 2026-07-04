@@ -13,6 +13,7 @@ import {
 import { prisma, Prisma } from '@facturard/shared/db';
 import { getImageBase64 } from '../storage';
 import { extractInvoice } from './extract';
+import { decodeEcfQr } from './qr';
 
 export interface OcrJobData {
   invoiceId: string;
@@ -68,6 +69,20 @@ export async function processOcrJob(job: Job<OcrJobData>) {
   const images = await Promise.all(keys.map((k) => getImageBase64(k)));
   const extraction = await extractInvoice(images);
 
+  // QR de e-CF: si existe, sus datos son OFICIALES (DGII) y sobreescriben lo que
+  // leyó la IA para esos campos, con confianza máxima (§4, Fase 3).
+  const qr = await decodeEcfQr(images).catch((e) => {
+    console.warn(`[ocr] no se pudo decodificar QR de ${invoiceId}: ${e}`);
+    return null;
+  });
+  if (qr) {
+    if (qr.ncf) extraction.ncf = { valor: qr.ncf, confianza: 1 };
+    if (qr.rncEmisor) extraction.rnc_proveedor = { valor: qr.rncEmisor, confianza: 1 };
+    if (qr.montoTotal != null) extraction.monto_total = { valor: qr.montoTotal, confianza: 1 };
+    if (qr.fechaEmision) extraction.fecha = { valor: qr.fechaEmision, confianza: 1 };
+    console.log(`[ocr] factura ${invoiceId}: QR e-CF leído (${qr.ncf ?? 'sin NCF'})`);
+  }
+
   const threshold = Number(process.env.OCR_CONFIDENCE_THRESHOLD ?? DEFAULT_CONFIDENCE_THRESHOLD);
   const evaluation = evaluateExtraction(extraction, threshold);
 
@@ -116,7 +131,7 @@ export async function processOcrJob(job: Job<OcrJobData>) {
         formaPago,
         tipoBienServicio,
         ncfModificado,
-        confianzaPorCampo: { extraction, evaluation } as object,
+        confianzaPorCampo: { extraction, evaluation, qr } as object,
         validacionDgii: validacionDgii as object,
         estado: evaluation.estado,
       },
