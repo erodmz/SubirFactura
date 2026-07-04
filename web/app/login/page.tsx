@@ -11,17 +11,17 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
+  async function doLogin(em: string, pw: string) {
     setBusy(true);
     setError('');
     try {
       const { tokens } = await api<{ tokens: Tokens }>('/api/auth/login', {
         method: 'POST',
-        body: { email, password },
+        body: { email: em, password: pw },
       });
       saveTokens(tokens);
       const pendingInvite = localStorage.getItem(PENDING_INVITE_KEY);
@@ -30,6 +30,18 @@ export default function LoginPage() {
       setError(err instanceof Error ? err.message : 'Error inesperado');
       setBusy(false);
     }
+  }
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    doLogin(email, password);
+  }
+
+  // TODO(dev): quitar antes de producción — ingreso rápido con la cuenta de prueba.
+  function quickLogin() {
+    setEmail('elmer.test@facturard.do');
+    setPassword('clave-segura-123');
+    doLogin('elmer.test@facturard.do', 'clave-segura-123');
   }
 
   return (
@@ -52,14 +64,46 @@ export default function LoginPage() {
           <label>Correo electrónico</label>
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
           <label>Contraseña</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
+          <div style={{ position: 'relative' }}>
+            <input
+              type={showPassword ? 'text' : 'password'}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              style={{ paddingRight: 44 }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+              title={showPassword ? 'Ocultar' : 'Mostrar'}
+              style={{
+                position: 'absolute',
+                right: 6,
+                top: 6,
+                margin: 0,
+                padding: '4px 8px',
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--muted)',
+                fontSize: 18,
+                cursor: 'pointer',
+              }}
+            >
+              {showPassword ? '🙈' : '👁️'}
+            </button>
+          </div>
           <button disabled={busy}>{busy ? 'Entrando…' : 'Entrar'}</button>
         </form>
+        <button
+          type="button"
+          className="secondary"
+          onClick={quickLogin}
+          disabled={busy}
+          style={{ width: '100%' }}
+        >
+          ⚡ Ingreso rápido (dev)
+        </button>
         <p className="muted" style={{ marginTop: 16 }}>
           ¿No tienes cuenta? <Link href="/register">Regístrate</Link>
         </p>

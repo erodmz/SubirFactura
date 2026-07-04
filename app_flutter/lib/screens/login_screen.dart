@@ -16,6 +16,14 @@ class _LoginScreenState extends State<LoginScreen> {
   final _password = TextEditingController();
   String? _error;
   bool _busy = false;
+  bool _obscure = true;
+
+  // TODO(dev): quitar antes de producción — ingreso rápido con la cuenta de prueba.
+  void _quickLogin() {
+    _email.text = 'elmer.test@facturard.do';
+    _password.text = 'clave-segura-123';
+    _login();
+  }
 
   Future<void> _login() async {
     setState(() {
@@ -87,10 +95,15 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 16),
               TextField(
                 controller: _password,
-                obscureText: true,
-                decoration: const InputDecoration(
+                obscureText: _obscure,
+                decoration: InputDecoration(
                   labelText: 'Contraseña',
-                  border: OutlineInputBorder(),
+                  border: const OutlineInputBorder(),
+                  suffixIcon: IconButton(
+                    icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                    tooltip: _obscure ? 'Mostrar contraseña' : 'Ocultar contraseña',
+                    onPressed: () => setState(() => _obscure = !_obscure),
+                  ),
                 ),
                 onSubmitted: (_) => _login(),
               ),
@@ -98,6 +111,12 @@ class _LoginScreenState extends State<LoginScreen> {
               FilledButton(
                 onPressed: _busy ? null : _login,
                 child: Text(_busy ? 'Entrando…' : 'Entrar'),
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: _busy ? null : _quickLogin,
+                icon: const Icon(Icons.bolt),
+                label: const Text('Ingreso rápido (dev)'),
               ),
               const SizedBox(height: 16),
               const Text(
