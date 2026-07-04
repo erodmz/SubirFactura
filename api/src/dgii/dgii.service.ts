@@ -73,20 +73,45 @@ export class DgiiService {
     const taxId = validateTaxId(invoice.rncProveedor);
     if (!taxId.valid) return { error: `RNC/cédula inválido: ${taxId.error}` };
 
+    const n = (d: { toNumber(): number } | null) => (d == null ? undefined : d.toNumber());
+
+    // Bienes/servicios: usar el desglose si el contador lo capturó; si no,
+    // enrutar el subtotal a una columna según el tipo (por defecto, bienes).
+    let montoBienes = n(invoice.montoBienes);
+    let montoServicios = n(invoice.montoServicios);
+    if (montoBienes === undefined && montoServicios === undefined) {
+      const sub = n(invoice.montoFacturado) ?? 0;
+      if (invoice.tipoBienServicio === 'servicios') {
+        montoServicios = sub;
+        montoBienes = 0;
+      } else {
+        montoBienes = sub;
+        montoServicios = 0;
+      }
+    }
+
     return {
       rncCedula: taxId.normalized!,
-      tipoId: taxId.kind === 'cedula' ? '2' : '1',
+      tipoId: (invoice.tipoIdProveedor as '1' | '2' | null) ?? (taxId.kind === 'cedula' ? '2' : '1'),
       tipoBienesServicios: invoice.categoria606,
       ncf: invoice.ncf,
+      ncfModificado: invoice.ncfModificado,
       fechaComprobante: this.toFechaDgii(invoice.fecha)!,
-      // No distinguimos bienes/servicios en la captura: todo va a bienes por
-      // defecto. El contador puede ajustarlo en la herramienta oficial si aplica.
-      montoBienes: invoice.montoFacturado?.toNumber() ?? 0,
-      itbisFacturado: invoice.itbis?.toNumber() ?? undefined,
-      impuestoSelectivo: invoice.otrosImpuestos?.toNumber() ?? undefined,
-      propinaLegal: invoice.propinaLegal?.toNumber() ?? undefined,
-      // Forma de pago no se captura aún en la app; efectivo por defecto.
-      formaPago: '1',
+      fechaPago: this.toFechaDgii(invoice.fechaPago),
+      montoServicios,
+      montoBienes,
+      itbisFacturado: n(invoice.itbis),
+      itbisRetenido: n(invoice.itbisRetenido),
+      itbisProporcionalidad: n(invoice.itbisProporcionalidad),
+      itbisCosto: n(invoice.itbisCosto),
+      itbisPercibido: n(invoice.itbisPercibido),
+      tipoRetencionISR: invoice.tipoRetencionIsr,
+      montoRetencionRenta: n(invoice.montoRetencionRenta),
+      isrPercibido: n(invoice.isrPercibido),
+      impuestoSelectivo: n(invoice.impuestoSelectivo),
+      otrosImpuestos: n(invoice.otrosImpuestos),
+      propinaLegal: n(invoice.propinaLegal),
+      formaPago: invoice.formaPago ?? '1',
     };
   }
 

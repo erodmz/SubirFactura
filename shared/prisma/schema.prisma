@@ -190,6 +190,24 @@ model Invoice {
   propinaLegal          Decimal?      @map("propina_legal") @db.Decimal(14, 2)
   categoria606          String?       @map("categoria_606")
   tipoComprobante       String?       @map("tipo_comprobante")
+
+  // Campos del Formato 606 para el llenado del contador (cols. 1–23)
+  tipoIdProveedor       String?       @map("tipo_id_proveedor")       // '1' RNC, '2' cédula (editable, col. 2)
+  ncfModificado         String?       @map("ncf_modificado")          // col. 5 (nota crédito/débito)
+  fechaPago             DateTime?     @db.Date @map("fecha_pago")      // col. 7
+  tipoBienServicio      String?       @map("tipo_bien_servicio")      // 'bienes'|'servicios'|'ambos' (cols. 8/9)
+  montoServicios        Decimal?      @map("monto_servicios") @db.Decimal(14, 2)         // col. 8
+  montoBienes           Decimal?      @map("monto_bienes") @db.Decimal(14, 2)            // col. 9
+  itbisRetenido         Decimal?      @map("itbis_retenido") @db.Decimal(14, 2)          // col. 12
+  itbisProporcionalidad Decimal?      @map("itbis_proporcionalidad") @db.Decimal(14, 2)  // col. 13
+  itbisCosto            Decimal?      @map("itbis_costo") @db.Decimal(14, 2)             // col. 14
+  itbisPercibido        Decimal?      @map("itbis_percibido") @db.Decimal(14, 2)         // col. 16
+  tipoRetencionIsr      String?       @map("tipo_retencion_isr")      // col. 17
+  montoRetencionRenta   Decimal?      @map("monto_retencion_renta") @db.Decimal(14, 2)   // col. 18
+  isrPercibido          Decimal?      @map("isr_percibido") @db.Decimal(14, 2)           // col. 19
+  impuestoSelectivo     Decimal?      @map("impuesto_selectivo") @db.Decimal(14, 2)      // col. 20
+  formaPago             String?       @map("forma_pago")              // '1'..'7' (col. 23)
+
   confianzaPorCampo     Json?         @map("confianza_por_campo")
   validacionDgii        Json?         @map("validacion_dgii")
   periodoFiscal         String?       @map("periodo_fiscal") // AAAAMM

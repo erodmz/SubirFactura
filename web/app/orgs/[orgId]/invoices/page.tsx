@@ -180,17 +180,35 @@ function ReviewPanel({
   onSaved: () => void;
 }) {
   const marcados = dudosos(invoice);
+  const str = (v: number | string | null | undefined) => (v == null ? '' : v.toString());
   const [form, setForm] = useState({
-    ncf: invoice.ncf ?? '',
+    // Tab 1 · básico (col. 1–11 + forma de pago)
     rncProveedor: invoice.rncProveedor ?? '',
+    tipoIdProveedor: invoice.tipoIdProveedor ?? '',
     razonSocialProveedor: invoice.razonSocialProveedor ?? '',
-    fecha: fechaCorta(invoice.fecha),
-    montoFacturado: invoice.montoFacturado?.toString() ?? '',
-    itbis: invoice.itbis?.toString() ?? '',
-    propinaLegal: invoice.propinaLegal?.toString() ?? '',
-    montoTotal: '',
     categoria606: invoice.categoria606 ?? '',
+    ncf: invoice.ncf ?? '',
+    ncfModificado: invoice.ncfModificado ?? '',
+    fecha: fechaCorta(invoice.fecha),
+    fechaPago: fechaCorta(invoice.fechaPago ?? null),
+    tipoBienServicio: invoice.tipoBienServicio ?? 'bienes',
+    montoFacturado: str(invoice.montoFacturado),
+    itbis: str(invoice.itbis),
+    montoTotal: '',
+    formaPago: invoice.formaPago ?? '',
+    // Tab 2 · avanzado (col. 12–23)
+    itbisRetenido: str(invoice.itbisRetenido),
+    itbisProporcionalidad: str(invoice.itbisProporcionalidad),
+    itbisCosto: str(invoice.itbisCosto),
+    itbisPercibido: str(invoice.itbisPercibido),
+    tipoRetencionIsr: invoice.tipoRetencionIsr ?? '',
+    montoRetencionRenta: str(invoice.montoRetencionRenta),
+    isrPercibido: str(invoice.isrPercibido),
+    impuestoSelectivo: str(invoice.impuestoSelectivo),
+    otrosImpuestos: str(invoice.otrosImpuestos),
+    propinaLegal: str(invoice.propinaLegal),
   });
+  const [tab, setTab] = useState<'basico' | 'avanzado'>('basico');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [imageUrls, setImageUrls] = useState<string[] | null>(null);
@@ -216,6 +234,30 @@ function ReviewPanel({
     </div>
   );
 
+  const textField = (label: string, key: keyof typeof form, placeholder?: string) => (
+    <div>
+      <label>{label}</label>
+      <input value={form[key]} onChange={set(key)} placeholder={placeholder} />
+    </div>
+  );
+
+  const selectField = (
+    label: string,
+    key: keyof typeof form,
+    options: { value: string; label: string }[],
+  ) => (
+    <div>
+      <label>{label}</label>
+      <select value={form[key]} onChange={set(key)}>
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+
   // Suma esperada según los montos capturados (para validar contra el total impreso).
   const sumaCalculada = (['montoFacturado', 'itbis', 'propinaLegal'] as const).reduce(
     (acc, k) => acc + (Number(form[k]) || 0),
@@ -227,19 +269,20 @@ function ReviewPanel({
     setBusy(true);
     setError('');
     try {
-      const body: Record<string, unknown> = soloValidar
-        ? {}
-        : {
-            ncf: form.ncf || undefined,
-            rncProveedor: form.rncProveedor || undefined,
-            razonSocialProveedor: form.razonSocialProveedor || undefined,
-            fecha: form.fecha || undefined,
-            categoria606: form.categoria606 || undefined,
-          };
+      const body: Record<string, unknown> = {};
       if (!soloValidar) {
-        for (const k of ['montoFacturado', 'itbis', 'propinaLegal', 'montoTotal'] as const) {
-          if (form[k] !== '') body[k] = Number(form[k]);
-        }
+        const textKeys = [
+          'ncf', 'rncProveedor', 'razonSocialProveedor', 'fecha', 'categoria606',
+          'tipoIdProveedor', 'ncfModificado', 'fechaPago', 'tipoBienServicio',
+          'formaPago', 'tipoRetencionIsr',
+        ] as const;
+        for (const k of textKeys) body[k] = form[k] || undefined;
+        const numKeys = [
+          'montoFacturado', 'itbis', 'montoTotal', 'propinaLegal', 'otrosImpuestos',
+          'itbisRetenido', 'itbisProporcionalidad', 'itbisCosto', 'itbisPercibido',
+          'montoRetencionRenta', 'isrPercibido', 'impuestoSelectivo',
+        ] as const;
+        for (const k of numKeys) if (form[k] !== '') body[k] = Number(form[k]);
       }
       body.validar = validar;
       await api(`/api/organizations/${orgId}/invoices/${invoice.id}/review`, {
@@ -304,63 +347,138 @@ function ReviewPanel({
       )}
       {error && <div className="error">{error}</div>}
 
-      <div className="row">
-        <div>
-          <label style={marcados.has('ncf') ? { color: '#d97706' } : undefined}>
-            NCF{marcados.has('ncf') ? ' ⚠' : ''}
-          </label>
-          <input value={form.ncf} onChange={set('ncf')} />
-        </div>
-        <div>
-          <label style={marcados.has('rnc_proveedor') ? { color: '#d97706' } : undefined}>
-            RNC proveedor{marcados.has('rnc_proveedor') ? ' ⚠' : ''}
-          </label>
-          <input value={form.rncProveedor} onChange={set('rncProveedor')} />
-        </div>
+      <div className="seg" style={{ margin: '4px 0 16px' }}>
+        <button
+          type="button"
+          className={tab === 'basico' ? 'seg-item active' : 'seg-item'}
+          onClick={() => setTab('basico')}
+        >
+          Datos básicos (1–11)
+        </button>
+        <button
+          type="button"
+          className={tab === 'avanzado' ? 'seg-item active' : 'seg-item'}
+          onClick={() => setTab('avanzado')}
+        >
+          Retenciones e impuestos (12–23)
+        </button>
       </div>
 
-      <label>Razón social del proveedor</label>
-      <input value={form.razonSocialProveedor} onChange={set('razonSocialProveedor')} />
+      {tab === 'basico' ? (
+        <>
+          <div className="row">
+            <div>
+              <label style={marcados.has('rnc_proveedor') ? { color: '#d97706' } : undefined}>
+                RNC / Cédula del proveedor{marcados.has('rnc_proveedor') ? ' ⚠' : ''}
+              </label>
+              <input value={form.rncProveedor} onChange={set('rncProveedor')} />
+            </div>
+            {selectField('Tipo de documento', 'tipoIdProveedor', [
+              { value: '', label: 'Automático (por longitud)' },
+              { value: '1', label: '1 · RNC (9 dígitos)' },
+              { value: '2', label: '2 · Cédula (11 dígitos)' },
+            ])}
+          </div>
 
-      <div className="row">
-        <div>
-          <label style={marcados.has('fecha') ? { color: '#d97706' } : undefined}>
-            Fecha (AAAA-MM-DD){marcados.has('fecha') ? ' ⚠' : ''}
-          </label>
-          <input value={form.fecha} onChange={set('fecha')} placeholder="2026-05-14" />
-        </div>
-        <div>
-          <label>Categoría 606</label>
-          <select value={form.categoria606} onChange={set('categoria606')}>
-            <option value="">Sin asignar</option>
-            {Object.entries(CATEGORIAS_606).map(([code, nombre]) => (
-              <option key={code} value={code}>
-                {code} — {nombre}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+          <label>Razón social del proveedor</label>
+          <input value={form.razonSocialProveedor} onChange={set('razonSocialProveedor')} />
 
-      <div className="row">
-        {numField('Monto facturado (subtotal)', 'montoFacturado', 'monto_facturado')}
-        {numField('ITBIS', 'itbis', 'itbis')}
-      </div>
-      <div className="row">
-        {numField('Propina legal', 'propinaLegal')}
-        <div>
-          <label>Total impreso (verifica aritmética)</label>
-          <input value={form.montoTotal} onChange={set('montoTotal')} inputMode="decimal" />
-          <p className="muted" style={{ marginTop: 4 }}>
-            Suma calculada (subtotal + ITBIS + propina):{' '}
-            <strong>{sumaCalculada.toFixed(2)}</strong>
-            {form.montoTotal !== '' &&
-              Math.abs(sumaCalculada - Number(form.montoTotal)) > 0.01 && (
-                <span style={{ color: 'var(--danger)' }}> · no coincide con el total impreso</span>
-              )}
+          <div className="row">
+            {selectField('Tipo de bienes/servicios (606)', 'categoria606', [
+              { value: '', label: 'Sin asignar' },
+              ...Object.entries(CATEGORIAS_606).map(([code, nombre]) => ({
+                value: code,
+                label: `${code} — ${nombre}`,
+              })),
+            ])}
+            {selectField('Bienes o servicios', 'tipoBienServicio', [
+              { value: 'bienes', label: 'Bienes' },
+              { value: 'servicios', label: 'Servicios' },
+            ])}
+          </div>
+
+          <div className="row">
+            {textField('NCF', 'ncf', 'B0100000001')}
+            {textField('NCF modificado (nota créd./déb.)', 'ncfModificado')}
+          </div>
+
+          <div className="row">
+            <div>
+              <label style={marcados.has('fecha') ? { color: '#d97706' } : undefined}>
+                Fecha comprobante (AAAA-MM-DD){marcados.has('fecha') ? ' ⚠' : ''}
+              </label>
+              <input value={form.fecha} onChange={set('fecha')} placeholder="2026-05-14" />
+            </div>
+            {textField('Fecha de pago (AAAA-MM-DD)', 'fechaPago', 'opcional')}
+          </div>
+
+          <div className="row">
+            {numField('Monto facturado (subtotal)', 'montoFacturado', 'monto_facturado')}
+            {numField('ITBIS facturado', 'itbis', 'itbis')}
+          </div>
+
+          <div className="row">
+            {selectField('Forma de pago', 'formaPago', [
+              { value: '', label: 'Sin especificar' },
+              { value: '1', label: '1 · Efectivo' },
+              { value: '2', label: '2 · Cheque / transferencia' },
+              { value: '3', label: '3 · Tarjeta crédito/débito' },
+              { value: '4', label: '4 · Compra a crédito' },
+              { value: '5', label: '5 · Permuta' },
+              { value: '6', label: '6 · Nota de crédito' },
+              { value: '7', label: '7 · Mixto / otras' },
+            ])}
+            <div>
+              <label>Total impreso (verifica aritmética)</label>
+              <input value={form.montoTotal} onChange={set('montoTotal')} inputMode="decimal" />
+              <p className="muted" style={{ marginTop: 4 }}>
+                Suma calculada (subtotal + ITBIS + propina):{' '}
+                <strong>{sumaCalculada.toFixed(2)}</strong>
+                {form.montoTotal !== '' &&
+                  Math.abs(sumaCalculada - Number(form.montoTotal)) > 0.01 && (
+                    <span style={{ color: 'var(--danger)' }}> · no coincide</span>
+                  )}
+              </p>
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="muted" style={{ marginTop: 0 }}>
+            Columnas avanzadas del 606. Déjalas en blanco si no aplican.
           </p>
-        </div>
-      </div>
+          <div className="row">
+            {numField('ITBIS retenido', 'itbisRetenido')}
+            {numField('ITBIS proporcionalidad (Art. 349)', 'itbisProporcionalidad')}
+          </div>
+          <div className="row">
+            {numField('ITBIS llevado al costo', 'itbisCosto')}
+            {numField('ITBIS percibido', 'itbisPercibido')}
+          </div>
+          <div className="row">
+            {selectField('Tipo de retención en ISR', 'tipoRetencionIsr', [
+              { value: '', label: 'Sin retención' },
+              { value: '01', label: '01 · Alquileres' },
+              { value: '02', label: '02 · Honorarios por servicios' },
+              { value: '03', label: '03 · Otras rentas' },
+              { value: '04', label: '04 · Rentas presuntas' },
+              { value: '05', label: '05 · Intereses pagados a PJ' },
+              { value: '06', label: '06 · Intereses pagados a PF' },
+              { value: '07', label: '07 · Proveedores del Estado' },
+              { value: '08', label: '08 · Juegos de azar' },
+            ])}
+            {numField('Monto retención renta', 'montoRetencionRenta')}
+          </div>
+          <div className="row">
+            {numField('ISR percibido', 'isrPercibido')}
+            {numField('Impuesto selectivo al consumo', 'impuestoSelectivo')}
+          </div>
+          <div className="row">
+            {numField('Otros impuestos / tasas', 'otrosImpuestos')}
+            {numField('Propina legal', 'propinaLegal')}
+          </div>
+        </>
+      )}
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14 }}>
         <button className="secondary" onClick={() => save(false)} disabled={busy}>

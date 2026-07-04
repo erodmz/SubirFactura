@@ -53,6 +53,22 @@ export interface Invoice {
   categoria606: string | null;
   tipoComprobante: string | null;
   periodoFiscal: string | null;
+  // Campos del Formato 606 (Fase 2)
+  tipoIdProveedor?: string | null;
+  ncfModificado?: string | null;
+  fechaPago?: string | null;
+  tipoBienServicio?: string | null;
+  montoServicios?: number | string | null;
+  montoBienes?: number | string | null;
+  itbisRetenido?: number | string | null;
+  itbisProporcionalidad?: number | string | null;
+  itbisCosto?: number | string | null;
+  itbisPercibido?: number | string | null;
+  tipoRetencionIsr?: string | null;
+  montoRetencionRenta?: number | string | null;
+  isrPercibido?: number | string | null;
+  impuestoSelectivo?: number | string | null;
+  formaPago?: string | null;
   clientProfile?: { id: string; razonSocial: string };
   confianzaPorCampo?: {
     evaluation?: { camposBajaConfianza?: string[]; erroresValidacion?: string[] };

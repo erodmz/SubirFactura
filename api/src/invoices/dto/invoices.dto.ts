@@ -82,6 +82,76 @@ export class ReviewInvoiceDto {
   @IsString()
   tipoComprobante?: string;
 
+  // ── Campos del Formato 606 (Fase 2) ──────────────────────────────────────
+  @IsOptional()
+  @IsIn(['1', '2'], { message: 'Tipo de documento: 1 (RNC) o 2 (cédula)' })
+  tipoIdProveedor?: string;
+
+  @IsOptional()
+  @IsString()
+  ncfModificado?: string;
+
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'Fecha de pago inválida (AAAA-MM-DD)' })
+  fechaPago?: string;
+
+  @IsOptional()
+  @IsIn(['bienes', 'servicios', 'ambos'])
+  tipoBienServicio?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  montoServicios?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  montoBienes?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  itbisRetenido?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  itbisProporcionalidad?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  itbisCosto?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  itbisPercibido?: number;
+
+  @IsOptional()
+  @IsString()
+  tipoRetencionIsr?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  montoRetencionRenta?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  isrPercibido?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  impuestoSelectivo?: number;
+
+  @IsOptional()
+  @IsIn(['1', '2', '3', '4', '5', '6', '7'], { message: 'Forma de pago inválida (1–7)' })
+  formaPago?: string;
+
   /** true → guardar y validar (pasa a "validada" si cumple). false/omitido → solo guardar. */
   @IsOptional()
   @IsBoolean()
