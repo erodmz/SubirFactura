@@ -4,12 +4,14 @@ import { ChangePasswordDto, LoginDto, RefreshDto, RegisterDto } from './dto/auth
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
 
 @Controller()
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
   ) {}
 
   @Public()
@@ -59,9 +61,21 @@ export class AuthController {
       }),
       this.prisma.membership.findMany({
         where: { userId: user.userId },
-        include: { organization: { select: { id: true, nombre: true, estadoSuscripcion: true } } },
+        include: {
+          organization: {
+            select: { id: true, nombre: true, estadoSuscripcion: true, logoKey: true },
+          },
+        },
       }),
     ]);
+
+    // URL firmada del logo de cada empresa (para la lista de empresas).
+    const logoUrls = new Map<string, string>();
+    for (const m of memberships) {
+      if (m.organization.logoKey && !logoUrls.has(m.organizationId)) {
+        logoUrls.set(m.organizationId, await this.storage.presignedGetUrl(m.organization.logoKey));
+      }
+    }
 
     // Negocios (client_profiles) que el usuario puede subir como cliente.
     // Para un cliente, "sus empresas" son estos negocios, no el despacho.
@@ -101,7 +115,12 @@ export class AuthController {
         membershipId: m.id,
         rol: m.rol,
         puedeValidar: m.puedeValidar,
-        organization: m.organization,
+        organization: {
+          id: m.organization.id,
+          nombre: m.organization.nombre,
+          estadoSuscripcion: m.organization.estadoSuscripcion,
+          logoUrl: logoUrls.get(m.organizationId) ?? null,
+        },
       })),
       clientProfiles,
     };

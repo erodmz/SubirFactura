@@ -1,14 +1,23 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { validateTaxId } from '@facturard/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { StorageService } from '../storage/storage.service';
 import { CreateOrganizationDto, UpdateOrganizationDto } from './dto/organizations.dto';
+
+const LOGO_MIME = new Map([
+  ['image/png', 'png'],
+  ['image/jpeg', 'jpg'],
+  ['image/webp', 'webp'],
+]);
 
 @Injectable()
 export class OrganizationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly storage: StorageService,
   ) {}
 
   /**
@@ -63,7 +72,8 @@ export class OrganizationsService {
       include: { plan: true },
     });
     if (!org) throw new NotFoundException('Organización no encontrada');
-    return org;
+    const logoUrl = org.logoKey ? await this.storage.presignedGetUrl(org.logoKey) : null;
+    return { ...org, logoUrl };
   }
 
   async update(orgId: string, userId: string, dto: UpdateOrganizationDto) {
@@ -80,5 +90,28 @@ export class OrganizationsService {
       datos: dto as object,
     });
     return org;
+  }
+
+  /** Sube/reemplaza el logo de la empresa (lo muestra la lista de empresas). */
+  async uploadLogo(
+    orgId: string,
+    userId: string,
+    file: { buffer: Buffer; mimetype: string },
+  ) {
+    const ext = LOGO_MIME.get(file.mimetype);
+    if (!ext) {
+      throw new BadRequestException('Formato de logo no válido (usa PNG, JPG o WebP)');
+    }
+    const key = `logos/${orgId}/${randomUUID()}.${ext}`;
+    await this.storage.putObject(key, file.buffer, file.mimetype);
+    await this.prisma.organization.update({ where: { id: orgId }, data: { logoKey: key } });
+    await this.audit.log({
+      organizationId: orgId,
+      userId,
+      accion: 'organization.upload_logo',
+      entidad: 'organization',
+      entidadId: orgId,
+    });
+    return { logoUrl: await this.storage.presignedGetUrl(key) };
   }
 }

@@ -74,9 +74,19 @@ export default function HomePage() {
             <div className="org-grid">
               {me.memberships.map((m) => (
                 <Link key={m.membershipId} href={`/orgs/${m.organization.id}`} className="org-card">
-                  <span className="org-initial">
-                    {m.organization.nombre.charAt(0).toUpperCase()}
-                  </span>
+                  {m.organization.logoUrl ? (
+                    <span className="org-initial" style={{ overflow: 'hidden', padding: 0 }}>
+                      <img
+                        src={m.organization.logoUrl}
+                        alt={m.organization.nombre}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    </span>
+                  ) : (
+                    <span className="org-initial">
+                      {m.organization.nombre.charAt(0).toUpperCase()}
+                    </span>
+                  )}
                   <strong>{m.organization.nombre}</strong>
                   <span className="badge">{m.rol}</span>
                 </Link>

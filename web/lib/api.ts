@@ -84,6 +84,25 @@ export async function api<T = unknown>(
   return (await res.json()) as T;
 }
 
+/** Sube un archivo (multipart) al API con auth + refresh, y devuelve el JSON. */
+export async function apiUpload<T = unknown>(path: string, formData: FormData): Promise<T> {
+  const doFetch = () =>
+    fetch(`${API_BASE}${path}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${getTokens()?.accessToken ?? ''}` },
+      body: formData,
+    });
+  let res = await doFetch();
+  if (res.status === 401 && (await tryRefresh())) res = await doFetch();
+  if (res.status === 401) {
+    clearTokens();
+    window.location.href = '/login';
+    throw new ApiError(401, 'Sesión expirada');
+  }
+  if (!res.ok) throw await parseError(res);
+  return (await res.json()) as T;
+}
+
 /** Descarga un archivo del API (con auth + refresh) y la dispara en el navegador. */
 export async function apiDownload(path: string, filename: string): Promise<void> {
   const doFetch = () =>

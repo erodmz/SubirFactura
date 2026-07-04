@@ -47,11 +47,13 @@ class OrgSelectorScreen extends StatelessWidget {
           for (final m in memberships)
             Card(
               child: ListTile(
-                leading: CircleAvatar(
-                  child: Text(
-                    (m.orgNombre.isNotEmpty ? m.orgNombre[0] : '?').toUpperCase(),
-                  ),
-                ),
+                leading: m.orgLogoUrl != null
+                    ? CircleAvatar(backgroundImage: NetworkImage(m.orgLogoUrl!))
+                    : CircleAvatar(
+                        child: Text(
+                          (m.orgNombre.isNotEmpty ? m.orgNombre[0] : '?').toUpperCase(),
+                        ),
+                      ),
                 title: Text(m.orgNombre),
                 subtitle: Text(m.rol.replaceAll('_', ' ')),
                 trailing: const Icon(Icons.chevron_right),

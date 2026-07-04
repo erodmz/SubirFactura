@@ -6,7 +6,13 @@ export interface Me {
   memberships: {
     membershipId: string;
     rol: 'org_admin' | 'contador' | 'cliente';
-    organization: { id: string; nombre: string; estadoSuscripcion: string | null };
+    puedeValidar?: boolean;
+    organization: {
+      id: string;
+      nombre: string;
+      estadoSuscripcion: string | null;
+      logoUrl?: string | null;
+    };
   }[];
 }
 

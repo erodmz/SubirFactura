@@ -68,6 +68,7 @@ class Membership {
     required this.orgId,
     required this.orgNombre,
     this.puedeValidar = false,
+    this.orgLogoUrl,
   });
 
   factory Membership.fromJson(Map<String, dynamic> json) {
@@ -78,6 +79,7 @@ class Membership {
       orgId: org['id'] as String,
       orgNombre: org['nombre'] as String,
       puedeValidar: json['puedeValidar'] as bool? ?? false,
+      orgLogoUrl: org['logoUrl'] as String?,
     );
   }
 
@@ -88,6 +90,9 @@ class Membership {
 
   /// El contador habilitó a este cliente para validar (no solo guardar).
   final bool puedeValidar;
+
+  /// Logo de la empresa (si lo subió), para la lista de empresas.
+  final String? orgLogoUrl;
 }
 
 /// Un negocio (client_profile) al que un cliente puede subirle facturas,

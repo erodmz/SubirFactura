@@ -1,4 +1,16 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { OrganizationsService } from './organizations.service';
 import { MembersService } from './members.service';
 import { PlanLimitsService } from '../plans/plan-limits.service';
@@ -38,6 +50,18 @@ export class OrganizationsController {
     @Body() dto: UpdateOrganizationDto,
   ) {
     return this.organizations.update(orgId, user.userId, dto);
+  }
+
+  @Post(':orgId/logo')
+  @OrgRoles('org_admin', 'contador')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 2 * 1024 * 1024 } }))
+  uploadLogo(
+    @Param('orgId') orgId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) throw new Error('Falta el archivo del logo (campo "file")');
+    return this.organizations.uploadLogo(orgId, user.userId, file);
   }
 
   /** Uso vs límites del plan, con avisos al 80% (§7). */
