@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api/client.dart';
+import 'connectivity_service.dart';
 
 class PendingUpload {
   PendingUpload({
@@ -22,7 +23,7 @@ class PendingUpload {
   factory PendingUpload.fromJson(Map<String, dynamic> json) => PendingUpload(
         id: json['id'] as String,
         orgId: json['orgId'] as String,
-        clientProfileId: json['clientProfileId'] as String,
+        clientProfileId: json['clientProfileId'] as String?,
         // Compat: versiones previas guardaban una sola ruta en 'filePath'
         filePaths: (json['filePaths'] as List?)?.cast<String>() ??
             [if (json['filePath'] != null) json['filePath'] as String],
@@ -32,7 +33,7 @@ class PendingUpload {
 
   final String id;
   final String orgId;
-  final String clientProfileId;
+  final String? clientProfileId;
   final List<String> filePaths;
   int attempts;
   String? lastError;
@@ -84,7 +85,7 @@ class UploadQueue extends ChangeNotifier {
 
   Future<void> enqueue({
     required String orgId,
-    required String clientProfileId,
+    required String? clientProfileId,
     required List<File> images,
   }) async {
     final dir = await getApplicationDocumentsDirectory();
@@ -112,6 +113,9 @@ class UploadQueue extends ChangeNotifier {
 
   Future<void> processAll() async {
     if (_processing || _items.isEmpty || !ApiClient.instance.hasSession) return;
+    // Sin conexión: no intentamos red (ahorra batería). El listener de señal
+    // dispara este barrido apenas vuelve la conexión.
+    if (!ConnectivityService.instance.online.value) return;
     _processing = true;
     try {
       for (final item in List.of(_items)) {

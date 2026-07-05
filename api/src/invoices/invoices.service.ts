@@ -45,7 +45,7 @@ export class InvoicesService {
     orgId: string,
     user: AuthenticatedUser,
     membership: Membership,
-    clientProfileId: string,
+    clientProfileId: string | undefined,
     files: { buffer: Buffer; mimetype: string; size: number }[],
   ) {
     const [primaryFile, ...restFiles] = files;
@@ -58,18 +58,25 @@ export class InvoicesService {
       }
     }
 
-    const client = await this.prisma.forOrg(orgId).clientProfile.findUnique({
-      where: { id: clientProfileId },
-    });
-    if (!client) throw new NotFoundException('Cliente no encontrado');
-    if (membership.rol === 'cliente') {
-      const link = await this.prisma.clientMember.findUnique({
-        where: { clientProfileId_userId: { clientProfileId, userId: user.userId } },
+    if (clientProfileId) {
+      // Se indicó la empresa: validar que exista y (si es cliente) que la maneje.
+      const client = await this.prisma.forOrg(orgId).clientProfile.findUnique({
+        where: { id: clientProfileId },
       });
-      if (!link) {
-        throw new ForbiddenException('No estás habilitado para subir facturas de este cliente');
+      if (!client) throw new NotFoundException('Cliente no encontrado');
+      if (membership.rol === 'cliente') {
+        const link = await this.prisma.clientMember.findUnique({
+          where: { clientProfileId_userId: { clientProfileId, userId: user.userId } },
+        });
+        if (!link) {
+          throw new ForbiddenException('No estás habilitado para subir facturas de este cliente');
+        }
       }
+    } else if (membership.rol === 'cliente') {
+      // Un cliente siempre sube a su propia empresa.
+      throw new BadRequestException('Indica a qué empresa pertenece la factura');
     }
+    // Contador/admin sin empresa: se auto-asigna por RNC del comprador en el worker.
 
     const limitWarning = await this.planLimits.ensureCanAddFactura(orgId);
 
@@ -101,7 +108,7 @@ export class InvoicesService {
     const invoice = await this.prisma.forOrg(orgId).invoice.create({
       data: {
         organizationId: orgId,
-        clientProfileId,
+        clientProfileId: clientProfileId ?? null,
         estado: 'subida',
         imagenUrl: primaryKey,
         imagenPhash: imageHash,
@@ -142,11 +149,15 @@ export class InvoicesService {
         select: { clientProfileId: true },
       });
       const allowed = assignments.map((a) => a.clientProfileId);
-      where.clientProfileId = query.clientProfileId
-        ? allowed.includes(query.clientProfileId)
+      if (query.clientProfileId) {
+        where.clientProfileId = allowed.includes(query.clientProfileId)
           ? query.clientProfileId
-          : '__none__'
-        : { in: allowed };
+          : '__none__';
+      } else {
+        // Sus clientes asignados + las facturas aún "sin asignar" (para resolverlas).
+        where.clientProfileId = undefined;
+        where.OR = [{ clientProfileId: { in: allowed } }, { clientProfileId: null }];
+      }
     } else if (membership.rol === 'cliente') {
       const links = await this.prisma.clientMember.findMany({
         where: { userId: user.userId },
@@ -369,6 +380,11 @@ export class InvoicesService {
     const updated = await this.prisma.forOrg(orgId).invoice.update({
       where: { id: invoiceId },
       data: {
+        // Reasignar empresa (solo contador/admin; el cliente no cambia la suya).
+        clientProfileId:
+          dto.clientProfileId && membership.rol !== 'cliente'
+            ? dto.clientProfileId
+            : invoice.clientProfileId,
         ncf: merged.ncf,
         rncProveedor: merged.rncProveedor,
         razonSocialProveedor: razonSocial,

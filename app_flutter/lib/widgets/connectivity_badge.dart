@@ -54,6 +54,59 @@ class ConnectivityBadge extends StatelessWidget {
   }
 }
 
+/// Banner de subidas pendientes: en línea muestra "subiendo…"; sin conexión
+/// avisa que quedaron pendientes y se subirán al reconectar.
+class PendingUploadBanner extends StatelessWidget {
+  const PendingUploadBanner({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final queue = UploadQueue.instance;
+    return ListenableBuilder(
+      listenable: Listenable.merge([queue, ConnectivityService.instance.online]),
+      builder: (context, _) {
+        if (queue.lastRejection != null) {
+          return Material(
+            color: scheme.errorContainer,
+            child: ListTile(
+              dense: true,
+              iconColor: scheme.onErrorContainer,
+              textColor: scheme.onErrorContainer,
+              leading: const Icon(Icons.error_outline),
+              title: Text(queue.lastRejection!),
+              trailing: IconButton(
+                icon: const Icon(Icons.close, size: 18),
+                color: scheme.onErrorContainer,
+                onPressed: queue.clearRejection,
+              ),
+            ),
+          );
+        }
+        if (queue.pendingCount == 0) return const SizedBox.shrink();
+
+        final online = ConnectivityService.instance.online.value;
+        final n = queue.pendingCount;
+        return Material(
+          color: online ? scheme.secondaryContainer : scheme.surfaceContainerHighest,
+          child: ListTile(
+            dense: true,
+            iconColor: online ? scheme.onSecondaryContainer : scheme.onSurfaceVariant,
+            textColor: online ? scheme.onSecondaryContainer : scheme.onSurfaceVariant,
+            leading: Icon(online ? Icons.cloud_upload : Icons.cloud_off_rounded),
+            title: Text(online
+                ? '$n factura(s) subiendo…'
+                : '$n factura(s) pendiente(s) de subir'),
+            subtitle: online
+                ? null
+                : const Text('Sin conexión: se subirán solas al reconectar'),
+          ),
+        );
+      },
+    );
+  }
+}
+
 /// Punto verde minimalista: la app está en línea y todo sincronizado.
 class _OnlineDot extends StatelessWidget {
   const _OnlineDot({super.key});

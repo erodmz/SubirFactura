@@ -3,15 +3,13 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../api/client.dart';
-import '../models.dart';
 import '../services/upload_queue.dart';
 
 /// Captura de factura: una o varias fotos (páginas) de un mismo comprobante.
 /// Útil para recibos largos que no caben en una sola foto (§5.1).
 ///
-/// Cliente: se pasa [fixedClientId] (el negocio ya está elegido, sin selector).
-/// Contador: se cargan los clientes del despacho para elegir.
+/// Cliente: se pasa [fixedClientId] (su empresa). Contador: se sube sin empresa
+/// y el sistema la auto-asigna por el RNC del comprador (QR e-CF).
 class CaptureScreen extends StatefulWidget {
   const CaptureScreen({
     super.key,
@@ -29,48 +27,10 @@ class CaptureScreen extends StatefulWidget {
 }
 
 class _CaptureScreenState extends State<CaptureScreen> {
-  List<ClientProfile> _clients = [];
-  ClientProfile? _selected;
   final List<File> _photos = [];
   String? _error;
-  bool _loading = true;
 
   bool get _clientFixed => widget.fixedClientId != null;
-
-  @override
-  void initState() {
-    super.initState();
-    if (_clientFixed) {
-      _selected = ClientProfile(
-        id: widget.fixedClientId!,
-        razonSocial: widget.fixedClientName ?? '',
-        rncOCedula: '',
-      );
-      _loading = false;
-    } else {
-      _loadClients();
-    }
-  }
-
-  Future<void> _loadClients() async {
-    try {
-      final data = await ApiClient.instance
-          .get('/api/organizations/${widget.orgId}/clients') as List;
-      if (!mounted) return;
-      setState(() {
-        _clients = data.map((e) => ClientProfile.fromJson(e as Map<String, dynamic>)).toList();
-        _selected = _clients.length == 1 ? _clients.first : null;
-        _loading = false;
-      });
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = 'No se pudieron cargar los clientes';
-          _loading = false;
-        });
-      }
-    }
-  }
 
   Future<void> _addPhoto(ImageSource source) async {
     final picked = await ImagePicker().pickImage(
@@ -84,10 +44,10 @@ class _CaptureScreenState extends State<CaptureScreen> {
   }
 
   Future<void> _submit() async {
-    if (_selected == null || _photos.isEmpty) return;
+    if (_photos.isEmpty) return;
     await UploadQueue.instance.enqueue(
       orgId: widget.orgId,
-      clientProfileId: _selected!.id,
+      clientProfileId: widget.fixedClientId, // null para el contador → auto-asigna
       images: List.of(_photos),
     );
     if (mounted) Navigator.of(context).pop(true);
@@ -97,31 +57,19 @@ class _CaptureScreenState extends State<CaptureScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Nueva factura')),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
+      body: ListView(
               padding: const EdgeInsets.all(16),
               children: [
                 if (_error != null)
                   Text(_error!, style: const TextStyle(color: Colors.red)),
-                if (_clients.length > 1) ...[
-                  DropdownButtonFormField<ClientProfile>(
-                    initialValue: _selected,
-                    decoration: const InputDecoration(
-                      labelText: 'Cliente',
-                      border: OutlineInputBorder(),
+                if (!_clientFixed)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Text(
+                      'La empresa se asignará automáticamente según el RNC de la factura.',
+                      style: TextStyle(color: Theme.of(context).hintColor, fontSize: 13),
                     ),
-                    items: [
-                      for (final client in _clients)
-                        DropdownMenuItem(
-                          value: client,
-                          child: Text('${client.razonSocial} (${client.rncOCedula})'),
-                        ),
-                    ],
-                    onChanged: (value) => setState(() => _selected = value),
                   ),
-                  const SizedBox(height: 16),
-                ],
                 Card(
                   color: Theme.of(context).colorScheme.primaryContainer,
                   child: Padding(
@@ -140,6 +88,11 @@ class _CaptureScreenState extends State<CaptureScreen> {
                           Text('• Apóyala sobre una superficie plana y con buena luz'),
                           Text('• Evita sombras, reflejos y dedos sobre el papel'),
                           Text('• El NCF, RNC y los montos deben leerse con claridad'),
+                          SizedBox(height: 8),
+                          Text('¿Factura electrónica (e-CF) con código QR? Inclúyelo '
+                              'completo y nítido en la foto: lo leemos automáticamente '
+                              'y llenamos los datos oficiales de la DGII.',
+                              style: TextStyle(fontWeight: FontWeight.w600)),
                           SizedBox(height: 8),
                           Text('¿Recibo muy largo? Tómale varias fotos por secciones '
                               '(de arriba hacia abajo) y agrégalas como páginas: la IA las lee juntas.',
@@ -163,7 +116,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
                       child: FilledButton.icon(
                         onPressed: () => _addPhoto(ImageSource.camera),
                         icon: const Icon(Icons.camera_alt),
-                        label: Text(_photos.isEmpty ? 'Tomar foto' : 'Agregar página'),
+                        label: Text(_photos.isEmpty ? 'Tomar foto o escanear QR' : 'Agregar página'),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -176,7 +129,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
                 ),
                 const SizedBox(height: 16),
                 FilledButton(
-                  onPressed: _photos.isNotEmpty && _selected != null ? _submit : null,
+                  onPressed: _photos.isNotEmpty ? _submit : null,
                   style: FilledButton.styleFrom(padding: const EdgeInsets.all(16)),
                   child: Text(
                     _photos.length <= 1

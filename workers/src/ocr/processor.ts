@@ -83,6 +83,21 @@ export async function processOcrJob(job: Job<OcrJobData>) {
     console.log(`[ocr] factura ${invoiceId}: QR e-CF leído (${qr.ncf ?? 'sin NCF'})`);
   }
 
+  // Auto-asignación de empresa: si el contador subió sin elegir, resolvemos por
+  // el RNC del comprador del QR e-CF. Si no coincide, queda "sin asignar".
+  let clientProfileId = invoice.clientProfileId;
+  if (!clientProfileId && qr?.rncComprador) {
+    const rncComprador = qr.rncComprador.replace(/[-\s]/g, '');
+    const match = await prisma.clientProfile.findFirst({
+      where: { organizationId, rncOCedula: rncComprador },
+      select: { id: true },
+    });
+    if (match) {
+      clientProfileId = match.id;
+      console.log(`[ocr] factura ${invoiceId}: empresa asignada por RNC comprador ${rncComprador}`);
+    }
+  }
+
   const threshold = Number(process.env.OCR_CONFIDENCE_THRESHOLD ?? DEFAULT_CONFIDENCE_THRESHOLD);
   const evaluation = evaluateExtraction(extraction, threshold);
 
@@ -115,6 +130,7 @@ export async function processOcrJob(job: Job<OcrJobData>) {
     await prisma.invoice.update({
       where: { id: invoiceId },
       data: {
+        clientProfileId,
         ncf: ncfFinal,
         rncProveedor: rncFinal,
         razonSocialProveedor: extraction.razon_social.valor,

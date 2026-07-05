@@ -11,9 +11,12 @@ import {
 import { INVOICE_STATUSES } from '@facturard/shared';
 
 export class UploadInvoiceDto {
+  // Opcional: el contador puede subir sin cliente (se auto-asigna por RNC del
+  // comprador). El cliente siempre envía el suyo.
+  @IsOptional()
   @IsString()
-  @IsNotEmpty({ message: 'Indica a qué cliente pertenece la factura' })
-  clientProfileId!: string;
+  @IsNotEmpty()
+  clientProfileId?: string;
 }
 
 /** Estados a los que el contador puede mover una factura manualmente (corregir errores). */
@@ -51,6 +54,11 @@ export class ReviewInvoiceDto {
   @IsOptional()
   @IsString()
   razonSocialProveedor?: string;
+
+  /** Asignar/cambiar la empresa (cliente) — p. ej. resolver una "sin asignar". */
+  @IsOptional()
+  @IsString()
+  clientProfileId?: string;
 
   @IsOptional()
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'Fecha inválida (AAAA-MM-DD)' })

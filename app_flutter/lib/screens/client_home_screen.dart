@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../api/client.dart';
 import '../models.dart';
+import '../services/connectivity_service.dart';
 import '../services/upload_queue.dart';
 import '../widgets/connectivity_badge.dart';
 import 'capture_screen.dart';
@@ -112,8 +113,13 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
       ),
     );
     if (queued == true && mounted) {
+      final online = ConnectivityService.instance.online.value;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Factura recibida — la verás procesarse aquí mismo')),
+        SnackBar(
+          content: Text(online
+              ? 'Factura recibida — la verás procesarse aquí mismo'
+              : 'Sin conexión: guardada como pendiente, se subirá al reconectar'),
+        ),
       );
       _syncPolling();
       await _load();
@@ -131,7 +137,6 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final queue = UploadQueue.instance;
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
@@ -223,41 +228,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
       ),
       body: Column(
         children: [
-          ListenableBuilder(
-            listenable: queue,
-            builder: (context, _) {
-              if (queue.lastRejection != null) {
-                return Material(
-                  color: scheme.errorContainer,
-                  child: ListTile(
-                    dense: true,
-                    iconColor: scheme.onErrorContainer,
-                    textColor: scheme.onErrorContainer,
-                    leading: const Icon(Icons.error_outline),
-                    title: Text(queue.lastRejection!),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.close, size: 18),
-                      color: scheme.onErrorContainer,
-                      onPressed: queue.clearRejection,
-                    ),
-                  ),
-                );
-              }
-              if (queue.pendingCount > 0) {
-                return Material(
-                  color: scheme.secondaryContainer,
-                  child: ListTile(
-                    dense: true,
-                    iconColor: scheme.onSecondaryContainer,
-                    textColor: scheme.onSecondaryContainer,
-                    leading: const Icon(Icons.cloud_upload),
-                    title: Text('${queue.pendingCount} factura(s) subiendo…'),
-                  ),
-                );
-              }
-              return const SizedBox.shrink();
-            },
-          ),
+          const PendingUploadBanner(),
           AnimatedSize(
             duration: const Duration(milliseconds: 250),
             curve: Curves.easeOut,

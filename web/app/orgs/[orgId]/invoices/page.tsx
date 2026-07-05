@@ -121,7 +121,11 @@ export default function InvoicesPage() {
             <tbody>
               {visibles.map((inv) => (
                 <tr key={inv.id}>
-                  <td>{inv.clientProfile?.razonSocial ?? '—'}</td>
+                  <td>
+                    {inv.clientProfile?.razonSocial ?? (
+                      <span style={{ color: 'var(--warning-text)' }}>Sin asignar</span>
+                    )}
+                  </td>
                   <td>{inv.razonSocialProveedor ?? '—'}</td>
                   <td>{inv.ncf ?? '—'}</td>
                   <td>{fechaCorta(inv.fecha) || '—'}</td>
@@ -172,6 +176,7 @@ export default function InvoicesPage() {
               <ReviewPanel
                 orgId={orgId}
                 invoice={sel}
+                clientes={clientes}
                 onClose={() => setExpanded(null)}
                 onSaved={() => {
                   setExpanded(null);
@@ -189,17 +194,21 @@ export default function InvoicesPage() {
 function ReviewPanel({
   orgId,
   invoice,
+  clientes,
   onSaved,
   onClose,
 }: {
   orgId: string;
   invoice: Invoice;
+  clientes: { id: string; razonSocial: string }[];
   onSaved: () => void;
   onClose: () => void;
 }) {
   const marcados = dudosos(invoice);
   const str = (v: number | string | null | undefined) => (v == null ? '' : v.toString());
   const [form, setForm] = useState({
+    // Empresa (cliente) a la que pertenece la factura
+    clientProfileId: invoice.clientProfile?.id ?? '',
     // Tab 1 · básico (col. 1–11 + forma de pago)
     rncProveedor: invoice.rncProveedor ?? '',
     tipoIdProveedor: invoice.tipoIdProveedor ?? '',
@@ -290,6 +299,7 @@ function ReviewPanel({
       const body: Record<string, unknown> = {};
       if (!soloValidar) {
         const textKeys = [
+          'clientProfileId',
           'ncf', 'rncProveedor', 'razonSocialProveedor', 'fecha', 'categoria606',
           'tipoIdProveedor', 'ncfModificado', 'fechaPago', 'tipoBienServicio',
           'formaPago', 'tipoRetencionIsr',
@@ -431,6 +441,11 @@ function ReviewPanel({
 
       {tab === 'basico' ? (
         <>
+          {selectField('Empresa (cliente)', 'clientProfileId', [
+            { value: '', label: '— Sin asignar —' },
+            ...clientes.map((c) => ({ value: c.id, label: c.razonSocial })),
+          ])}
+
           <div className="row">
             <div>
               <label style={marcados.has('rnc_proveedor') ? { color: '#d97706' } : undefined}>

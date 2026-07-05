@@ -178,7 +178,9 @@ model Assignment {
 model Invoice {
   id                    String        @id @default(uuid())
   organizationId        String        @map("organization_id")
-  clientProfileId       String        @map("client_profile_id")
+  // Opcional: el contador puede subir sin elegir empresa; se auto-asigna por el
+  // RNC del comprador (QR e-CF) o queda "sin asignar" para resolver a mano.
+  clientProfileId       String?       @map("client_profile_id")
   estado                InvoiceStatus @default(subida)
   // Página 1 (principal); las páginas adicionales viven en invoice_images.
   // Un comprobante largo (recibo térmico) puede necesitar varias fotos.
@@ -219,7 +221,7 @@ model Invoice {
   createdAt             DateTime      @default(now()) @map("created_at")
   updatedAt             DateTime      @updatedAt @map("updated_at")
   organization          Organization  @relation(fields: [organizationId], references: [id])
-  clientProfile         ClientProfile @relation(fields: [clientProfileId], references: [id])
+  clientProfile         ClientProfile? @relation(fields: [clientProfileId], references: [id])
   categoria             Categoria606? @relation(fields: [categoria606], references: [codigo])
   images                InvoiceImage[]
 

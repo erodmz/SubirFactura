@@ -6,6 +6,7 @@ import '../api/client.dart';
 import '../models.dart';
 import '../services/upload_queue.dart';
 import '../widgets/connectivity_badge.dart';
+import '../widgets/logo.dart';
 import 'capture_screen.dart';
 import 'invoice_detail_screen.dart';
 import 'login_screen.dart';
@@ -125,12 +126,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final queue = UploadQueue.instance;
     final me = widget.me;
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.membership.orgNombre),
+        title: const Logo(size: 24),
         actions: [
           const ConnectivityBadge(),
           PopupMenuButton<String>(
@@ -212,41 +212,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: Column(
         children: [
-          ListenableBuilder(
-            listenable: queue,
-            builder: (context, _) {
-              if (queue.lastRejection != null) {
-                return Material(
-                  color: scheme.errorContainer,
-                  child: ListTile(
-                    dense: true,
-                    iconColor: scheme.onErrorContainer,
-                    textColor: scheme.onErrorContainer,
-                    leading: const Icon(Icons.error_outline),
-                    title: Text(queue.lastRejection!),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.close, size: 18),
-                      color: scheme.onErrorContainer,
-                      onPressed: queue.clearRejection,
-                    ),
-                  ),
-                );
-              }
-              if (queue.pendingCount > 0) {
-                return Material(
-                  color: scheme.secondaryContainer,
-                  child: ListTile(
-                    dense: true,
-                    iconColor: scheme.onSecondaryContainer,
-                    textColor: scheme.onSecondaryContainer,
-                    leading: const Icon(Icons.cloud_upload),
-                    title: Text('${queue.pendingCount} factura(s) subiendo…'),
-                  ),
-                );
-              }
-              return const SizedBox.shrink();
-            },
-          ),
+          const PendingUploadBanner(),
           AnimatedSize(
             duration: const Duration(milliseconds: 250),
             curve: Curves.easeOut,
