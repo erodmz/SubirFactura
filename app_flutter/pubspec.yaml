@@ -14,6 +14,7 @@ dependencies:
   http_parser: ^4.0.2
   image_picker: ^1.1.2
   path_provider: ^2.1.5
+  receive_sharing_intent: ^1.9.0
   shared_preferences: ^2.5.3
 
 dev_dependencies:
