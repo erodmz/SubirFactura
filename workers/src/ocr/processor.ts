@@ -9,11 +9,13 @@ import {
   evaluateExtraction,
   fechaToPeriodoFiscal,
   validateTaxId,
+  type EcfVerificacion,
 } from '@facturard/shared';
 import { prisma, Prisma } from '@facturard/shared/db';
 import { getImageBase64 } from '../storage';
 import { extractInvoice } from './extract';
 import { decodeEcfQr } from './qr';
+import { verifyEcfLive } from './ecf-live';
 
 export interface OcrJobData {
   invoiceId: string;
@@ -24,7 +26,12 @@ const FINAL_STATES = new Set(['validada', 'incluida_en_606', 'reportada', 'dupli
 const CATEGORIA_CODES = new Set<string>(CATEGORIAS_606.map((c) => c.codigo));
 
 /** Coteja NCF/RNC contra estructura y padrón DGII (solo RNC de 9 dígitos). */
-async function runFiscalValidation(ncf: string | null, rnc: string | null, razonSocial: string | null) {
+async function runFiscalValidation(
+  ncf: string | null,
+  rnc: string | null,
+  razonSocial: string | null,
+  ecf?: EcfVerificacion | null,
+) {
   const normalized = rnc ? rnc.replace(/[-\s]/g, '') : null;
   const isRnc = !!normalized && /^\d{9}$/.test(normalized);
   const padronEntry = isRnc
@@ -41,6 +48,7 @@ async function runFiscalValidation(ncf: string | null, rnc: string | null, razon
       ? { rnc: padronEntry.rnc, razonSocial: padronEntry.razonSocial, estado: padronEntry.estado }
       : null,
     padronConsultado: padronLoaded,
+    ecf,
   });
 }
 
@@ -83,6 +91,19 @@ export async function processOcrJob(job: Job<OcrJobData>) {
     console.log(`[ocr] factura ${invoiceId}: QR e-CF leído (${qr.ncf ?? 'sin NCF'})`);
   }
 
+  // Verificación en vivo del e-CF contra la DGII (Fase 4), detrás de un flag.
+  // undefined = no se intentó; null = se intentó y falló; objeto = verificado.
+  let ecfVerif: EcfVerificacion | null | undefined;
+  if (process.env.DGII_LIVE_VERIFICATION === '1' && qr?.url) {
+    const timeout = Number(process.env.DGII_LIVE_TIMEOUT_MS ?? 5000);
+    ecfVerif = await verifyEcfLive(qr.url, timeout);
+    console.log(
+      `[ocr] factura ${invoiceId}: verificación e-CF en vivo → ${
+        ecfVerif ? `estado ${ecfVerif.estado}` : 'sin respuesta'
+      }`,
+    );
+  }
+
   // Auto-asignación de empresa: si el contador subió sin elegir, resolvemos por
   // el RNC del comprador del QR e-CF. Si no coincide, queda "sin asignar".
   let clientProfileId = invoice.clientProfileId;
@@ -113,6 +134,7 @@ export async function processOcrJob(job: Job<OcrJobData>) {
     ncfFinal,
     rncFinal,
     extraction.razon_social.valor ?? null,
+    ecfVerif,
   );
 
   // Normaliza los campos 606 sugeridos por la IA (solo valores válidos).

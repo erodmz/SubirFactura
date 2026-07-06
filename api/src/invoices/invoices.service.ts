@@ -375,7 +375,16 @@ export class InvoicesService {
 
     // Recotejo NCF/RNC/padrón con los valores ya corregidos por el contador.
     const razonSocial = dto.razonSocialProveedor ?? invoice.razonSocialProveedor;
-    const validacionDgii = await this.runFiscalValidation(merged.ncf, merged.rncProveedor, razonSocial);
+    // Preserva la verificación e-CF en vivo que hizo el worker (si la hubo).
+    const priorEcf =
+      (invoice.validacionDgii as { ecf?: { aceptado: boolean; estado: string | null } } | null)
+        ?.ecf ?? undefined;
+    const validacionDgii = await this.runFiscalValidation(
+      merged.ncf,
+      merged.rncProveedor,
+      razonSocial,
+      priorEcf,
+    );
 
     const updated = await this.prisma.forOrg(orgId).invoice.update({
       where: { id: invoiceId },
@@ -468,6 +477,7 @@ export class InvoicesService {
     ncf: string | null,
     rnc: string | null,
     razonSocial: string | null,
+    ecf?: { aceptado: boolean; estado: string | null } | null,
   ) {
     const normalized = rnc ? rnc.replace(/[-\s]/g, '') : null;
     const isRnc = !!normalized && /^\d{9}$/.test(normalized);
@@ -486,6 +496,7 @@ export class InvoicesService {
         ? { rnc: padronEntry.rnc, razonSocial: padronEntry.razonSocial, estado: padronEntry.estado }
         : null,
       padronConsultado: padronLoaded,
+      ecf,
     });
   }
 

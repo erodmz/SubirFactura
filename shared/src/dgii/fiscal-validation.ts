@@ -6,6 +6,7 @@
 import { validateNcf } from '../validators/ncf';
 import { validateTaxId } from '../validators/rnc';
 import { validateAgainstPadron, type PadronEntry } from './padron';
+import type { EcfVerificacion } from './ecf-verificacion';
 
 export interface FiscalValidation {
   ncf: { ok: boolean; esECF?: boolean; tipo?: string; error?: string };
@@ -16,6 +17,12 @@ export interface FiscalValidation {
     activo: boolean;
     razonSocialCoincide: boolean;
     razonSocialOficial?: string;
+  };
+  /** Verificación en vivo del e-CF contra ecf.dgii.gov.do (Fase 4), si se hizo. */
+  ecf?: {
+    verificado: boolean;
+    aceptado: boolean;
+    estado: string | null;
   };
   /** No hay alertas: todo coincide y es válido. */
   ok: boolean;
@@ -31,6 +38,9 @@ export interface FiscalValidationInput {
   padronEntry: PadronEntry | null;
   /** ¿Se consultó el padrón? (false si no hay padrón cargado en el sistema) */
   padronConsultado?: boolean;
+  /** Verificación en vivo del e-CF (Fase 4). Basta con estado/aceptado (el objeto
+   *  completo de la consulta o el ya guardado en validacionDgii sirven). */
+  ecf?: Pick<EcfVerificacion, 'aceptado' | 'estado'> | null;
 }
 
 export function buildFiscalValidation(input: FiscalValidationInput): FiscalValidation {
@@ -64,6 +74,21 @@ export function buildFiscalValidation(input: FiscalValidationInput): FiscalValid
     }
   }
 
+  // Verificación en vivo del e-CF (Fase 4): si se consultó y la DGII no lo
+  // reporta como Aceptado, es una alerta fuerte.
+  let ecf: FiscalValidation['ecf'];
+  if (input.ecf !== undefined) {
+    const verificado = input.ecf != null;
+    ecf = {
+      verificado,
+      aceptado: input.ecf?.aceptado ?? false,
+      estado: input.ecf?.estado ?? null,
+    };
+    if (verificado && !ecf.aceptado) {
+      alertas.push(`La DGII no reporta este e-CF como Aceptado (estado: ${ecf.estado ?? 'desconocido'})`);
+    }
+  }
+
   return {
     ncf: { ok: ncfRes.valid, esECF: ncfRes.esECF, tipo: ncfRes.tipo, error: ncfRes.error },
     rnc: { ok: rncRes.valid, kind: rncRes.kind, error: rncRes.error },
@@ -74,6 +99,7 @@ export function buildFiscalValidation(input: FiscalValidationInput): FiscalValid
       razonSocialCoincide: padronRes.razonSocialCoincide,
       razonSocialOficial: padronRes.razonSocialOficial,
     },
+    ...(ecf ? { ecf } : {}),
     ok: alertas.length === 0,
     alertas,
   };

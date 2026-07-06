@@ -420,6 +420,11 @@ function ReviewPanel({
           ✓ NCF, RNC y padrón DGII verificados
         </p>
       )}
+      {invoice.validacionDgii?.ecf?.verificado && invoice.validacionDgii.ecf.aceptado && (
+        <p style={{ color: 'var(--ok)', fontSize: 14, margin: '4px 0 12px' }}>
+          ✓ e-CF verificado en vivo con la DGII (Aceptado)
+        </p>
+      )}
       {error && <div className="error">{error}</div>}
 
       <div className="seg" style={{ margin: '4px 0 16px' }}>

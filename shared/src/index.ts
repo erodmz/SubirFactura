@@ -5,6 +5,7 @@ export * from './dgii/formato606';
 export * from './dgii/padron';
 export * from './dgii/fiscal-validation';
 export * from './dgii/ecf-qr';
+export * from './dgii/ecf-verificacion';
 export * from './validators/ncf';
 export * from './validators/rnc';
 export * from './validators/arithmetic';

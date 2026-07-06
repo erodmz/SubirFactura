@@ -93,6 +93,7 @@ export interface Invoice {
       razonSocialCoincide: boolean;
       razonSocialOficial?: string;
     };
+    ecf?: { verificado: boolean; aceptado: boolean; estado: string | null };
   } | null;
 }
 
