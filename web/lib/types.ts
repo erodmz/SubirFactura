@@ -106,6 +106,8 @@ export interface PadronAdvertencia {
 }
 
 export interface Preview606 {
+  /** Cliente (contribuyente) informante del reporte. */
+  cliente: { id: string; razonSocial: string; rnc: string };
   nombreArchivo: string;
   cantidadRegistros: number;
   omitidas: { id: string; razon: string }[];
@@ -128,6 +130,8 @@ export interface CierreEstado {
     duplicadas: number;
     conAlertasDgii: number;
     sinDatos606: number;
+    /** Facturas del período sin asignar a ningún cliente (no entran a ningún 606). */
+    sinAsignar: number;
   };
   bloqueos: string[];
   avisos: string[];

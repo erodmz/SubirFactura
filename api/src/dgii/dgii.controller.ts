@@ -28,19 +28,43 @@ export class DgiiController {
     return periodo;
   }
 
-  /** Semáforo de cierre del período: qué falta y cuánto tiempo queda. */
+  /** El 606 lo presenta cada contribuyente: todo lo que genera archivo exige el cliente. */
+  private assertCliente(clientId?: string): string {
+    if (!clientId) {
+      throw new BadRequestException('Selecciona el cliente (contribuyente) del reporte 606');
+    }
+    return clientId;
+  }
+
+  /**
+   * Semáforo de cierre del período: qué falta y cuánto tiempo queda.
+   * Con `clientId` evalúa ese contribuyente; sin él, la vista global del despacho.
+   */
   @Get('606/cierre')
   @OrgRoles('org_admin', 'contador')
-  async cierre(@Param('orgId') orgId: string, @Query('periodo') periodo?: string) {
-    return this.dgii.cierreEstado(orgId, this.assertPeriodo(periodo));
+  async cierre(
+    @Param('orgId') orgId: string,
+    @Query('periodo') periodo?: string,
+    @Query('clientId') clientId?: string,
+  ) {
+    return this.dgii.cierreEstado(orgId, this.assertPeriodo(periodo), clientId || undefined);
   }
 
   /** Vista previa: resumen + facturas omitidas, sin modificar estados. */
   @Get('606/preview')
   @OrgRoles('org_admin', 'contador')
-  async preview(@Param('orgId') orgId: string, @Query('periodo') periodo?: string) {
-    const result = await this.dgii.generate606(orgId, this.assertPeriodo(periodo));
+  async preview(
+    @Param('orgId') orgId: string,
+    @Query('periodo') periodo?: string,
+    @Query('clientId') clientId?: string,
+  ) {
+    const result = await this.dgii.generate606(
+      orgId,
+      this.assertPeriodo(periodo),
+      this.assertCliente(clientId),
+    );
     return {
+      cliente: result.cliente,
       nombreArchivo: result.nombreArchivo,
       cantidadRegistros: result.cantidadRegistros,
       omitidas: result.omitidas,
@@ -48,31 +72,38 @@ export class DgiiController {
     };
   }
 
-  /** Descarga el archivo .TXT del 606 (sin modificar estados). */
+  /** Descarga el archivo .TXT del 606 de un cliente (sin modificar estados). */
   @Get('606')
   @OrgRoles('org_admin', 'contador')
   async download(
     @Param('orgId') orgId: string,
     @Res({ passthrough: true }) res: Response,
     @Query('periodo') periodo?: string,
+    @Query('clientId') clientId?: string,
   ) {
-    const result = await this.dgii.generate606(orgId, this.assertPeriodo(periodo));
+    const result = await this.dgii.generate606(
+      orgId,
+      this.assertPeriodo(periodo),
+      this.assertCliente(clientId),
+    );
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${result.nombreArchivo}"`);
     return result.contenido;
   }
 
-  /** Descarga el 606 en Excel (.xlsx). */
+  /** Descarga el 606 de un cliente en Excel (.xlsx). */
   @Get('606/excel')
   @OrgRoles('org_admin', 'contador')
   async excel(
     @Param('orgId') orgId: string,
     @Res() res: Response,
     @Query('periodo') periodo?: string,
+    @Query('clientId') clientId?: string,
   ) {
     const { buffer, nombreArchivo } = await this.dgii.generate606Excel(
       orgId,
       this.assertPeriodo(periodo),
+      this.assertCliente(clientId),
     );
     res.setHeader(
       'Content-Type',
@@ -82,14 +113,20 @@ export class DgiiController {
     res.send(buffer);
   }
 
-  /** Cierre de período: marca las facturas como incluidas en el 606. */
+  /** Cierre de período de un cliente: marca sus facturas como incluidas en el 606. */
   @Post('606/cerrar')
   @OrgRoles('org_admin', 'contador')
   async cerrar(
     @Param('orgId') orgId: string,
     @CurrentUser() user: AuthenticatedUser,
     @Query('periodo') periodo?: string,
+    @Query('clientId') clientId?: string,
   ) {
-    return this.dgii.cerrarPeriodo606(orgId, this.assertPeriodo(periodo), user.userId);
+    return this.dgii.cerrarPeriodo606(
+      orgId,
+      this.assertPeriodo(periodo),
+      this.assertCliente(clientId),
+      user.userId,
+    );
   }
 }

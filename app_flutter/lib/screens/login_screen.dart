@@ -18,13 +18,6 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _busy = false;
   bool _obscure = true;
 
-  // TODO(dev): quitar antes de producción — ingreso rápido con la cuenta de prueba.
-  void _quickLogin() {
-    _email.text = 'elmer.test@facturard.do';
-    _password.text = 'clave-segura-123';
-    _login();
-  }
-
   Future<void> _login() async {
     setState(() {
       _busy = true;
@@ -111,12 +104,6 @@ class _LoginScreenState extends State<LoginScreen> {
               FilledButton(
                 onPressed: _busy ? null : _login,
                 child: Text(_busy ? 'Entrando…' : 'Entrar'),
-              ),
-              const SizedBox(height: 10),
-              OutlinedButton.icon(
-                onPressed: _busy ? null : _quickLogin,
-                icon: const Icon(Icons.bolt),
-                label: const Text('Ingreso rápido (dev)'),
               ),
               const SizedBox(height: 16),
               const Text(

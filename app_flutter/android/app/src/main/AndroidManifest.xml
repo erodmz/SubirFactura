@@ -1,6 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Imprescindible en release: sin esto el APK/AAB de producción no tiene red
+         (debug/profile lo heredan de sus manifests propios). -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:label="facturard"
+        android:label="SubirFactura"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

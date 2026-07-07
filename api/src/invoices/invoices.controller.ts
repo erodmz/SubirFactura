@@ -74,8 +74,13 @@ export class InvoicesController {
 
   @Get(':invoiceId')
   @OrgRoles('org_admin', 'contador', 'cliente')
-  get(@Param('orgId') orgId: string, @Param('invoiceId') invoiceId: string) {
-    return this.invoices.get(orgId, invoiceId);
+  get(
+    @Param('orgId') orgId: string,
+    @Param('invoiceId') invoiceId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: { membership: Membership },
+  ) {
+    return this.invoices.get(orgId, invoiceId, user, req.membership);
   }
 
   @Patch(':invoiceId/review')
@@ -96,9 +101,10 @@ export class InvoicesController {
     @Param('orgId') orgId: string,
     @Param('invoiceId') invoiceId: string,
     @CurrentUser() user: AuthenticatedUser,
+    @Req() req: { membership: Membership },
     @Body() dto: ChangeStatusDto,
   ) {
-    return this.invoices.changeStatus(orgId, invoiceId, dto.estado, user);
+    return this.invoices.changeStatus(orgId, invoiceId, dto.estado, user, req.membership);
   }
 
   @Post(':invoiceId/retry')
@@ -107,7 +113,8 @@ export class InvoicesController {
     @Param('orgId') orgId: string,
     @Param('invoiceId') invoiceId: string,
     @CurrentUser() user: AuthenticatedUser,
+    @Req() req: { membership: Membership },
   ) {
-    return this.invoices.retry(orgId, invoiceId, user);
+    return this.invoices.retry(orgId, invoiceId, user, req.membership);
   }
 }

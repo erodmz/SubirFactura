@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import ExcelJS from 'exceljs';
 import {
   CATEGORIAS_606,
@@ -21,6 +21,8 @@ const CATEGORIA_NOMBRE = new Map<string, string>(
 const REPORTABLE = ['validada', 'incluida_en_606', 'reportada'] as const;
 
 export interface Generate606Result extends Formato606Result {
+  /** Cliente (contribuyente) informante del 606. */
+  cliente: { id: string; razonSocial: string; rnc: string };
   /** Facturas del período que no se pudieron incluir y por qué. */
   omitidas: { id: string; razon: string }[];
   /** Avisos del padrón RNC (no bloquean): RNC ausente, inactivo o razón social que no cuadra. */
@@ -43,6 +45,8 @@ export interface CierreEstado {
     duplicadas: number;
     conAlertasDgii: number;
     sinDatos606: number;
+    /** Facturas del período sin asignar a ningún cliente (no entran a ningún 606). */
+    sinAsignar: number;
   };
   /** Qué impide cerrar (bloqueos duros). */
   bloqueos: string[];
@@ -115,17 +119,35 @@ export class DgiiService {
     };
   }
 
-  /** Reúne los detalles mapeados del período (compartido por TXT y Excel). */
-  private async collect(orgId: string, periodo: string) {
-    const org = await this.prisma.organization.findUniqueOrThrow({ where: { id: orgId } });
-    if (!org.rnc) {
+  /**
+   * El 606 lo presenta CADA contribuyente (cliente del despacho) con su propio
+   * RNC — nunca la organización, que solo agrupa. Resuelve y valida el cliente
+   * informante de un reporte.
+   */
+  private async clienteInformante(orgId: string, clientId: string) {
+    const cliente = await this.prisma.forOrg(orgId).clientProfile.findFirst({
+      where: { id: clientId, organizationId: orgId },
+    });
+    if (!cliente) throw new NotFoundException('Cliente no encontrado');
+    const taxId = validateTaxId(cliente.rncOCedula);
+    if (!taxId.valid) {
       throw new BadRequestException(
-        'La organización no tiene RNC configurado; requerido para generar el 606',
+        `El RNC/cédula del cliente "${cliente.razonSocial}" es inválido (${taxId.error}); corrígelo antes de generar el 606`,
       );
     }
+    return { id: cliente.id, razonSocial: cliente.razonSocial, rnc: taxId.normalized! };
+  }
+
+  /** Reúne los detalles mapeados del período de UN cliente (compartido por TXT y Excel). */
+  private async collect(orgId: string, periodo: string, clientId: string) {
+    const cliente = await this.clienteInformante(orgId, clientId);
 
     const invoices = await this.prisma.forOrg(orgId).invoice.findMany({
-      where: { periodoFiscal: periodo, estado: { in: [...REPORTABLE] } },
+      where: {
+        periodoFiscal: periodo,
+        estado: { in: [...REPORTABLE] },
+        clientProfileId: clientId,
+      },
       orderBy: { fecha: 'asc' },
     });
 
@@ -141,7 +163,7 @@ export class DgiiService {
         validables.push({ rnc: mapped.rncCedula, razonSocial: inv.razonSocialProveedor });
       }
     }
-    return { rnc: org.rnc, detalles, omitidas, validables };
+    return { cliente, detalles, omitidas, validables };
   }
 
   /** Avisos del padrón RNC; vacío si el padrón aún no se ha importado. */
@@ -156,11 +178,18 @@ export class DgiiService {
   /**
    * Semáforo de cierre del 606: qué falta para reportar el período y cuánto
    * tiempo queda (la DGII recibe el 606 hasta el día 15 del mes siguiente).
+   * Con `clientId` evalúa el cierre de ESE contribuyente; sin él, da la vista
+   * global del despacho (todas las facturas del período).
    */
-  async cierreEstado(orgId: string, periodo: string): Promise<CierreEstado> {
-    const org = await this.prisma.organization.findUniqueOrThrow({ where: { id: orgId } });
+  async cierreEstado(orgId: string, periodo: string, clientId?: string): Promise<CierreEstado> {
+    if (clientId) await this.clienteInformante(orgId, clientId); // valida cliente + RNC
     const invoices = await this.prisma.forOrg(orgId).invoice.findMany({
-      where: { periodoFiscal: periodo },
+      where: { periodoFiscal: periodo, ...(clientId ? { clientProfileId: clientId } : {}) },
+    });
+    // Facturas del período aún sin cliente: no entran a NINGÚN 606, así que se
+    // vigilan siempre a nivel de despacho (aunque se esté mirando un cliente).
+    const sinAsignar = await this.prisma.forOrg(orgId).invoice.count({
+      where: { periodoFiscal: periodo, clientProfileId: null },
     });
 
     const t = {
@@ -172,6 +201,7 @@ export class DgiiService {
       duplicadas: 0,
       conAlertasDgii: 0,
       sinDatos606: 0,
+      sinAsignar,
     };
     for (const inv of invoices) {
       if (inv.estado === 'subida' || inv.estado === 'procesando') t.enProceso++;
@@ -195,13 +225,19 @@ export class DgiiService {
     );
 
     const bloqueos: string[] = [];
-    if (!org.rnc) bloqueos.push('La empresa no tiene RNC configurado');
     if (t.enProceso > 0) bloqueos.push(`${t.enProceso} factura(s) aún procesándose`);
     if (t.enRevision > 0) bloqueos.push(`${t.enRevision} factura(s) en revisión`);
     if (t.sinDatos606 > 0) bloqueos.push(`${t.sinDatos606} validada(s) sin datos completos para el 606`);
 
     const avisos: string[] = [];
     if (t.conAlertasDgii > 0) avisos.push(`${t.conAlertasDgii} con alertas de la DGII (RNC/padrón)`);
+    if (sinAsignar > 0) {
+      // Bloqueo en la vista global (hay que repartirlas antes de cerrar);
+      // aviso al mirar un cliente (podrían pertenecerle y quedarse fuera).
+      const msg = `${sinAsignar} factura(s) del período sin asignar a ningún cliente`;
+      if (clientId) avisos.push(`${msg} — revísalas: podrían pertenecer a este contribuyente`);
+      else bloqueos.push(msg);
+    }
 
     const listoParaCerrar = bloqueos.length === 0 && t.reportables > 0;
     let semaforo: CierreEstado['semaforo'];
@@ -232,16 +268,21 @@ export class DgiiService {
     return new Date(Date.UTC(ny, nm - 1, 15));
   }
 
-  /** Genera el 606 sin modificar estados (vista previa / descarga). */
-  async generate606(orgId: string, periodo: string): Promise<Generate606Result> {
-    const { rnc, detalles, omitidas, validables } = await this.collect(orgId, periodo);
-    const file = generateFormato606({ rncInformante: rnc, periodo, detalles });
-    return { ...file, omitidas, advertencias: await this.advertenciasPadron(validables) };
+  /** Genera el 606 de un cliente sin modificar estados (vista previa / descarga). */
+  async generate606(orgId: string, periodo: string, clientId: string): Promise<Generate606Result> {
+    const { cliente, detalles, omitidas, validables } = await this.collect(orgId, periodo, clientId);
+    const file = generateFormato606({ rncInformante: cliente.rnc, periodo, detalles });
+    return { ...file, cliente, omitidas, advertencias: await this.advertenciasPadron(validables) };
   }
 
-  /** Exporta el 606 a Excel (.xlsx) — para contadores que ajustan a mano (§6). */
-  async generate606Excel(orgId: string, periodo: string): Promise<{ buffer: Buffer; nombreArchivo: string }> {
-    const { rnc, detalles } = await this.collect(orgId, periodo);
+  /** Exporta el 606 de un cliente a Excel (.xlsx) — para contadores que ajustan a mano (§6). */
+  async generate606Excel(
+    orgId: string,
+    periodo: string,
+    clientId: string,
+  ): Promise<{ buffer: Buffer; nombreArchivo: string }> {
+    const { cliente, detalles } = await this.collect(orgId, periodo, clientId);
+    const rnc = cliente.rnc;
 
     const wb = new ExcelJS.Workbook();
     wb.creator = 'SubirFactura';
@@ -295,14 +336,14 @@ export class DgiiService {
   }
 
   /**
-   * Cierre de período: genera el 606 y marca las facturas incluidas como
-   * `incluida_en_606`. Idempotente sobre las ya incluidas.
+   * Cierre de período de UN cliente: genera su 606 y marca sus facturas
+   * incluidas como `incluida_en_606`. Idempotente sobre las ya incluidas.
    */
-  async cerrarPeriodo606(orgId: string, periodo: string, actorUserId: string) {
-    const result = await this.generate606(orgId, periodo);
+  async cerrarPeriodo606(orgId: string, periodo: string, clientId: string, actorUserId: string) {
+    const result = await this.generate606(orgId, periodo, clientId);
 
     const updated = await this.prisma.forOrg(orgId).invoice.updateMany({
-      where: { periodoFiscal: periodo, estado: 'validada' },
+      where: { periodoFiscal: periodo, estado: 'validada', clientProfileId: clientId },
       data: { estado: 'incluida_en_606' },
     });
 
@@ -312,11 +353,18 @@ export class DgiiService {
       accion: 'dgii.cerrar_periodo_606',
       entidad: 'periodo_fiscal',
       entidadId: periodo,
-      datos: { incluidas: updated.count, omitidas: result.omitidas.length },
+      datos: {
+        clientProfileId: clientId,
+        cliente: result.cliente.razonSocial,
+        rncInformante: result.cliente.rnc,
+        incluidas: updated.count,
+        omitidas: result.omitidas.length,
+      },
     });
 
     return {
       periodo,
+      cliente: result.cliente,
       cantidadRegistros: result.cantidadRegistros,
       incluidas: updated.count,
       omitidas: result.omitidas,

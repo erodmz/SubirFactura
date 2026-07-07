@@ -1,4 +1,5 @@
 import { Body, Controller, Get, HttpCode, Post } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { ChangePasswordDto, LoginDto, RefreshDto, RegisterDto } from './dto/auth.dto';
 import { Public } from '../common/decorators/public.decorator';
@@ -14,13 +15,17 @@ export class AuthController {
     private readonly storage: StorageService,
   ) {}
 
+  // Rutas de credenciales: límite estricto contra fuerza bruta / credential
+  // stuffing / enumeración de correos (10 intentos por minuto y por IP).
   @Public()
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @Post('auth/register')
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }
 
   @Public()
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @HttpCode(200)
   @Post('auth/login')
   login(@Body() dto: LoginDto) {
@@ -28,6 +33,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { ttl: 60_000, limit: 30 } })
   @HttpCode(200)
   @Post('auth/refresh')
   refresh(@Body() dto: RefreshDto) {

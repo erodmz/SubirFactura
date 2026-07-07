@@ -65,8 +65,9 @@ export interface ImageInput {
 
 export async function extractInvoice(images: ImageInput[]): Promise<InvoiceExtraction> {
   const response = await client.messages.parse({
-    // El modelo SIEMPRE viene de env (§5): nunca hardcodear
-    model: process.env.ANTHROPIC_MODEL ?? 'claude-opus-4-8',
+    // El modelo SIEMPRE viene de env (§5): nunca hardcodear.
+    // Default barato: Haiku extrae campos de factura sobradamente a ~1/5 del costo.
+    model: process.env.ANTHROPIC_MODEL ?? 'claude-haiku-4-5',
     max_tokens: 2048,
     messages: [
       {

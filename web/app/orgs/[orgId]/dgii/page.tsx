@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { api, apiDownload } from '../../../../lib/api';
-import type { CierreEstado, PadronAdvertencia, Preview606 } from '../../../../lib/types';
+import type { CierreEstado, Client, PadronAdvertencia, Preview606 } from '../../../../lib/types';
 
 const SEMAFORO: Record<CierreEstado['semaforo'], { color: string; label: string }> = {
   verde: { color: 'var(--ok)', label: 'Listo para cerrar' },
@@ -25,6 +25,7 @@ function periodoActual(): string {
 
 interface CierreResult {
   periodo: string;
+  cliente: { id: string; razonSocial: string; rnc: string };
   cantidadRegistros: number;
   incluidas: number;
   omitidas: { id: string; razon: string }[];
@@ -34,23 +35,31 @@ interface CierreResult {
 export default function DgiiPage() {
   const { orgId } = useParams<{ orgId: string }>();
   const [periodo, setPeriodo] = useState(periodoActual());
+  // El 606 lo presenta cada contribuyente (cliente) con su propio RNC.
+  const [clients, setClients] = useState<Client[]>([]);
+  const [clientId, setClientId] = useState('');
   const [preview, setPreview] = useState<Preview606 | null>(null);
   const [cierre, setCierre] = useState<CierreResult | null>(null);
   const [estado, setEstado] = useState<CierreEstado | null>(null);
-  const [rnc, setRnc] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
   const validPeriodo = /^\d{6}$/.test(periodo);
+  const cliente = clients.find((c) => c.id === clientId) ?? null;
+  const listo = validPeriodo && !!clientId;
 
   useEffect(() => {
-    api<{ rnc: string | null }>(`/api/organizations/${orgId}`)
-      .then((o) => setRnc(o.rnc ?? ''))
+    api<Client[]>(`/api/organizations/${orgId}/clients`)
+      .then((cs) => {
+        setClients(cs);
+        if (cs.length === 1) setClientId(cs[0].id);
+      })
       .catch(() => {});
   }, [orgId]);
 
-  // Nombre de archivo DGII: AAAAMM_RNC_F_606.<ext>
-  const fileName = (ext: string) => `${periodo}_${rnc || 'SINRNC'}_F_606.${ext}`;
+  // Nombre de archivo DGII: AAAAMM_RNC_F_606.<ext> (RNC del cliente informante)
+  const fileName = (ext: string) => `${periodo}_${cliente?.rncOCedula ?? 'SINRNC'}_F_606.${ext}`;
+  const qs = () => `periodo=${periodo}&clientId=${clientId}`;
 
   const loadEstado = useCallback(async () => {
     if (!/^\d{6}$/.test(periodo)) {
@@ -58,17 +67,24 @@ export default function DgiiPage() {
       return;
     }
     try {
+      const params = clientId ? `periodo=${periodo}&clientId=${clientId}` : `periodo=${periodo}`;
       setEstado(
-        await api<CierreEstado>(`/api/organizations/${orgId}/dgii/606/cierre?periodo=${periodo}`),
+        await api<CierreEstado>(`/api/organizations/${orgId}/dgii/606/cierre?${params}`),
       );
     } catch {
       setEstado(null);
     }
-  }, [orgId, periodo]);
+  }, [orgId, periodo, clientId]);
 
   useEffect(() => {
     loadEstado();
   }, [loadEstado]);
+
+  // Al cambiar de cliente o período, la vista previa anterior deja de aplicar.
+  useEffect(() => {
+    setPreview(null);
+    setCierre(null);
+  }, [clientId, periodo]);
 
   async function doPreview() {
     setBusy(true);
@@ -76,7 +92,7 @@ export default function DgiiPage() {
     setCierre(null);
     try {
       setPreview(
-        await api<Preview606>(`/api/organizations/${orgId}/dgii/606/preview?periodo=${periodo}`),
+        await api<Preview606>(`/api/organizations/${orgId}/dgii/606/preview?${qs()}`),
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error');
@@ -89,10 +105,7 @@ export default function DgiiPage() {
   async function doDownload() {
     setError('');
     try {
-      await apiDownload(
-        `/api/organizations/${orgId}/dgii/606?periodo=${periodo}`,
-        fileName('txt'),
-      );
+      await apiDownload(`/api/organizations/${orgId}/dgii/606?${qs()}`, fileName('txt'));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error');
     }
@@ -101,23 +114,24 @@ export default function DgiiPage() {
   async function doDownloadExcel() {
     setError('');
     try {
-      await apiDownload(
-        `/api/organizations/${orgId}/dgii/606/excel?periodo=${periodo}`,
-        fileName('xlsx'),
-      );
+      await apiDownload(`/api/organizations/${orgId}/dgii/606/excel?${qs()}`, fileName('xlsx'));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error');
     }
   }
 
   async function doCerrar() {
-    if (!confirm(`¿Cerrar el período ${periodo}? Las facturas validadas quedarán incluidas en el 606.`))
+    if (
+      !confirm(
+        `¿Cerrar el período ${periodo} de ${cliente?.razonSocial ?? 'este cliente'}? Sus facturas validadas quedarán incluidas en el 606.`,
+      )
+    )
       return;
     setBusy(true);
     setError('');
     try {
       setCierre(
-        await api<CierreResult>(`/api/organizations/${orgId}/dgii/606/cerrar?periodo=${periodo}`, {
+        await api<CierreResult>(`/api/organizations/${orgId}/dgii/606/cerrar?${qs()}`, {
           method: 'POST',
         }),
       );
@@ -135,12 +149,24 @@ export default function DgiiPage() {
       <h1>Reporte 606 (compras de gastos)</h1>
       <p className="muted">
         Genera el archivo de envío del Formato 606 de la DGII a partir de las facturas validadas del
-        período.
+        período. El 606 se presenta <strong>por cada cliente</strong> (contribuyente) con su propio
+        RNC.
       </p>
       {error && <div className="error">{error}</div>}
 
       <div className="card">
         <div className="row">
+          <div>
+            <label>Cliente (contribuyente)</label>
+            <select value={clientId} onChange={(e) => setClientId(e.target.value)}>
+              <option value="">— Selecciona el cliente —</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.razonSocial} · {c.rncOCedula}
+                </option>
+              ))}
+            </select>
+          </div>
           <div>
             <label>Período fiscal (AAAAMM)</label>
             <input
@@ -151,17 +177,23 @@ export default function DgiiPage() {
             />
           </div>
           <div style={{ flex: '0 0 auto', display: 'flex', gap: 8 }}>
-            <button onClick={doPreview} disabled={busy || !validPeriodo}>
+            <button onClick={doPreview} disabled={busy || !listo}>
               Vista previa
             </button>
-            <button className="secondary" onClick={doDownload} disabled={!validPeriodo}>
+            <button className="secondary" onClick={doDownload} disabled={!listo}>
               Descargar TXT
             </button>
-            <button className="secondary" onClick={doDownloadExcel} disabled={!validPeriodo}>
+            <button className="secondary" onClick={doDownloadExcel} disabled={!listo}>
               Descargar Excel
             </button>
           </div>
         </div>
+        {clients.length === 0 && (
+          <p className="muted" style={{ margin: '8px 0 0' }}>
+            Aún no tienes clientes. Crea el contribuyente en la pestaña <strong>Clientes</strong>{' '}
+            para poder generar su 606.
+          </p>
+        )}
       </div>
 
       {estado && (
@@ -176,7 +208,10 @@ export default function DgiiPage() {
                 flexShrink: 0,
               }}
             />
-            <h2 style={{ margin: 0 }}>Cierre del período · {SEMAFORO[estado.semaforo].label}</h2>
+            <h2 style={{ margin: 0 }}>
+              Cierre del período{cliente ? ` · ${cliente.razonSocial}` : ' (todo el despacho)'} ·{' '}
+              {SEMAFORO[estado.semaforo].label}
+            </h2>
           </div>
 
           {estado.semaforo !== 'vacio' && (
@@ -237,7 +272,9 @@ export default function DgiiPage() {
         <div className="card">
           <h2>Vista previa — {preview.nombreArchivo}</h2>
           <p>
-            <strong>{preview.cantidadRegistros}</strong> factura(s) entrarán al 606.
+            <strong>{preview.cantidadRegistros}</strong> factura(s) de{' '}
+            <strong>{preview.cliente.razonSocial}</strong> (RNC {preview.cliente.rnc}) entrarán al
+            606.
           </p>
           {preview.advertencias.length > 0 && (
             <div className="notice">
@@ -272,7 +309,9 @@ export default function DgiiPage() {
 
       {cierre && (
         <div className="card">
-          <h2>Período {cierre.periodo} cerrado</h2>
+          <h2>
+            Período {cierre.periodo} de {cierre.cliente.razonSocial} cerrado
+          </h2>
           <p>
             <strong>{cierre.incluidas}</strong> factura(s) marcadas como incluidas en el 606.
           </p>

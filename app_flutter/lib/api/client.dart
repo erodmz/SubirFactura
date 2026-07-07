@@ -23,8 +23,20 @@ class ApiClient {
   static final ApiClient instance = ApiClient._();
 
   /// Configurable en build: flutter run --dart-define=API_URL=http://10.0.2.2:3000
-  static const String baseUrl =
-      String.fromEnvironment('API_URL', defaultValue: 'http://localhost:3000');
+  ///
+  /// En release NO hay default: un build de producción sin --dart-define
+  /// apuntaría a localhost en silencio. Aquí falla al arrancar, que es mejor.
+  static const String baseUrl = bool.fromEnvironment('dart.vm.product')
+      ? String.fromEnvironment('API_URL')
+      : String.fromEnvironment('API_URL', defaultValue: 'http://localhost:3000');
+
+  static void assertConfigured() {
+    if (baseUrl.isEmpty) {
+      throw StateError(
+        'API_URL no configurada: compila con --dart-define=API_URL=https://api.subirfactura.com',
+      );
+    }
+  }
 
   static const _tokensKey = 'facturard_tokens';
 

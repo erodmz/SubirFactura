@@ -37,13 +37,6 @@ export default function LoginPage() {
     doLogin(email, password);
   }
 
-  // TODO(dev): quitar antes de producción — ingreso rápido con la cuenta de prueba.
-  function quickLogin() {
-    setEmail('elmer.test@facturard.do');
-    setPassword('clave-segura-123');
-    doLogin('elmer.test@facturard.do', 'clave-segura-123');
-  }
-
   return (
     <div className="auth-shell">
       <div className="auth-top">
@@ -95,15 +88,6 @@ export default function LoginPage() {
           </div>
           <button disabled={busy}>{busy ? 'Entrando…' : 'Entrar'}</button>
         </form>
-        <button
-          type="button"
-          className="secondary"
-          onClick={quickLogin}
-          disabled={busy}
-          style={{ width: '100%' }}
-        >
-          ⚡ Ingreso rápido (dev)
-        </button>
         <p className="muted" style={{ marginTop: 16 }}>
           ¿No tienes cuenta? <Link href="/register">Regístrate</Link>
         </p>

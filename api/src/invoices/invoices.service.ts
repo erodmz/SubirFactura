@@ -135,6 +135,50 @@ export class InvoicesService {
     };
   }
 
+  /**
+   * Alcance por rol sobre facturas (misma regla que list()): org_admin sin
+   * restricción (null); contador solo sus clientes asignados + las "sin
+   * asignar" (para resolverlas); cliente solo sus negocios.
+   */
+  private async invoiceScope(
+    user: AuthenticatedUser,
+    membership: Membership,
+  ): Promise<{ ids: string[]; incluyeSinAsignar: boolean } | null> {
+    if (membership.rol === 'contador') {
+      const assignments = await this.prisma.assignment.findMany({
+        where: { contadorMembershipId: membership.id },
+        select: { clientProfileId: true },
+      });
+      return { ids: assignments.map((a) => a.clientProfileId), incluyeSinAsignar: true };
+    }
+    if (membership.rol === 'cliente') {
+      const links = await this.prisma.clientMember.findMany({
+        where: { userId: user.userId },
+        select: { clientProfileId: true },
+      });
+      return { ids: links.map((l) => l.clientProfileId), incluyeSinAsignar: false };
+    }
+    return null; // org_admin
+  }
+
+  /**
+   * La RLS aísla ENTRE organizaciones; esto aísla DENTRO de la organización:
+   * una factura fuera del alcance del usuario se responde como inexistente
+   * (404, sin revelar que el id existe).
+   */
+  private assertInvoiceInScope(
+    invoice: { clientProfileId: string | null },
+    scope: { ids: string[]; incluyeSinAsignar: boolean } | null,
+  ) {
+    if (!scope) return;
+    if (invoice.clientProfileId == null) {
+      if (scope.incluyeSinAsignar) return;
+    } else if (scope.ids.includes(invoice.clientProfileId)) {
+      return;
+    }
+    throw new NotFoundException('Factura no encontrada');
+  }
+
   /** org_admin ve todo; contador solo clientes asignados; cliente solo su perfil (§4). */
   async list(orgId: string, user: AuthenticatedUser, membership: Membership, query: ListInvoicesQueryDto) {
     const where: Prisma.InvoiceWhereInput = {
@@ -292,7 +336,7 @@ export class InvoicesService {
     };
   }
 
-  async get(orgId: string, invoiceId: string) {
+  async get(orgId: string, invoiceId: string, user: AuthenticatedUser, membership: Membership) {
     const invoice = await this.prisma.forOrg(orgId).invoice.findUnique({
       where: { id: invoiceId },
       include: {
@@ -301,6 +345,7 @@ export class InvoicesService {
       },
     });
     if (!invoice) throw new NotFoundException('Factura no encontrada');
+    this.assertInvoiceInScope(invoice, await this.invoiceScope(user, membership));
     const keys = [invoice.imagenUrl, ...invoice.images.map((i) => i.key)];
     const imageUrls = await Promise.all(keys.map((k) => this.storage.presignedGetUrl(k)));
     return {
@@ -325,8 +370,17 @@ export class InvoicesService {
       where: { id: invoiceId },
     });
     if (!invoice) throw new NotFoundException('Factura no encontrada');
+    this.assertInvoiceInScope(invoice, await this.invoiceScope(user, membership));
     if (invoice.estado === 'reportada' || invoice.estado === 'incluida_en_606') {
       throw new ConflictException('La factura ya fue incluida en un reporte; no puede editarse');
+    }
+    // La reasignación solo puede apuntar a un cliente de ESTA organización.
+    if (dto.clientProfileId && membership.rol !== 'cliente') {
+      const destino = await this.prisma.forOrg(orgId).clientProfile.findFirst({
+        where: { id: dto.clientProfileId, organizationId: orgId },
+        select: { id: true },
+      });
+      if (!destino) throw new BadRequestException('El cliente destino no existe en esta empresa');
     }
 
     const merged = {
@@ -447,11 +501,13 @@ export class InvoicesService {
     invoiceId: string,
     estado: string,
     user: AuthenticatedUser,
+    membership: Membership,
   ) {
     const invoice = await this.prisma.forOrg(orgId).invoice.findUnique({
       where: { id: invoiceId },
     });
     if (!invoice) throw new NotFoundException('Factura no encontrada');
+    this.assertInvoiceInScope(invoice, await this.invoiceScope(user, membership));
     if (invoice.estado === 'reportada' || invoice.estado === 'incluida_en_606') {
       throw new ConflictException(
         'La factura ya fue incluida en un reporte; reabre el período para cambiarla',
@@ -501,11 +557,12 @@ export class InvoicesService {
   }
 
   /** Re-encola el OCR (p.ej. tras un fallo). */
-  async retry(orgId: string, invoiceId: string, user: AuthenticatedUser) {
+  async retry(orgId: string, invoiceId: string, user: AuthenticatedUser, membership: Membership) {
     const invoice = await this.prisma.forOrg(orgId).invoice.findUnique({
       where: { id: invoiceId },
     });
     if (!invoice) throw new NotFoundException('Factura no encontrada');
+    this.assertInvoiceInScope(invoice, await this.invoiceScope(user, membership));
     if (!['subida', 'en_revision', 'procesando'].includes(invoice.estado)) {
       throw new ConflictException(`No se puede reprocesar una factura en estado ${invoice.estado}`);
     }

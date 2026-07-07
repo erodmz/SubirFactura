@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { parseDuration } from './auth/auth.service';
 import { HealthController } from './health/health.controller';
 import { PrismaModule } from './prisma/prisma.module';
@@ -34,6 +35,9 @@ import { OrgRolesGuard } from './common/guards/org-roles.guard';
         signOptions: { expiresIn: parseDuration(process.env.JWT_EXPIRES_IN ?? '15m') / 1000 },
       }),
     }),
+    // Límite base anti-abuso a nivel global (las rutas de auth lo aprietan con
+    // @Throttle). Datos fiscales: mejor pecar de estricto.
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
     PrismaModule,
     AuditModule,
     PlansModule,
@@ -49,6 +53,8 @@ import { OrgRolesGuard } from './common/guards/org-roles.guard';
   ],
   controllers: [HealthController],
   providers: [
+    // Rate limiting global (primero: frena antes de tocar auth/DB)
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
     // Autenticación global (token JWT salvo @Public) y autorización por
     // membresía/rol en rutas con :orgId (§8)
     { provide: APP_GUARD, useClass: JwtAuthGuard },

@@ -15,6 +15,7 @@ import 'theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  ApiClient.assertConfigured(); // release sin API_URL debe fallar aquí, no en silencio
   await ApiClient.instance.loadTokens();
   await ThemeController.instance.load();
   await ConnectivityService.instance.init();
