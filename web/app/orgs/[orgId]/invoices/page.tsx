@@ -29,6 +29,7 @@ export default function InvoicesPage() {
   const [clientes, setClientes] = useState<{ id: string; razonSocial: string }[]>([]);
   const [clientId, setClientId] = useState<string>('');
   const [estado, setEstado] = useState<string>('en_revision');
+  const [periodo, setPeriodo] = useState('');
   const [busqueda, setBusqueda] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -45,12 +46,13 @@ export default function InvoicesPage() {
     const params = new URLSearchParams();
     if (estado) params.set('estado', estado);
     if (clientId) params.set('clientProfileId', clientId);
+    if (/^\d{6}$/.test(periodo)) params.set('periodoFiscal', periodo);
     const q = params.toString() ? `?${params}` : '';
     api<Invoice[]>(`/api/organizations/${orgId}/invoices${q}`)
       .then(setInvoices)
       .catch((e) => setError(e instanceof Error ? e.message : 'Error'))
       .finally(() => setLoading(false));
-  }, [orgId, estado, clientId]);
+  }, [orgId, estado, clientId, periodo]);
 
   useEffect(load, [load]);
 
@@ -61,6 +63,22 @@ export default function InvoicesPage() {
           .some((f) => (f ?? '').toLowerCase().includes(term)),
       )
     : invoices;
+
+  // Total al pie: lo que el contador quiere ver de un vistazo del período.
+  const totalMonto = visibles.reduce((acc, i) => acc + (Number(i.montoFacturado) || 0), 0);
+
+  // "Guardar y siguiente": tras guardar, salta a la próxima factura visible sin
+  // cerrar el modal (revisar 80 facturas en cadena). Si no hay más, cierra.
+  const irASiguiente = useCallback(
+    (actualId: string) => {
+      const ids = visibles.map((i) => i.id);
+      const idx = ids.indexOf(actualId);
+      const siguiente = idx >= 0 ? ids[idx + 1] : undefined;
+      load();
+      setExpanded(siguiente ?? null);
+    },
+    [visibles, load],
+  );
 
   return (
     <>
@@ -83,13 +101,23 @@ export default function InvoicesPage() {
           <div>
             <label>Estado</label>
             <select value={estado} onChange={(e) => setEstado(e.target.value)}>
-              <option value="">Todas</option>
+              <option value="">Todos los estados</option>
               {ESTADOS.map((s) => (
                 <option key={s} value={s}>
                   {ESTADO_LABELS[s]}
                 </option>
               ))}
             </select>
+          </div>
+          <div>
+            <label>Período fiscal (AAAAMM)</label>
+            <input
+              value={periodo}
+              onChange={(e) => setPeriodo(e.target.value.trim())}
+              placeholder="Todos"
+              maxLength={6}
+              inputMode="numeric"
+            />
           </div>
           <div>
             <label>Buscar (proveedor o NCF)</label>
@@ -150,6 +178,17 @@ export default function InvoicesPage() {
                 </tr>
               )}
             </tbody>
+            {visibles.length > 0 && (
+              <tfoot>
+                <tr>
+                  <td colSpan={4} style={{ fontWeight: 600 }}>
+                    {visibles.length} factura(s)
+                  </td>
+                  <td style={{ textAlign: 'right', fontWeight: 600 }}>RD$ {money(totalMonto)}</td>
+                  <td colSpan={2} />
+                </tr>
+              </tfoot>
+            )}
           </table>
         )}
       </div>
@@ -159,7 +198,6 @@ export default function InvoicesPage() {
         if (!sel) return null;
         return (
           <div
-            onClick={() => setExpanded(null)}
             style={{
               position: 'fixed',
               inset: 0,
@@ -172,16 +210,22 @@ export default function InvoicesPage() {
               zIndex: 50,
             }}
           >
-            <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 760 }}>
+            {/* Sin cerrar al clic en el fondo: evita perder ediciones (usar ✕ o Esc, con guardia). */}
+            <div style={{ width: '100%', maxWidth: 1120 }}>
               <ReviewPanel
+                key={sel.id}
                 orgId={orgId}
                 invoice={sel}
                 clientes={clientes}
+                haySiguiente={
+                  visibles.findIndex((i) => i.id === sel.id) < visibles.length - 1
+                }
                 onClose={() => setExpanded(null)}
                 onSaved={() => {
                   setExpanded(null);
                   load();
                 }}
+                onSavedNext={() => irASiguiente(sel.id)}
               />
             </div>
           </div>
@@ -191,17 +235,34 @@ export default function InvoicesPage() {
   );
 }
 
+/** Nombres legibles de los campos que el OCR puede marcar dudosos. */
+const CAMPO_LABEL: Record<string, string> = {
+  rnc_proveedor: 'RNC del proveedor',
+  razon_social: 'Razón social',
+  ncf: 'NCF',
+  fecha: 'Fecha',
+  monto_facturado: 'Monto facturado',
+  itbis: 'ITBIS',
+  monto_total: 'Monto total',
+  propina_legal: 'Propina legal',
+};
+const campoLabel = (k: string) => CAMPO_LABEL[k] ?? k;
+
 function ReviewPanel({
   orgId,
   invoice,
   clientes,
+  haySiguiente,
   onSaved,
+  onSavedNext,
   onClose,
 }: {
   orgId: string;
   invoice: Invoice;
   clientes: { id: string; razonSocial: string }[];
+  haySiguiente: boolean;
   onSaved: () => void;
+  onSavedNext: () => void;
   onClose: () => void;
 }) {
   const marcados = dudosos(invoice);
@@ -238,6 +299,7 @@ function ReviewPanel({
   const [tab, setTab] = useState<'basico' | 'avanzado'>('basico');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const [imageUrls, setImageUrls] = useState<string[] | null>(null);
 
   useEffect(() => {
@@ -248,12 +310,20 @@ function ReviewPanel({
       .catch(() => {});
   }, [orgId, invoice.id]);
 
-  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    setDirty(true);
     setForm((f) => ({ ...f, [k]: e.target.value }));
+  };
+
+  // Cerrar con guardia: si hay cambios sin guardar, confirmar el descarte.
+  const closeGuarded = useCallback(() => {
+    if (dirty && !confirm('Tienes cambios sin guardar. ¿Descartarlos?')) return;
+    onClose();
+  }, [dirty, onClose]);
 
   const numField = (label: string, key: keyof typeof form, critical?: string) => (
     <div>
-      <label style={marcados.has(critical ?? '') ? { color: '#d97706' } : undefined}>
+      <label style={marcados.has(critical ?? '') ? { color: 'var(--warning-text)' } : undefined}>
         {label}
         {marcados.has(critical ?? '') ? ' ⚠' : ''}
       </label>
@@ -291,39 +361,68 @@ function ReviewPanel({
     0,
   );
 
-  // validar: pasar a "validada". soloValidar: no reenviar ediciones, validar lo guardado.
-  async function save(validar: boolean, soloValidar = false) {
+  // Guarda (y opcionalmente valida). Devuelve true si tuvo éxito, para que
+  // quien llama decida cerrar, saltar a la siguiente, o quedarse por el error.
+  async function save(validar: boolean): Promise<boolean> {
     setBusy(true);
     setError('');
     try {
       const body: Record<string, unknown> = {};
-      if (!soloValidar) {
-        const textKeys = [
-          'clientProfileId',
-          'ncf', 'rncProveedor', 'razonSocialProveedor', 'fecha', 'categoria606',
-          'tipoIdProveedor', 'ncfModificado', 'fechaPago', 'tipoBienServicio',
-          'formaPago', 'tipoRetencionIsr',
-        ] as const;
-        for (const k of textKeys) body[k] = form[k] || undefined;
-        const numKeys = [
-          'montoFacturado', 'itbis', 'montoTotal', 'propinaLegal', 'otrosImpuestos',
-          'itbisRetenido', 'itbisProporcionalidad', 'itbisCosto', 'itbisPercibido',
-          'montoRetencionRenta', 'isrPercibido', 'impuestoSelectivo',
-        ] as const;
-        for (const k of numKeys) if (form[k] !== '') body[k] = Number(form[k]);
-      }
+      const textKeys = [
+        'clientProfileId',
+        'ncf', 'rncProveedor', 'razonSocialProveedor', 'fecha', 'categoria606',
+        'tipoIdProveedor', 'ncfModificado', 'fechaPago', 'tipoBienServicio',
+        'formaPago', 'tipoRetencionIsr',
+      ] as const;
+      for (const k of textKeys) body[k] = form[k] || undefined;
+      const numKeys = [
+        'montoFacturado', 'itbis', 'montoTotal', 'propinaLegal', 'otrosImpuestos',
+        'itbisRetenido', 'itbisProporcionalidad', 'itbisCosto', 'itbisPercibido',
+        'montoRetencionRenta', 'isrPercibido', 'impuestoSelectivo',
+      ] as const;
+      for (const k of numKeys) if (form[k] !== '') body[k] = Number(form[k]);
       body.validar = validar;
       await api(`/api/organizations/${orgId}/invoices/${invoice.id}/review`, {
         method: 'PATCH',
         body,
       });
-      onSaved();
+      setDirty(false);
+      return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error inesperado');
+      return false;
     } finally {
       setBusy(false);
     }
   }
+
+  const guardar = async (cerrar: boolean) => {
+    if (await save(false) && cerrar) onSaved();
+  };
+  const guardarYValidar = async () => {
+    if (await save(true)) onSaved();
+  };
+  const validarYSiguiente = async () => {
+    if (await save(true)) onSavedNext();
+  };
+
+  // Atajos: Esc cierra (con guardia), ⌘/Ctrl+Enter valida y avanza en cadena.
+  useEffect(() => {
+    async function onKey(e: KeyboardEvent) {
+      if (busy) return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeGuarded();
+      } else if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        if (await save(true)) (haySiguiente ? onSavedNext : onSaved)();
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // save/closeGuarded capturan `form`; re-suscribir al cambiar mantiene frescas las lecturas.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busy, haySiguiente, dirty, form]);
 
   // Corregir el estado manualmente (p. ej. desvalidar una factura marcada por error).
   async function changeStatus(estado: string) {
@@ -344,20 +443,65 @@ function ReviewPanel({
 
   return (
     <div className="card">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
         <h2 style={{ margin: 0, flex: 1 }}>Revisar factura</h2>
         <span className="badge">{ESTADO_LABELS[invoice.estado] ?? invoice.estado}</span>
         <button
           type="button"
           className="secondary"
-          onClick={onClose}
+          onClick={closeGuarded}
           style={{ margin: 0, padding: '4px 12px' }}
-          aria-label="Cerrar"
+          aria-label="Cerrar (Esc)"
+          title="Cerrar (Esc)"
         >
           ✕
         </button>
       </div>
 
+      {/* Split view: imagen fija a la izquierda, formulario a la derecha (se apila en móvil). */}
+      <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+        <div
+          style={{
+            flex: '1 1 320px',
+            minWidth: 280,
+            position: 'sticky',
+            top: 0,
+            maxHeight: '78vh',
+            overflowY: 'auto',
+          }}
+        >
+          {imageUrls === null ? (
+            <p className="muted">Cargando imagen…</p>
+          ) : imageUrls.length === 0 ? (
+            <p className="muted">Sin imagen.</p>
+          ) : (
+            <>
+              {imageUrls.length > 1 && (
+                <p className="muted" style={{ marginTop: 0 }}>
+                  {imageUrls.length} páginas · clic para ampliar
+                </p>
+              )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {imageUrls.map((url, i) => (
+                  <a key={i} href={url} target="_blank" rel="noreferrer" title="Ver imagen completa">
+                    <img
+                      src={url}
+                      alt={`Página ${i + 1} de la factura`}
+                      style={{
+                        width: '100%',
+                        borderRadius: 8,
+                        border: '1px solid var(--border)',
+                        display: 'block',
+                      }}
+                    />
+                  </a>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
+        <div style={{ flex: '2 1 440px', minWidth: 320 }}>
       <div className="row" style={{ alignItems: 'center', marginBottom: 12 }}>
         <div>
           <label style={{ margin: '0 0 4px' }}>Cambiar estado (corregir error)</label>
@@ -375,34 +519,13 @@ function ReviewPanel({
         <div style={{ flex: 2 }} />
       </div>
 
-      {imageUrls === null ? (
-        <p className="muted">Cargando imagen…</p>
-      ) : imageUrls.length === 0 ? (
-        <p className="muted">Sin imagen.</p>
-      ) : (
-        <>
-          {imageUrls.length > 1 && (
-            <p className="muted">{imageUrls.length} páginas · clic para ampliar</p>
-          )}
-          <div className={imageUrls.length > 1 ? 'invoice-photos' : undefined}>
-            {imageUrls.map((url, i) => (
-              <a key={i} href={url} target="_blank" rel="noreferrer" title="Ver imagen completa">
-                <img
-                  src={url}
-                  alt={`Página ${i + 1} de la factura`}
-                  className={imageUrls.length > 1 ? 'invoice-photo invoice-photo-multi' : 'invoice-photo'}
-                />
-              </a>
-            ))}
-          </div>
-        </>
-      )}
       {invoice.confianzaPorCampo?.error && (
         <div className="notice">OCR: {invoice.confianzaPorCampo.error}</div>
       )}
       {marcados.size > 0 && (
         <div className="notice">
-          La IA marcó como dudosos: {[...marcados].join(', ')}. Verifícalos contra la imagen.
+          La IA marcó como dudosos: {[...marcados].map(campoLabel).join(', ')}. Verifícalos contra la
+          imagen.
         </div>
       )}
       {invoice.validacionDgii && invoice.validacionDgii.alertas.length > 0 && (
@@ -453,7 +576,7 @@ function ReviewPanel({
 
           <div className="row">
             <div>
-              <label style={marcados.has('rnc_proveedor') ? { color: '#d97706' } : undefined}>
+              <label style={marcados.has('rnc_proveedor') ? { color: 'var(--warning-text)' } : undefined}>
                 RNC / Cédula del proveedor{marcados.has('rnc_proveedor') ? ' ⚠' : ''}
               </label>
               <input value={form.rncProveedor} onChange={set('rncProveedor')} />
@@ -489,7 +612,7 @@ function ReviewPanel({
 
           <div className="row">
             <div>
-              <label style={marcados.has('fecha') ? { color: '#d97706' } : undefined}>
+              <label style={marcados.has('fecha') ? { color: 'var(--warning-text)' } : undefined}>
                 Fecha comprobante (AAAA-MM-DD){marcados.has('fecha') ? ' ⚠' : ''}
               </label>
               <input value={form.fecha} onChange={set('fecha')} placeholder="2026-05-14" />
@@ -566,21 +689,30 @@ function ReviewPanel({
       )}
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14 }}>
-        <button className="secondary" onClick={() => save(false)} disabled={busy}>
+        <button className="secondary" onClick={() => guardar(true)} disabled={busy}>
           Guardar
         </button>
-        <button className="secondary" onClick={() => save(true, true)} disabled={busy}>
-          Validar
+        <button className="secondary" onClick={guardarYValidar} disabled={busy}>
+          Guardar y validar
         </button>
-        <button onClick={() => save(true)} disabled={busy}>
-          {busy ? 'Guardando…' : 'Guardar y validar'}
-        </button>
+        {haySiguiente && (
+          <button onClick={validarYSiguiente} disabled={busy} title="⌘/Ctrl + Enter">
+            {busy ? 'Guardando…' : 'Validar y siguiente →'}
+          </button>
+        )}
+        {!haySiguiente && (
+          <button onClick={guardarYValidar} disabled={busy} title="⌘/Ctrl + Enter">
+            {busy ? 'Guardando…' : 'Validar y cerrar'}
+          </button>
+        )}
       </div>
       <p className="muted" style={{ marginTop: 8 }}>
-        <strong>Guardar</strong>: guarda el avance sin validar · <strong>Validar</strong>: valida lo
-        guardado · <strong>Guardar y validar</strong>: guarda tus cambios y valida. Para validar, los
-        campos críticos deben estar completos (y la aritmética cuadrar, si está activada).
+        <strong>Guardar</strong>: guarda el avance sin validar. <strong>Validar y siguiente</strong>{' '}
+        (⌘/Ctrl+Enter): valida y salta a la próxima factura sin cerrar. Para validar, los campos
+        críticos deben estar completos (y la aritmética cuadrar, si está activada).
       </p>
+        </div>
+      </div>
     </div>
   );
 }

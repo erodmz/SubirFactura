@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "web",
-      "runtimeExecutable": "node",
-      "runtimeArgs": ["web/.next/standalone/web/server.js"],
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "web", "run", "dev"],
       "port": 3001,
       "autoPort": false
     }
