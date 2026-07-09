@@ -31,6 +31,7 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [orgName, setOrgName] = useState('');
+  const [orgLogo, setOrgLogo] = useState<string | null>(null);
   const [me, setMe] = useState<Me | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -41,8 +42,11 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
       router.replace('/login');
       return;
     }
-    api<{ nombre: string }>(`/api/organizations/${orgId}`)
-      .then((org) => setOrgName(org.nombre))
+    api<{ nombre: string; logoUrl: string | null }>(`/api/organizations/${orgId}`)
+      .then((org) => {
+        setOrgName(org.nombre);
+        setOrgLogo(org.logoUrl);
+      })
       .catch(() => {});
     api<Me>('/api/me').then(setMe).catch(() => {});
   }, [orgId, router]);
@@ -74,8 +78,16 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
       )}
       <aside className={drawerOpen ? 'sidebar open' : 'sidebar'}>
         <div className="sidebar-logo">
-          <Link href="/app" aria-label="Inicio">
-            <Logo />
+          <Link href="/app" aria-label="Cambiar de empresa" className="sidebar-org">
+            {orgLogo ? (
+              <span className="sidebar-org-logo">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={orgLogo} alt={orgName} />
+              </span>
+            ) : (
+              <Logo />
+            )}
+            {orgName && <span className="sidebar-org-name">{orgName}</span>}
           </Link>
         </div>
         <nav className="side-nav">

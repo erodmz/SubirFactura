@@ -721,6 +721,36 @@ th {
 .sidebar-logo {
   padding: 6px 8px 18px;
 }
+/* Identidad de la empresa en el sidebar: logo arriba, nombre debajo. */
+.sidebar-org {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-decoration: none;
+}
+.sidebar-org-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 52px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px 10px;
+  overflow: hidden;
+}
+.sidebar-org-logo img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.sidebar-org-name {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.25;
+}
 .side-nav {
   display: flex;
   flex-direction: column;
@@ -780,6 +810,8 @@ th {
 .org-name {
   font-weight: 700;
   font-size: 16px;
+  /* En desktop la identidad de la empresa vive en el sidebar; aquí es redundante. */
+  display: none;
 }
 main.app-content {
   max-width: none;
@@ -1089,6 +1121,7 @@ main.app-content {
     padding: 10px 14px;
   }
   .org-name {
+    display: block; /* en móvil el sidebar está oculto: dar contexto en la topbar */
     font-size: 15px;
     overflow: hidden;
     text-overflow: ellipsis;
