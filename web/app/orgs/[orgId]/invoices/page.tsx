@@ -635,6 +635,11 @@ function ReviewPanel({
 
           {/* Alertas y validaciones: aprovechan el espacio bajo la imagen. */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
+            {error && (
+              <div className="error" style={{ margin: 0 }}>
+                {error}
+              </div>
+            )}
             {invoice.validacionDgii && invoice.validacionDgii.alertas.length > 0 && (
               <div className="error" style={{ margin: 0 }}>
                 <strong>Revisa antes de reportar a la DGII:</strong>
@@ -679,8 +684,6 @@ function ReviewPanel({
           <option value="rechazada">Rechazada</option>
         </select>
       </div>
-
-      {error && <div className="error">{error}</div>}
 
       <div className="seg" style={{ margin: '4px 0 16px' }}>
         <button
