@@ -49,6 +49,12 @@ class Me {
       .where((m) => m.orgId == orgId)
       .any((m) => m.rol != 'cliente' || m.puedeValidar);
 
+  /// ¿Puede ver el resumen de gastos en esta org? Contador/admin siempre; el
+  /// cliente solo si el contador se lo habilitó.
+  bool canViewReportsInOrg(String orgId) => memberships
+      .where((m) => m.orgId == orgId)
+      .any((m) => m.rol != 'cliente' || m.puedeVerReportes);
+
   String get displayName => nombre?.isNotEmpty == true ? nombre! : email;
 
   String get initials {
@@ -68,6 +74,7 @@ class Membership {
     required this.orgId,
     required this.orgNombre,
     this.puedeValidar = false,
+    this.puedeVerReportes = false,
     this.orgLogoUrl,
   });
 
@@ -79,6 +86,7 @@ class Membership {
       orgId: org['id'] as String,
       orgNombre: org['nombre'] as String,
       puedeValidar: json['puedeValidar'] as bool? ?? false,
+      puedeVerReportes: json['puedeVerReportes'] as bool? ?? false,
       orgLogoUrl: org['logoUrl'] as String?,
     );
   }
@@ -90,6 +98,9 @@ class Membership {
 
   /// El contador habilitó a este cliente para validar (no solo guardar).
   final bool puedeValidar;
+
+  /// El contador habilitó a este cliente para ver el resumen de gastos.
+  final bool puedeVerReportes;
 
   /// Logo de la empresa (si lo subió), para la lista de empresas.
   final String? orgLogoUrl;

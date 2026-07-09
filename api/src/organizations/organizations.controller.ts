@@ -19,6 +19,7 @@ import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-use
 import {
   CreateOrganizationDto,
   SetValidatePermissionDto,
+  SetReportsPermissionDto,
   UpdateMemberRoleDto,
   UpdateOrganizationDto,
 } from './dto/organizations.dto';
@@ -97,6 +98,17 @@ export class OrganizationsController {
     @Body() dto: SetValidatePermissionDto,
   ) {
     return this.members.setValidatePermission(orgId, membershipId, dto.puedeValidar, user.userId);
+  }
+
+  @Patch(':orgId/members/:membershipId/reports-permission')
+  @OrgRoles('org_admin', 'contador')
+  setReportsPermission(
+    @Param('orgId') orgId: string,
+    @Param('membershipId') membershipId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: SetReportsPermissionDto,
+  ) {
+    return this.members.setReportsPermission(orgId, membershipId, dto.puedeVerReportes, user.userId);
   }
 
   @Delete(':orgId/members/:membershipId')

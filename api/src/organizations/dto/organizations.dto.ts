@@ -34,3 +34,8 @@ export class SetValidatePermissionDto {
   @IsBoolean()
   puedeValidar!: boolean;
 }
+
+export class SetReportsPermissionDto {
+  @IsBoolean()
+  puedeVerReportes!: boolean;
+}

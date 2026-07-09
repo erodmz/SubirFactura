@@ -236,6 +236,10 @@ export class InvoicesService {
     membership: Membership,
     query: { clientProfileId?: string; meses?: number },
   ) {
+    // El resumen de gastos es una capacidad que el contador habilita por cliente.
+    if (membership.rol === 'cliente' && !membership.puedeVerReportes) {
+      throw new ForbiddenException('No estás habilitado para ver el resumen de gastos');
+    }
     const where: Prisma.InvoiceWhereInput = {
       estado: { in: ['validada', 'incluida_en_606', 'reportada'] },
     };

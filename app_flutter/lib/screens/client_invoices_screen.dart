@@ -53,6 +53,11 @@ class _ClientInvoicesScreenState extends State<ClientInvoicesScreen> {
 
   List<ClientAccess> get _businesses => widget.me.clientProfiles;
 
+  /// Negocios cuyo despacho habilitó a este cliente a ver el resumen de gastos.
+  List<ClientAccess> get _reportables => _businesses
+      .where((b) => widget.me.canViewReportsInOrg(b.organizationId))
+      .toList();
+
   @override
   void initState() {
     super.initState();
@@ -238,20 +243,28 @@ class _ClientInvoicesScreenState extends State<ClientInvoicesScreen> {
         title: const Logo(size: 24),
         actions: [
           const ConnectivityBadge(),
-          IconButton(
-            tooltip: 'Resumen de gastos',
-            icon: const Icon(Icons.insights_outlined),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => ResumenGastosScreen(
-                  empresas: widget.me.clientProfiles,
-                  initial: _businessFilter == null
-                      ? widget.me.clientProfiles.first
-                      : _businesses.firstWhere((b) => b.id == _businessFilter),
-                ),
-              ),
+          if (_reportables.isNotEmpty)
+            IconButton(
+              tooltip: 'Resumen de gastos',
+              icon: const Icon(Icons.insights_outlined),
+              onPressed: () {
+                // Solo las empresas cuyo despacho habilitó ver reportes.
+                final selected = _businessFilter == null
+                    ? null
+                    : _businesses.firstWhere((b) => b.id == _businessFilter);
+                final initial = (selected != null && _reportables.contains(selected))
+                    ? selected
+                    : _reportables.first;
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => ResumenGastosScreen(
+                      empresas: _reportables,
+                      initial: initial,
+                    ),
+                  ),
+                );
+              },
             ),
-          ),
           _accountMenu(scheme),
         ],
       ),

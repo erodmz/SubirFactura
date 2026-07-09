@@ -66,6 +66,19 @@ export default function MembersPage() {
     }
   }
 
+  async function setPuedeVerReportes(membershipId: string, puedeVerReportes: boolean) {
+    setMembers((ms) => ms.map((m) => (m.id === membershipId ? { ...m, puedeVerReportes } : m)));
+    try {
+      await api(`/api/organizations/${orgId}/members/${membershipId}/reports-permission`, {
+        method: 'PATCH',
+        body: { puedeVerReportes },
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error inesperado');
+      load(); // revertir al estado real
+    }
+  }
+
   async function remove(membershipId: string) {
     if (!confirm('¿Quitar a este miembro de la organización?')) return;
     setError('');
@@ -126,6 +139,7 @@ export default function MembersPage() {
               <th>Correo</th>
               <th>Rol</th>
               <th>Puede validar</th>
+              <th>Ve reportes</th>
               <th></th>
             </tr>
           </thead>
@@ -154,6 +168,24 @@ export default function MembersPage() {
                         style={{ width: 'auto' }}
                       />
                       {m.puedeValidar ? 'Sí' : 'No'}
+                    </label>
+                  ) : (
+                    <span className="muted">—</span>
+                  )}
+                </td>
+                <td>
+                  {m.rol === 'cliente' ? (
+                    <label
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, margin: 0, cursor: 'pointer' }}
+                      title="Permite a este cliente ver el resumen de gastos (analítica) en la app"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={m.puedeVerReportes ?? false}
+                        onChange={(e) => setPuedeVerReportes(m.id, e.target.checked)}
+                        style={{ width: 'auto' }}
+                      />
+                      {m.puedeVerReportes ? 'Sí' : 'No'}
                     </label>
                   ) : (
                     <span className="muted">—</span>

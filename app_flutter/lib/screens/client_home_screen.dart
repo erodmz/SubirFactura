@@ -185,18 +185,20 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
             : const Logo(size: 24),
         actions: [
           const ConnectivityBadge(),
-          IconButton(
-            tooltip: 'Resumen de gastos',
-            icon: const Icon(Icons.insights_outlined),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => ResumenGastosScreen(
-                  empresas: widget.me.clientProfiles,
-                  initial: widget.client,
+          // El resumen de gastos solo si el contador habilitó a este cliente.
+          if (widget.me.canViewReportsInOrg(_orgId))
+            IconButton(
+              tooltip: 'Resumen de gastos',
+              icon: const Icon(Icons.insights_outlined),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => ResumenGastosScreen(
+                    empresas: widget.me.clientProfiles,
+                    initial: widget.client,
+                  ),
                 ),
               ),
             ),
-          ),
           PopupMenuButton<String>(
             tooltip: 'Cuenta',
             offset: const Offset(0, 48),

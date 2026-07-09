@@ -78,6 +78,29 @@ export class MembersService {
     return updated;
   }
 
+  /** Habilita/inhabilita a un cliente para ver el resumen de gastos (analítica). */
+  async setReportsPermission(
+    orgId: string,
+    membershipId: string,
+    puedeVerReportes: boolean,
+    actorUserId: string,
+  ) {
+    await this.getInOrg(orgId, membershipId);
+    const updated = await this.prisma.membership.update({
+      where: { id: membershipId },
+      data: { puedeVerReportes },
+    });
+    await this.audit.log({
+      organizationId: orgId,
+      userId: actorUserId,
+      accion: 'membership.set_reports_permission',
+      entidad: 'membership',
+      entidadId: membershipId,
+      datos: { puedeVerReportes },
+    });
+    return updated;
+  }
+
   async remove(orgId: string, membershipId: string, actorUserId: string) {
     const membership = await this.getInOrg(orgId, membershipId);
     if (membership.rol === 'org_admin') {

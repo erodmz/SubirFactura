@@ -151,6 +151,7 @@ export class AuthController {
         membershipId: m.id,
         rol: m.rol,
         puedeValidar: m.puedeValidar,
+        puedeVerReportes: m.puedeVerReportes,
         organization: {
           id: m.organization.id,
           nombre: m.organization.nombre,

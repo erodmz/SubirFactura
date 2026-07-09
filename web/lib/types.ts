@@ -7,6 +7,7 @@ export interface Me {
     membershipId: string;
     rol: 'org_admin' | 'contador' | 'cliente';
     puedeValidar?: boolean;
+    puedeVerReportes?: boolean;
     organization: {
       id: string;
       nombre: string;
@@ -34,6 +35,7 @@ export interface Member {
   id: string;
   rol: 'org_admin' | 'contador' | 'cliente';
   puedeValidar?: boolean;
+  puedeVerReportes?: boolean;
   user: { id: string; email: string; nombre: string; telefono: string | null };
 }
 
