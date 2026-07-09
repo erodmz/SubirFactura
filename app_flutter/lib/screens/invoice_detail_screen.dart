@@ -61,7 +61,9 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
   final _controllers = <String, TextEditingController>{};
   // Dropdowns (estado propio; los textos van por controladores).
   String? _clientProfileId;
-  String? _tipoIdProveedor;
+  // Tipo de documento en un notifier: al escribir el RNC se recalcula sin
+  // reconstruir toda la lista (evita saltos de scroll con el campo enfocado).
+  final _tipoNotifier = ValueNotifier<String?>(null);
   String? _categoria;
   String? _tipoBienServicio;
   String? _formaPago;
@@ -88,6 +90,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     for (final controller in _controllers.values) {
       controller.dispose();
     }
+    _tipoNotifier.dispose();
     super.dispose();
   }
 
@@ -111,7 +114,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
         _clientProfileId = invoice.clientProfileId;
         // Normaliza a valores válidos del dropdown (evita aserciones si el backend
         // guardó algo fuera de las opciones, p.ej. tipoBienServicio 'ambos').
-        _tipoIdProveedor = (invoice.tipoIdProveedor == '1' || invoice.tipoIdProveedor == '2')
+        _tipoNotifier.value = (invoice.tipoIdProveedor == '1' || invoice.tipoIdProveedor == '2')
             ? invoice.tipoIdProveedor
             : _tipoIdPorLongitud(invoice.rncProveedor ?? '');
         _categoria =
@@ -157,17 +160,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
       'propinaLegal': fmt(invoice.propinaLegal),
     };
     values.forEach((key, value) {
-      final c = _controllers.putIfAbsent(key, () {
-        final ctrl = TextEditingController();
-        // Refrescar bordes en vivo si el campo es requerido (tras intentar validar).
-        if (_requeridos.contains(key)) {
-          ctrl.addListener(() {
-            if (_intentoValidar && mounted) setState(() {});
-          });
-        }
-        return ctrl;
-      });
-      c.text = value;
+      _controllers.putIfAbsent(key, TextEditingController.new).text = value;
     });
   }
 
@@ -209,7 +202,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
       putText('razonSocialProveedor', _text('razonSocialProveedor'));
       putText('fecha', _text('fecha'));
       putText('fechaPago', _text('fechaPago'));
-      putText('tipoIdProveedor', _tipoIdProveedor);
+      putText('tipoIdProveedor', _tipoNotifier.value);
       putText('categoria606', _categoria);
       putText('tipoBienServicio', _tipoBienServicio);
       putText('formaPago', _formaPago);
@@ -528,14 +521,18 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
           'RNC / Cédula del proveedor',
           required: true,
           keyboard: TextInputType.number,
-          onChanged: (v) => setState(() => _tipoIdProveedor = _tipoIdPorLongitud(v)),
+          // Solo actualiza el notifier (sin setState): no reconstruye la lista.
+          onChanged: (v) => _tipoNotifier.value = _tipoIdPorLongitud(v),
         ),
-        dropdown(
-          'Tipo de documento',
-          _tipoIdProveedor,
-          const {'1': '1 · RNC (9 dígitos)', '2': '2 · Cédula (11 dígitos)'},
-          (v) => setState(() => _tipoIdProveedor = v),
-          controlled: true,
+        ValueListenableBuilder<String?>(
+          valueListenable: _tipoNotifier,
+          builder: (_, tipo, __) => dropdown(
+            'Tipo de documento',
+            tipo,
+            const {'1': '1 · RNC (9 dígitos)', '2': '2 · Cédula (11 dígitos)'},
+            (v) => _tipoNotifier.value = v,
+            controlled: true,
+          ),
         ),
         textField('razonSocialProveedor', 'Razón social del proveedor'),
         dropdown(
@@ -800,6 +797,9 @@ class _InvoiceImages extends StatelessWidget {
                 height: 260,
                 width: double.infinity,
                 fit: BoxFit.cover,
+                // Decodifica a tamaño de pantalla (no a resolución completa):
+                // evita jank de decodificación al hacer scroll.
+                cacheWidth: 1080,
                 errorBuilder: (_, __, ___) => const SizedBox(
                   height: 80,
                   child: Center(child: Text('No se pudo cargar la imagen')),
@@ -837,6 +837,7 @@ class _InvoiceImages extends StatelessWidget {
                       width: 160,
                       height: 220,
                       fit: BoxFit.cover,
+                      cacheWidth: 400,
                       errorBuilder: (_, __, ___) => const SizedBox(
                         width: 160,
                         child: Center(child: Text('Error')),
