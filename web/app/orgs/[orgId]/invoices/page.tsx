@@ -297,6 +297,11 @@ const CAMPO_LABEL: Record<string, string> = {
 };
 const campoLabel = (k: string) => CAMPO_LABEL[k] ?? k;
 
+/** Tipo de identificación del 606 por longitud: 9 díg → RNC (1); 11 díg → Cédula (2). */
+function tipoIdPorLongitud(rnc: string): '1' | '2' {
+  return rnc.replace(/\D/g, '').length === 11 ? '2' : '1';
+}
+
 function ReviewPanel({
   orgId,
   invoice,
@@ -331,7 +336,8 @@ function ReviewPanel({
     clientProfileId: invoice.clientProfile?.id ?? '',
     // Tab 1 · básico (col. 1–11 + forma de pago)
     rncProveedor: invoice.rncProveedor ?? '',
-    tipoIdProveedor: invoice.tipoIdProveedor ?? '',
+    // Tipo de documento: si no vino guardado, lo derivamos por longitud (nunca "automático").
+    tipoIdProveedor: invoice.tipoIdProveedor || tipoIdPorLongitud(invoice.rncProveedor ?? ''),
     razonSocialProveedor: invoice.razonSocialProveedor ?? '',
     categoria606: invoice.categoria606 ?? '',
     ncf: invoice.ncf ?? '',
@@ -764,12 +770,16 @@ function ReviewPanel({
             </label>
             <input
               value={form.rncProveedor}
-              onChange={set('rncProveedor')}
+              onChange={(e) => {
+                const v = e.target.value;
+                setDirty(true);
+                // El tipo sigue la longitud (RNC 9 → 1, Cédula 11 → 2); editable abajo.
+                setForm((f) => ({ ...f, rncProveedor: v, tipoIdProveedor: tipoIdPorLongitud(v) }));
+              }}
               style={errBorder('rncProveedor', true)}
             />
           </div>
           {selectField('Tipo de documento', 'tipoIdProveedor', [
-            { value: '', label: 'Automático (por longitud)' },
             { value: '1', label: '1 · RNC (9 dígitos)' },
             { value: '2', label: '2 · Cédula (11 dígitos)' },
           ])}
