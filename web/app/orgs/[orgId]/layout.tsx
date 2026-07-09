@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { api, clearTokens, getTokens } from '../../../lib/api';
 import ThemeToggle from '../../../components/ThemeToggle';
 import Logo from '../../../components/Logo';
+import NotificationsBell from '../../../components/NotificationsBell';
 import type { Me } from '../../../lib/types';
 
 const NAV = [
@@ -32,6 +33,7 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
   const [orgName, setOrgName] = useState('');
   const [me, setMe] = useState<Me | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -53,6 +55,11 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener('mousedown', onClick);
   }, []);
 
+  // Cierra el drawer al navegar (móvil).
+  useEffect(() => {
+    setDrawerOpen(false);
+  }, [pathname]);
+
   function logout() {
     clearTokens();
     router.replace('/');
@@ -62,7 +69,10 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
+      {drawerOpen && (
+        <div className="sidebar-backdrop" onClick={() => setDrawerOpen(false)} aria-hidden />
+      )}
+      <aside className={drawerOpen ? 'sidebar open' : 'sidebar'}>
         <div className="sidebar-logo">
           <Link href="/app" aria-label="Inicio">
             <Logo />
@@ -73,7 +83,12 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
             const href = base + item.key;
             const active = item.key === '' ? pathname === base : pathname.startsWith(href);
             return (
-              <Link key={item.key} href={href} className={active ? 'side-link active' : 'side-link'}>
+              <Link
+                key={item.key}
+                href={href}
+                className={active ? 'side-link active' : 'side-link'}
+                onClick={() => setDrawerOpen(false)}
+              >
                 <span className="side-icon" aria-hidden>
                   {item.icon}
                 </span>
@@ -89,8 +104,16 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
 
       <div className="app-main">
         <header className="app-topbar">
+          <button
+            className="topbar-burger"
+            onClick={() => setDrawerOpen(true)}
+            aria-label="Abrir menú"
+          >
+            ☰
+          </button>
           <span className="org-name">{orgName || '…'}</span>
           <div style={{ flex: 1 }} />
+          <NotificationsBell orgId={orgId} />
           <div className="user-menu" ref={menuRef}>
             <button className="user-chip" onClick={() => setMenuOpen((v) => !v)}>
               <span className="avatar">{me ? initials(me.nombre, me.email) : '··'}</span>
