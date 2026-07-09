@@ -28,8 +28,10 @@ class Logo extends StatelessWidget {
 
     if (!withWordmark) return mark;
 
+    // "Factura" toma el color de texto del tema (oscuro en claro, claro en
+    // oscuro); "Subir" siempre va con el degradado de marca, legible en ambos.
     final wordStyle = TextStyle(
-      color: textInk,
+      color: Theme.of(context).colorScheme.onSurface,
       fontSize: size * 0.62,
       fontWeight: FontWeight.w800,
       letterSpacing: -0.5,

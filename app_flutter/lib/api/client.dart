@@ -39,6 +39,7 @@ class ApiClient {
   }
 
   static const _tokensKey = 'facturard_tokens';
+  static const _meCacheKey = 'facturard_me_cache';
 
   String? _accessToken;
   String? _refreshToken;
@@ -70,6 +71,22 @@ class ApiClient {
     _refreshToken = null;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokensKey);
+    await prefs.remove(_meCacheKey);
+  }
+
+  /// Guarda el último /api/me para poder abrir la app sin conexión (trabajar
+  /// offline tras cerrarla) y subir lo pendiente al reconectar.
+  Future<void> cacheMe(Map<String, dynamic> data) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_meCacheKey, jsonEncode(data));
+  }
+
+  /// /api/me cacheado, o null si nunca se cargó en este dispositivo.
+  Future<Map<String, dynamic>?> cachedMe() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_meCacheKey);
+    if (raw == null) return null;
+    return jsonDecode(raw) as Map<String, dynamic>;
   }
 
   Future<dynamic> get(String path) => _request('GET', path);

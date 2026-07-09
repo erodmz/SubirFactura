@@ -28,8 +28,18 @@ class _HomeRouterState extends State<HomeRouter> {
   }
 
   Future<Me> _load() async {
-    final data = await ApiClient.instance.get('/api/me') as Map<String, dynamic>;
-    return Me.fromJson(data);
+    try {
+      final data = await ApiClient.instance.get('/api/me') as Map<String, dynamic>;
+      await ApiClient.instance.cacheMe(data); // respaldo para abrir sin conexión
+      return Me.fromJson(data);
+    } catch (e) {
+      // Sin conexión (o servidor caído): si ya cargamos la cuenta antes en este
+      // dispositivo, seguimos con lo cacheado para poder capturar offline; la
+      // cola de subida se encarga de enviar al reconectar.
+      final cached = await ApiClient.instance.cachedMe();
+      if (cached != null) return Me.fromJson(cached);
+      rethrow;
+    }
   }
 
   Future<void> _logout() async {

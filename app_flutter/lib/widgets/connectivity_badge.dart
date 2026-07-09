@@ -35,11 +35,12 @@ class ConnectivityBadge extends StatelessWidget {
 
   Widget _content(BuildContext context, bool online, int pending) {
     if (!online) {
-      return const _Pill(
+      // Sin conexión: nube tachada en rojo, sin texto (llama la atención).
+      return const _CloudStatus(
         key: ValueKey('offline'),
         icon: Icons.cloud_off_rounded,
-        label: 'Sin conexión',
-        color: Color(0xFF8A8A8E), // gris iOS
+        color: Color(0xFFFF3B30), // rojo iOS
+        tooltip: 'Sin conexión',
       );
     }
     if (pending > 0) {
@@ -50,7 +51,13 @@ class ConnectivityBadge extends StatelessWidget {
         color: Theme.of(context).colorScheme.primary,
       );
     }
-    return const _OnlineDot(key: ValueKey('online'));
+    // En línea: nube verde con check.
+    return const _CloudStatus(
+      key: ValueKey('online'),
+      icon: Icons.cloud_done_rounded,
+      color: Color(0xFF34C759), // verde iOS
+      tooltip: 'En línea',
+    );
   }
 }
 
@@ -107,44 +114,43 @@ class PendingUploadBanner extends StatelessWidget {
   }
 }
 
-/// Punto verde minimalista: la app está en línea y todo sincronizado.
-class _OnlineDot extends StatelessWidget {
-  const _OnlineDot({super.key});
+/// Ícono de nube que resume el estado de red: verde (en línea) o rojo (sin
+/// conexión). Sin texto; el detalle va en el tooltip.
+class _CloudStatus extends StatelessWidget {
+  const _CloudStatus({
+    super.key,
+    required this.icon,
+    required this.color,
+    required this.tooltip,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String tooltip;
 
   @override
   Widget build(BuildContext context) {
-    const green = Color(0xFF34C759); // verde iOS
     return Tooltip(
-      message: 'En línea',
+      message: tooltip,
       child: Container(
         width: 34,
         height: 34,
         alignment: Alignment.center,
-        child: Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(
-            color: green,
-            shape: BoxShape.circle,
-            boxShadow: [BoxShadow(color: green.withValues(alpha: 0.45), blurRadius: 5, spreadRadius: 1)],
-          ),
-        ),
+        child: Icon(icon, color: color, size: 22),
       ),
     );
   }
 }
 
-/// Píldora compacta con ícono/spinner + texto (sincronizando o sin conexión).
+/// Píldora compacta con spinner + texto (estado de sincronización).
 class _Pill extends StatelessWidget {
   const _Pill({
     super.key,
-    this.icon,
     this.spinner = false,
     required this.label,
     required this.color,
   });
 
-  final IconData? icon;
   final bool spinner;
   final String label;
   final Color color;
@@ -165,9 +171,7 @@ class _Pill extends StatelessWidget {
               width: 12,
               height: 12,
               child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation(color)),
-            )
-          else
-            Icon(icon, size: 14, color: color),
+            ),
           const SizedBox(width: 6),
           Text(
             label,
