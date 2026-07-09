@@ -545,6 +545,96 @@ th {
 .switch-label {
   line-height: 1.45;
 }
+
+/* ── Dashboard ───────────────────────────────────────────────────────────── */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+}
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.insight {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--bg-soft);
+  font-size: 14px;
+  line-height: 1.4;
+  transition: background 0.12s ease;
+}
+.insight-go {
+  color: var(--muted);
+}
+a:hover > .insight {
+  background: color-mix(in srgb, var(--brand) 10%, var(--bg-soft));
+}
+.attn {
+  display: flex;
+  flex-direction: column;
+  margin-top: 8px;
+}
+.attn-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 6px;
+  border-top: 1px solid var(--border);
+  border-radius: 6px;
+}
+.attn-row:first-child {
+  border-top: none;
+}
+.attn-row:hover {
+  background: var(--bg-soft);
+}
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.attn-name {
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.attn-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.chip-num {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--bg-soft);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.chip-num.danger {
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: var(--danger);
+}
+.chip-num.ok {
+  background: color-mix(in srgb, var(--ok) 16%, transparent);
+  color: var(--ok);
+}
+.chip-num.warn {
+  background: color-mix(in srgb, var(--m-orange) 18%, transparent);
+  color: var(--m-orange);
+}
 @media (max-width: 620px) {
   .review-form {
     grid-template-columns: 1fr;

@@ -73,6 +73,17 @@ export class InvoicesController {
     });
   }
 
+  /** KPIs, récords y actividad para el dashboard del despacho. */
+  @Get('dashboard')
+  @OrgRoles('org_admin', 'contador')
+  dashboard(
+    @Param('orgId') orgId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: { membership: Membership },
+  ) {
+    return this.invoices.dashboard(orgId, user, req.membership);
+  }
+
   @Get(':invoiceId')
   @OrgRoles('org_admin', 'contador', 'cliente')
   get(

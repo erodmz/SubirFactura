@@ -365,6 +365,93 @@ export class InvoicesService {
     };
   }
 
+  /**
+   * Datos para el dashboard del contador: KPIs del mes con récord histórico,
+   * actividad reciente y última subida por cliente (para detectar anomalías).
+   * Respeta el alcance por rol. El semáforo por cliente lo da dgii/606/panel.
+   */
+  async dashboard(orgId: string, user: AuthenticatedUser, membership: Membership) {
+    const scope = await this.invoiceScope(user, membership);
+    const where: Prisma.InvoiceWhereInput = {};
+    if (scope) {
+      where.OR = [
+        { clientProfileId: { in: scope.ids } },
+        ...(scope.incluyeSinAsignar ? [{ clientProfileId: null } as const] : []),
+      ];
+    }
+    const rows = await this.prisma.forOrg(orgId).invoice.findMany({
+      where,
+      select: {
+        createdAt: true,
+        estado: true,
+        montoFacturado: true,
+        itbis: true,
+        periodoFiscal: true,
+        clientProfileId: true,
+      },
+      take: 20000,
+    });
+
+    // Fecha en zona fiscal (America/Santo_Domingo) para cortes de mes/día.
+    const dia = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: 'America/Santo_Domingo' });
+    const mesDe = (d: Date) => dia(d).slice(0, 7).replace('-', '');
+    const now = new Date();
+    const periodo = mesDe(now);
+    const REPORTABLE = new Set(['validada', 'incluida_en_606', 'reportada']);
+
+    const subidasPorMes = new Map<string, number>();
+    const montoPorPeriodo = new Map<string, number>();
+    const subidasPorDia = new Map<string, number>();
+    const ultimaPorCliente = new Map<string, string>();
+    let subidasMes = 0;
+    let reportablesMes = 0;
+    let montoMes = 0;
+    let itbisMes = 0;
+
+    for (const r of rows) {
+      const m = mesDe(r.createdAt);
+      const d = dia(r.createdAt);
+      subidasPorMes.set(m, (subidasPorMes.get(m) ?? 0) + 1);
+      subidasPorDia.set(d, (subidasPorDia.get(d) ?? 0) + 1);
+      if (r.clientProfileId) {
+        const prev = ultimaPorCliente.get(r.clientProfileId);
+        if (!prev || d > prev) ultimaPorCliente.set(r.clientProfileId, d);
+      }
+      if (m === periodo) subidasMes++;
+      const monto = r.montoFacturado ? r.montoFacturado.toNumber() : 0;
+      const itbis = r.itbis ? r.itbis.toNumber() : 0;
+      if (r.periodoFiscal && REPORTABLE.has(r.estado)) {
+        montoPorPeriodo.set(r.periodoFiscal, (montoPorPeriodo.get(r.periodoFiscal) ?? 0) + monto);
+        if (r.periodoFiscal === periodo) {
+          reportablesMes++;
+          montoMes += monto;
+          itbisMes += itbis;
+        }
+      }
+    }
+
+    const topMes = [...subidasPorMes.entries()].sort((a, b) => b[1] - a[1])[0];
+    const topMonto = [...montoPorPeriodo.entries()].sort((a, b) => b[1] - a[1])[0];
+
+    const actividad: { dia: string; n: number }[] = [];
+    for (let i = 13; i >= 0; i--) {
+      const key = dia(new Date(now.getTime() - i * 86_400_000));
+      actividad.push({ dia: key, n: subidasPorDia.get(key) ?? 0 });
+    }
+
+    return {
+      periodo,
+      hoy: dia(now),
+      kpis: { subidasMes, reportablesMes, montoMes, itbisMes },
+      records: {
+        subidas: topMes ? { valor: topMes[1], periodo: topMes[0] } : null,
+        monto: topMonto ? { valor: topMonto[1], periodo: topMonto[0] } : null,
+      },
+      actividad,
+      ultimaSubidaPorCliente: Object.fromEntries(ultimaPorCliente),
+    };
+  }
+
   async get(orgId: string, invoiceId: string, user: AuthenticatedUser, membership: Membership) {
     const invoice = await this.prisma.forOrg(orgId).invoice.findUnique({
       where: { id: invoiceId },

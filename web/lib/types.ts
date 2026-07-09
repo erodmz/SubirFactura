@@ -123,6 +123,18 @@ export interface Preview606 {
   advertencias: PadronAdvertencia[];
 }
 
+export interface DashboardData {
+  periodo: string;
+  hoy: string; // AAAA-MM-DD
+  kpis: { subidasMes: number; reportablesMes: number; montoMes: number; itbisMes: number };
+  records: {
+    subidas: { valor: number; periodo: string } | null;
+    monto: { valor: number; periodo: string } | null;
+  };
+  actividad: { dia: string; n: number }[];
+  ultimaSubidaPorCliente: Record<string, string>;
+}
+
 export interface PanelClienteCierre {
   clienteId: string;
   razonSocial: string;
