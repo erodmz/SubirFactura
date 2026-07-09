@@ -50,6 +50,19 @@ say "Compilando paquete compartido…";      pnpm --filter @facturard/shared bui
 
 # 6. Arrancar API + worker + web
 mkdir -p logs
+
+# Mata cualquier instancia previa (incluidos zombis) para NO acumular procesos
+# duplicados: correr dev.sh dos veces dejaba varios workers en la misma cola, y
+# un worker compilado viejo (node dist/main.js) seguía asignando mal por RNC.
+kill_services() {
+  pkill -f 'nest start'        2>/dev/null || true
+  pkill -f 'tsx watch'         2>/dev/null || true
+  pkill -f 'tsx.*src/main.ts'  2>/dev/null || true
+  pkill -f 'node dist/main.js' 2>/dev/null || true
+  pkill -f 'next dev'          2>/dev/null || true
+}
+say "Limpiando procesos node previos…"; kill_services; sleep 1
+
 say "Iniciando API, worker y panel web…"
 ( cd api     && pnpm dev    > "$ROOT/logs/api.log"    2>&1 ) &
 ( cd workers && pnpm dev    > "$ROOT/logs/worker.log" 2>&1 ) &
@@ -57,9 +70,7 @@ say "Iniciando API, worker y panel web…"
 
 cleanup() {
   echo; say "Deteniendo servicios (la infra Docker sigue arriba)…"
-  pkill -f 'nest start' 2>/dev/null || true
-  pkill -f 'tsx watch'  2>/dev/null || true
-  pkill -f 'next dev'   2>/dev/null || true
+  kill_services
   exit 0
 }
 trap cleanup INT TERM

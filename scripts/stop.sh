@@ -9,6 +9,12 @@ echo "Deteniendo API, worker y panel web…"
 pkill -f 'nest start' 2>/dev/null || true
 pkill -f 'tsx watch'  2>/dev/null || true
 pkill -f 'next dev'   2>/dev/null || true
+# Además: runners tsx huérfanos (si el supervisor murió y dejó el hijo) y
+# workers COMPILADOS arrancados con `pnpm start` (node dist/main.js) — estos no
+# los caza 'tsx watch' y pueden quedar de zombis consumiendo la cola con código
+# viejo, causando que facturas no se asignen. Matarlos evita ese dolor de cabeza.
+pkill -f 'tsx.*src/main.ts'  2>/dev/null || true
+pkill -f 'node dist/main.js' 2>/dev/null || true
 
 if [ "${1:-}" = "--reset" ]; then
   read -r -p "⚠️  Esto BORRARÁ la base de datos y las imágenes subidas. ¿Seguro? (escribe SI) " ans
