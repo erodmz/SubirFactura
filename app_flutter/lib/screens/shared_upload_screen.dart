@@ -8,19 +8,19 @@ import '../services/connectivity_service.dart';
 import '../services/upload_queue.dart';
 import '../widgets/logo.dart';
 
-/// A dónde enviar la factura compartida. Para un cliente es su negocio (se
-/// asigna directo, como la cámara, y así la ve al instante en su lista). Para un
-/// contador es el despacho sin asignar: el OCR la clasifica por el RNC.
-class _Dest {
-  _Dest({required this.orgId, this.clientProfileId, required this.label});
+/// Un despacho (organización) al que se puede subir. La factura del share SIEMPRE
+/// entra SIN asignar: el worker la clasifica al cliente correcto por el RNC del
+/// comprador. Aquí solo elegimos el despacho cuando el usuario pertenece a varios.
+class _Org {
+  _Org(this.orgId, this.nombre);
   final String orgId;
-  final String? clientProfileId;
-  final String label;
+  final String nombre;
 }
 
-/// Recibe fotos compartidas (Share Extension) y las sube. Muestra un preview y
-/// un botón "Subir"; al tocarlo, encola la subida y vuelve a la lista, donde la
-/// factura se ve subiendo/procesando con su loader (igual que al tomar la foto).
+/// Recibe fotos compartidas (Share Extension) y las sube SIN elegir cliente: la
+/// factura entra sin asignar y el worker la asigna sola por el RNC del comprador.
+/// Muestra un preview y un botón "Subir"; al tocarlo, encola y vuelve a la lista,
+/// donde se ve subiendo/procesando (igual que al tomar la foto).
 class SharedUploadScreen extends StatefulWidget {
   const SharedUploadScreen({super.key, required this.photos});
 
@@ -31,8 +31,8 @@ class SharedUploadScreen extends StatefulWidget {
 }
 
 class _SharedUploadScreenState extends State<SharedUploadScreen> {
-  List<_Dest> _dests = [];
-  _Dest? _selected;
+  List<_Org> _orgs = [];
+  _Org? _selected;
   String? _error;
   bool _loading = true;
   bool _submitting = false;
@@ -55,16 +55,18 @@ class _SharedUploadScreenState extends State<SharedUploadScreen> {
       final me = Me.fromJson(
         await ApiClient.instance.get('/api/me') as Map<String, dynamic>,
       );
-      final dests = <_Dest>[
-        // Negocios propios (cliente): se asignan directo → se ven al instante.
-        for (final c in me.clientProfiles)
-          _Dest(orgId: c.organizationId, clientProfileId: c.id, label: c.razonSocial),
-        // Despachos (contador): sin asignar, el OCR clasifica por el RNC.
-        for (final m in me.contadorMemberships)
-          _Dest(orgId: m.orgId, clientProfileId: null, label: m.orgNombre),
-      ];
+      // Despachos donde puede subir (como cliente por sus negocios, o como
+      // contador). Únicos por org: NO listamos clientes, la subida va sin asignar.
+      final porId = <String, _Org>{};
+      for (final c in me.clientProfiles) {
+        porId[c.organizationId] = _Org(c.organizationId, c.organizationNombre);
+      }
+      for (final m in me.contadorMemberships) {
+        porId[m.orgId] = _Org(m.orgId, m.orgNombre);
+      }
+      final orgs = porId.values.toList();
       if (!mounted) return;
-      if (dests.isEmpty) {
+      if (orgs.isEmpty) {
         setState(() {
           _error = 'Tu cuenta no tiene ninguna empresa donde subir facturas.';
           _loading = false;
@@ -72,8 +74,8 @@ class _SharedUploadScreenState extends State<SharedUploadScreen> {
         return;
       }
       setState(() {
-        _dests = dests;
-        _selected = dests.first;
+        _orgs = orgs;
+        _selected = orgs.first;
         _loading = false;
       });
     } catch (_) {
@@ -87,12 +89,13 @@ class _SharedUploadScreenState extends State<SharedUploadScreen> {
   }
 
   Future<void> _upload() async {
-    final dest = _selected;
-    if (_submitting || dest == null || widget.photos.isEmpty) return;
+    final org = _selected;
+    if (_submitting || org == null || widget.photos.isEmpty) return;
     setState(() => _submitting = true);
+    // clientProfileId = null SIEMPRE → el worker asigna el cliente por el RNC.
     await UploadQueue.instance.enqueue(
-      orgId: dest.orgId,
-      clientProfileId: dest.clientProfileId,
+      orgId: org.orgId,
+      clientProfileId: null,
       images: List.of(widget.photos),
     );
     if (!mounted) return;
@@ -103,7 +106,7 @@ class _SharedUploadScreenState extends State<SharedUploadScreen> {
     messenger.showSnackBar(
       SnackBar(
         content: Text(online
-            ? 'Factura recibida — la verás procesarse aquí mismo'
+            ? 'Factura recibida — se clasificará sola por el RNC'
             : 'Sin conexión: guardada como pendiente, se subirá al reconectar'),
       ),
     );
@@ -130,26 +133,26 @@ class _SharedUploadScreenState extends State<SharedUploadScreen> {
                           style: Theme.of(context).textTheme.titleMedium),
                       const SizedBox(height: 12),
                       _preview(),
-                      // Solo si hay varios destinos posibles (varios negocios o
-                      // despachos): elegir a cuál. Con uno solo, no se pregunta.
-                      if (_error == null && _dests.length > 1) ...[
+                      // Solo si el usuario pertenece a VARIOS despachos: elegir a
+                      // cuál. El cliente lo asigna el worker por el RNC, no aquí.
+                      if (_error == null && _orgs.length > 1) ...[
                         const SizedBox(height: 24),
-                        Text('¿A dónde la enviamos?',
+                        Text('¿A qué despacho la mandamos?',
                             style: Theme.of(context).textTheme.titleSmall),
                         const SizedBox(height: 8),
-                        DropdownButtonFormField<_Dest>(
+                        DropdownButtonFormField<_Org>(
                           initialValue: _selected,
                           decoration: const InputDecoration(
                             border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.storefront_outlined),
+                            prefixIcon: Icon(Icons.apartment_outlined),
                           ),
                           items: [
-                            for (final d in _dests)
-                              DropdownMenuItem(value: d, child: Text(d.label)),
+                            for (final o in _orgs)
+                              DropdownMenuItem(value: o, child: Text(o.nombre)),
                           ],
                           onChanged: _submitting
                               ? null
-                              : (d) => setState(() => _selected = d),
+                              : (o) => setState(() => _selected = o),
                         ),
                       ],
                     ],
