@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { api, apiUpload } from '../../../../lib/api';
+import Toggle from '../../../../components/Toggle';
 
 export default function OrgSettingsPage() {
   const { orgId } = useParams<{ orgId: string }>();
@@ -102,17 +103,11 @@ export default function OrgSettingsPage() {
         <h2>Revisión de facturas</h2>
         {aritmetica !== null && (
           <>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={aritmetica}
-                onChange={(e) => toggleAritmetica(e.target.checked)}
-                style={{ width: 'auto' }}
-              />
-              <span>
-                Exigir validación aritmética (subtotal + impuestos = total) antes de validar una factura
-              </span>
-            </label>
+            <Toggle
+              checked={aritmetica}
+              onChange={toggleAritmetica}
+              label="Exigir validación aritmética (subtotal + impuestos = total) antes de validar una factura"
+            />
             <p className="muted" style={{ marginTop: 6 }}>
               Si lo apagas, el contador puede validar aunque los montos no cuadren exactamente.
             </p>

@@ -10,7 +10,69 @@ import InvoiceTimeline from '../../../../components/InvoiceTimeline';
 import { TrashIcon } from '../../../../components/icons';
 import { CATEGORIAS_606, ESTADO_LABELS, type Invoice } from '../../../../lib/types';
 
-const ESTADOS = Object.keys(ESTADO_LABELS);
+// Filtro de estado ordenado por relevancia para el contador. Omite "subida"
+// (transitorio, dura un instante). "Procesando" queda al final por si algo se atasca.
+const FILTRO_ESTADOS = [
+  'en_revision',
+  'extraida',
+  'validada',
+  'incluida_en_606',
+  'reportada',
+  'procesando',
+  'rechazada',
+  'duplicada',
+];
+
+// Qué significa cada estado (leyenda del botón de ayuda junto al filtro).
+const ESTADO_AYUDA: { estado: string; texto: string }[] = [
+  { estado: 'procesando', texto: 'El sistema la está leyendo (dura segundos).' },
+  { estado: 'extraida', texto: 'Leída con alta confianza; falta que la valides.' },
+  { estado: 'en_revision', texto: 'Necesita tu atención: dato dudoso o error.' },
+  { estado: 'validada', texto: 'Revisada y confirmada; lista para el 606.' },
+  { estado: 'incluida_en_606', texto: 'Incluida en un 606 generado del período.' },
+  { estado: 'reportada', texto: 'El 606 ya se envió a la DGII.' },
+  { estado: 'rechazada', texto: 'Descartada: no es un gasto válido.' },
+  { estado: 'duplicada', texto: 'Copia de otra factura ya subida.' },
+];
+
+/** Botón "?" que despliega la leyenda de qué significa cada estado. */
+function StatusLegend() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    function onDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [open]);
+  return (
+    <span className="hint" ref={ref} style={{ position: 'relative', display: 'inline-flex' }}>
+      <button
+        type="button"
+        className="hint-btn"
+        style={{ width: 20, height: 20, fontSize: 12 }}
+        aria-label="¿Qué significa cada estado?"
+        onClick={() => setOpen((v) => !v)}
+      >
+        ?
+      </button>
+      {open && (
+        <div className="hint-pop down">
+          <div className="legend">
+            {ESTADO_AYUDA.map(({ estado, texto }) => (
+              <div className="legend-row" key={estado}>
+                <span className="badge">{ESTADO_LABELS[estado] ?? estado}</span>
+                <span>{texto}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </span>
+  );
+}
 
 function money(v: number | string | null): string {
   if (v === null || v === '') return '';
@@ -124,10 +186,12 @@ export default function InvoicesPage() {
             </select>
           </div>
           <div>
-            <label>Estado</label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              Estado <StatusLegend />
+            </label>
             <select value={estado} onChange={(e) => setEstado(e.target.value)}>
               <option value="">Todos los estados</option>
-              {ESTADOS.map((s) => (
+              {FILTRO_ESTADOS.map((s) => (
                 <option key={s} value={s}>
                   {ESTADO_LABELS[s]}
                 </option>
