@@ -2,8 +2,17 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
 import { api, apiDownload } from '../../../../lib/api';
-import type { CierreEstado, Client, PadronAdvertencia, Preview606 } from '../../../../lib/types';
+import type {
+  CierreEstado,
+  CierreHistorial,
+  Client,
+  Omitida,
+  PadronAdvertencia,
+  PanelCierre,
+  Preview606,
+} from '../../../../lib/types';
 
 const SEMAFORO: Record<CierreEstado['semaforo'], { color: string; label: string }> = {
   verde: { color: 'var(--ok)', label: 'Listo para cerrar' },
@@ -23,21 +32,35 @@ function periodoActual(): string {
   return `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
 
+// El <input type="month"> usa "AAAA-MM"; el resto del código usa "AAAAMM".
+const aMonthInput = (p: string) => (/^\d{6}$/.test(p) ? `${p.slice(0, 4)}-${p.slice(4, 6)}` : '');
+const deMonthInput = (v: string) => v.replace('-', '');
+
+function money(v: number | null): string {
+  if (v == null) return '—';
+  return `RD$ ${v.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function fechaCorta(iso: string): string {
+  return iso.slice(0, 10);
+}
+
 interface CierreResult {
   periodo: string;
   cliente: { id: string; razonSocial: string; rnc: string };
   cantidadRegistros: number;
   incluidas: number;
-  omitidas: { id: string; razon: string }[];
+  omitidas: Omitida[];
   nombreArchivo: string;
 }
 
 export default function DgiiPage() {
   const { orgId } = useParams<{ orgId: string }>();
   const [periodo, setPeriodo] = useState(periodoActual());
-  // El 606 lo presenta cada contribuyente (cliente) con su propio RNC.
   const [clients, setClients] = useState<Client[]>([]);
   const [clientId, setClientId] = useState('');
+  const [panel, setPanel] = useState<PanelCierre | null>(null);
+  const [historial, setHistorial] = useState<CierreHistorial[]>([]);
   const [preview, setPreview] = useState<Preview606 | null>(null);
   const [cierre, setCierre] = useState<CierreResult | null>(null);
   const [estado, setEstado] = useState<CierreEstado | null>(null);
@@ -50,26 +73,43 @@ export default function DgiiPage() {
 
   useEffect(() => {
     api<Client[]>(`/api/organizations/${orgId}/clients`)
-      .then((cs) => {
-        setClients(cs);
-        if (cs.length === 1) setClientId(cs[0].id);
-      })
+      .then(setClients)
+      .catch(() => {});
+    api<CierreHistorial[]>(`/api/organizations/${orgId}/dgii/606/historial`)
+      .then(setHistorial)
       .catch(() => {});
   }, [orgId]);
 
-  // Nombre de archivo DGII: AAAAMM_RNC_F_606.<ext> (RNC del cliente informante)
   const fileName = (ext: string) => `${periodo}_${cliente?.rncOCedula ?? 'SINRNC'}_F_606.${ext}`;
   const qs = () => `periodo=${periodo}&clientId=${clientId}`;
 
-  const loadEstado = useCallback(async () => {
+  // Panel del despacho: el 606 de todos los clientes del período de un vistazo.
+  const loadPanel = useCallback(async () => {
     if (!/^\d{6}$/.test(periodo)) {
+      setPanel(null);
+      return;
+    }
+    try {
+      setPanel(await api<PanelCierre>(`/api/organizations/${orgId}/dgii/606/panel?periodo=${periodo}`));
+    } catch {
+      setPanel(null);
+    }
+  }, [orgId, periodo]);
+
+  useEffect(() => {
+    loadPanel();
+  }, [loadPanel]);
+
+  const loadEstado = useCallback(async () => {
+    if (!/^\d{6}$/.test(periodo) || !clientId) {
       setEstado(null);
       return;
     }
     try {
-      const params = clientId ? `periodo=${periodo}&clientId=${clientId}` : `periodo=${periodo}`;
       setEstado(
-        await api<CierreEstado>(`/api/organizations/${orgId}/dgii/606/cierre?${params}`),
+        await api<CierreEstado>(
+          `/api/organizations/${orgId}/dgii/606/cierre?periodo=${periodo}&clientId=${clientId}`,
+        ),
       );
     } catch {
       setEstado(null);
@@ -80,7 +120,6 @@ export default function DgiiPage() {
     loadEstado();
   }, [loadEstado]);
 
-  // Al cambiar de cliente o período, la vista previa anterior deja de aplicar.
   useEffect(() => {
     setPreview(null);
     setCierre(null);
@@ -91,9 +130,7 @@ export default function DgiiPage() {
     setError('');
     setCierre(null);
     try {
-      setPreview(
-        await api<Preview606>(`/api/organizations/${orgId}/dgii/606/preview?${qs()}`),
-      );
+      setPreview(await api<Preview606>(`/api/organizations/${orgId}/dgii/606/preview?${qs()}`));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error');
       setPreview(null);
@@ -120,6 +157,18 @@ export default function DgiiPage() {
     }
   }
 
+  async function doDownloadZip() {
+    setError('');
+    try {
+      await apiDownload(
+        `/api/organizations/${orgId}/dgii/606/zip?periodo=${periodo}`,
+        `606_${periodo}.zip`,
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error');
+    }
+  }
+
   async function doCerrar() {
     if (
       !confirm(
@@ -136,7 +185,10 @@ export default function DgiiPage() {
         }),
       );
       setPreview(null);
-      await loadEstado();
+      await Promise.all([loadEstado(), loadPanel()]);
+      api<CierreHistorial[]>(`/api/organizations/${orgId}/dgii/606/historial`)
+        .then(setHistorial)
+        .catch(() => {});
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error');
     } finally {
@@ -144,47 +196,32 @@ export default function DgiiPage() {
     }
   }
 
+  const invLink = (params: Record<string, string>) =>
+    `/orgs/${orgId}/invoices?${new URLSearchParams(params)}`;
+
   return (
     <>
       <h1>Reporte 606 (compras de gastos)</h1>
       <p className="muted">
-        Genera el archivo de envío del Formato 606 de la DGII a partir de las facturas validadas del
-        período. El 606 se presenta <strong>por cada cliente</strong> (contribuyente) con su propio
-        RNC.
+        El 606 se presenta <strong>por cada cliente</strong> (contribuyente) con su propio RNC.
+        Selecciona el mes y revisa el estado de cada uno.
       </p>
       {error && <div className="error">{error}</div>}
 
+      {/* Selector de mes + descarga masiva. */}
       <div className="card">
-        <div className="row">
+        <div className="row" style={{ alignItems: 'flex-end' }}>
           <div>
-            <label>Cliente (contribuyente)</label>
-            <select value={clientId} onChange={(e) => setClientId(e.target.value)}>
-              <option value="">— Selecciona el cliente —</option>
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.razonSocial} · {c.rncOCedula}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label>Período fiscal (AAAAMM)</label>
+            <label>Mes fiscal</label>
             <input
-              value={periodo}
-              onChange={(e) => setPeriodo(e.target.value.trim())}
-              placeholder="202605"
-              maxLength={6}
+              type="month"
+              value={aMonthInput(periodo)}
+              onChange={(e) => setPeriodo(deMonthInput(e.target.value))}
             />
           </div>
-          <div style={{ flex: '0 0 auto', display: 'flex', gap: 8 }}>
-            <button onClick={doPreview} disabled={busy || !listo}>
-              Vista previa
-            </button>
-            <button className="secondary" onClick={doDownload} disabled={!listo}>
-              Descargar TXT
-            </button>
-            <button className="secondary" onClick={doDownloadExcel} disabled={!listo}>
-              Descargar Excel
+          <div style={{ flex: '0 0 auto' }}>
+            <button className="secondary" onClick={doDownloadZip} disabled={!validPeriodo}>
+              ⬇ Descargar todos (ZIP)
             </button>
           </div>
         </div>
@@ -196,25 +233,135 @@ export default function DgiiPage() {
         )}
       </div>
 
-      {estado && (
+      {/* Panel del despacho: semáforo de todos los clientes del período. */}
+      {panel && panel.clientes.length > 0 && (
         <div className="card">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
+            <h2 style={{ margin: 0 }}>Estado del 606 por cliente</h2>
             <span
               style={{
-                width: 14,
-                height: 14,
-                borderRadius: '50%',
-                background: SEMAFORO[estado.semaforo].color,
-                flexShrink: 0,
+                color: panel.vencido || panel.diasRestantes <= 3 ? 'var(--danger)' : 'var(--muted)',
               }}
-            />
-            <h2 style={{ margin: 0 }}>
-              Cierre del período{cliente ? ` · ${cliente.razonSocial}` : ' (todo el despacho)'} ·{' '}
-              {SEMAFORO[estado.semaforo].label}
-            </h2>
+            >
+              Vence {panel.fechaLimite}
+              {panel.vencido
+                ? ` · venció hace ${Math.abs(panel.diasRestantes)} día(s)`
+                : ` · faltan ${panel.diasRestantes} día(s)`}
+            </span>
           </div>
 
-          {estado.semaforo !== 'vacio' && (
+          {panel.sinAsignar > 0 && (
+            <div className="notice" style={{ marginTop: 10 }}>
+              <Link href={invLink({ periodo, estado: '' })}>
+                {panel.sinAsignar} factura(s) del período sin asignar a ningún cliente →
+              </Link>{' '}
+              — asígnalas para que entren a un 606.
+            </div>
+          )}
+
+          <table style={{ marginTop: 12 }}>
+            <thead>
+              <tr>
+                <th></th>
+                <th>Cliente</th>
+                <th style={{ textAlign: 'right' }}>Listas</th>
+                <th style={{ textAlign: 'right' }}>En revisión</th>
+                <th>Estado</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {panel.clientes.map((c) => (
+                <tr key={c.clienteId}>
+                  <td>
+                    <span
+                      title={SEMAFORO[c.semaforo].label}
+                      style={{
+                        display: 'inline-block',
+                        width: 12,
+                        height: 12,
+                        borderRadius: '50%',
+                        background: SEMAFORO[c.semaforo].color,
+                      }}
+                    />
+                  </td>
+                  <td>
+                    {c.razonSocial}
+                    <br />
+                    <span className="muted" style={{ fontSize: 12 }}>
+                      {c.rnc}
+                      {!c.rncValido && (
+                        <span style={{ color: 'var(--danger)' }}> · RNC inválido</span>
+                      )}
+                    </span>
+                  </td>
+                  <td style={{ textAlign: 'right' }}>{c.totales.reportables}</td>
+                  <td style={{ textAlign: 'right' }}>
+                    {c.totales.enRevision > 0 ? (
+                      <Link
+                        href={invLink({ clientId: c.clienteId, periodo, estado: 'en_revision' })}
+                        style={{ color: 'var(--danger)' }}
+                      >
+                        {c.totales.enRevision}
+                      </Link>
+                    ) : (
+                      0
+                    )}
+                  </td>
+                  <td>
+                    {c.listoParaCerrar ? (
+                      <span style={{ color: 'var(--ok)' }}>Listo</span>
+                    ) : c.bloqueos.length > 0 ? (
+                      <span className="muted" title={c.bloqueos.join(' · ')}>
+                        {c.bloqueos[0]}
+                        {c.bloqueos.length > 1 ? ` (+${c.bloqueos.length - 1})` : ''}
+                      </span>
+                    ) : (
+                      <span className="muted">Sin facturas</span>
+                    )}
+                  </td>
+                  <td style={{ textAlign: 'right' }}>
+                    <a style={{ cursor: 'pointer' }} onClick={() => setClientId(c.clienteId)}>
+                      Abrir
+                    </a>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Detalle de un cliente seleccionado: generar/descargar/cerrar su 606. */}
+      {cliente && (
+        <div className="card">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+            <h2 style={{ margin: 0, flex: 1 }}>
+              606 de {cliente.razonSocial} · {cliente.rncOCedula}
+            </h2>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => setClientId('')}
+              style={{ margin: 0, padding: '4px 12px' }}
+            >
+              ✕
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+            <button onClick={doPreview} disabled={busy || !listo}>
+              Vista previa
+            </button>
+            <button className="secondary" onClick={doDownload} disabled={!listo}>
+              Descargar TXT
+            </button>
+            <button className="secondary" onClick={doDownloadExcel} disabled={!listo}>
+              Descargar Excel
+            </button>
+          </div>
+
+          {estado && estado.semaforo !== 'vacio' && (
             <p
               style={{
                 color: estado.vencido || estado.diasRestantes <= 3 ? 'var(--danger)' : 'var(--muted)',
@@ -228,20 +375,7 @@ export default function DgiiPage() {
             </p>
           )}
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-            <span className="badge">{estado.totales.reportables} listas</span>
-            {estado.totales.enRevision > 0 && (
-              <span className="badge">{estado.totales.enRevision} en revisión</span>
-            )}
-            {estado.totales.enProceso > 0 && (
-              <span className="badge">{estado.totales.enProceso} procesando</span>
-            )}
-            {estado.totales.conAlertasDgii > 0 && (
-              <span className="badge">{estado.totales.conAlertasDgii} con alertas DGII</span>
-            )}
-          </div>
-
-          {estado.bloqueos.length > 0 && (
+          {estado && estado.bloqueos.length > 0 && (
             <div className="error">
               <strong>Falta para poder cerrar:</strong>
               <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
@@ -249,9 +383,14 @@ export default function DgiiPage() {
                   <li key={i}>{b}</li>
                 ))}
               </ul>
+              {estado.totales.enRevision > 0 && (
+                <Link href={invLink({ clientId, periodo, estado: 'en_revision' })}>
+                  Ir a revisar sus facturas →
+                </Link>
+              )}
             </div>
           )}
-          {estado.avisos.length > 0 && (
+          {estado && estado.avisos.length > 0 && (
             <div className="notice">
               <ul style={{ margin: 0, paddingLeft: 18 }}>
                 {estado.avisos.map((a, i) => (
@@ -260,67 +399,99 @@ export default function DgiiPage() {
               </ul>
             </div>
           )}
-          {estado.listoParaCerrar && (
-            <p style={{ color: 'var(--ok)', margin: '8px 0 0' }}>
-              ✓ Todo en orden. Usa “Vista previa” y luego cierra el período.
-            </p>
+
+          {preview && (
+            <div style={{ marginTop: 12 }}>
+              <h3 style={{ marginBottom: 6 }}>Vista previa — {preview.nombreArchivo}</h3>
+              <p>
+                <strong>{preview.cantidadRegistros}</strong> factura(s) entrarán al 606.
+              </p>
+              {preview.advertencias.length > 0 && (
+                <div className="notice">
+                  Avisos del padrón RNC (no impiden generar, pero conviene revisar):
+                  <ul>
+                    {preview.advertencias.map((a) => (
+                      <li key={a.rnc}>{advertenciaTexto(a)}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {preview.omitidas.length > 0 ? (
+                <div className="notice">
+                  {preview.omitidas.length} factura(s) del período no se incluyen por datos
+                  incompletos:
+                  <ul style={{ margin: '6px 0 0' }}>
+                    {preview.omitidas.map((o) => (
+                      <li key={o.id}>
+                        <Link href={invLink({ open: o.id, clientId, periodo, estado: '' })}>
+                          {o.proveedor ?? 'Proveedor sin nombre'}
+                          {o.monto != null ? ` · ${money(o.monto)}` : ''}
+                        </Link>{' '}
+                        — {o.razon}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <p className="muted">Todas las facturas del período tienen datos completos.</p>
+              )}
+              <button onClick={doCerrar} disabled={busy}>
+                Cerrar período e incluir en 606
+              </button>
+            </div>
+          )}
+
+          {cierre && (
+            <div className="notice" style={{ marginTop: 12 }}>
+              <strong>
+                Período {cierre.periodo} de {cierre.cliente.razonSocial} cerrado.
+              </strong>{' '}
+              {cierre.incluidas} factura(s) incluidas en el 606.
+              {cierre.omitidas.length > 0 && ` ${cierre.omitidas.length} quedaron fuera.`}{' '}
+              <a style={{ cursor: 'pointer' }} onClick={doDownload}>
+                Descargar TXT
+              </a>
+            </div>
           )}
         </div>
       )}
 
-      {preview && (
+      {/* Historial de cierres: qué 606 ya se cerró, cuándo y quién. */}
+      {historial.length > 0 && (
         <div className="card">
-          <h2>Vista previa — {preview.nombreArchivo}</h2>
-          <p>
-            <strong>{preview.cantidadRegistros}</strong> factura(s) de{' '}
-            <strong>{preview.cliente.razonSocial}</strong> (RNC {preview.cliente.rnc}) entrarán al
-            606.
-          </p>
-          {preview.advertencias.length > 0 && (
-            <div className="notice">
-              Avisos del padrón RNC (no impiden generar, pero conviene revisar):
-              <ul>
-                {preview.advertencias.map((a) => (
-                  <li key={a.rnc}>{advertenciaTexto(a)}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {preview.omitidas.length > 0 ? (
-            <div className="notice">
-              {preview.omitidas.length} factura(s) del período no se incluyen por datos incompletos:
-              <ul>
-                {preview.omitidas.map((o) => (
-                  <li key={o.id}>
-                    {o.id.slice(0, 8)} — {o.razon}
-                  </li>
-                ))}
-              </ul>
-              Complétalas en la pestaña Facturas para incluirlas.
-            </div>
-          ) : (
-            <p className="muted">Todas las facturas del período tienen datos completos.</p>
-          )}
-          <button className="danger" onClick={doCerrar} disabled={busy}>
-            Cerrar período e incluir en 606
-          </button>
-        </div>
-      )}
-
-      {cierre && (
-        <div className="card">
-          <h2>
-            Período {cierre.periodo} de {cierre.cliente.razonSocial} cerrado
-          </h2>
-          <p>
-            <strong>{cierre.incluidas}</strong> factura(s) marcadas como incluidas en el 606.
-          </p>
-          {cierre.omitidas.length > 0 && (
-            <div className="notice">
-              {cierre.omitidas.length} quedaron fuera por datos incompletos.
-            </div>
-          )}
-          <button onClick={doDownload}>Descargar TXT</button>
+          <h2>Historial de cierres</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Período</th>
+                <th>Cliente</th>
+                <th style={{ textAlign: 'right' }}>Incluidas</th>
+                <th>Cerrado</th>
+                <th>Por</th>
+              </tr>
+            </thead>
+            <tbody>
+              {historial.map((h, i) => (
+                <tr key={i}>
+                  <td>{h.periodo}</td>
+                  <td>
+                    {h.cliente ?? '—'}
+                    {h.rnc && (
+                      <>
+                        <br />
+                        <span className="muted" style={{ fontSize: 12 }}>
+                          {h.rnc}
+                        </span>
+                      </>
+                    )}
+                  </td>
+                  <td style={{ textAlign: 'right' }}>{h.incluidas ?? '—'}</td>
+                  <td>{fechaCorta(h.fecha)}</td>
+                  <td>{h.usuario ?? '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </>

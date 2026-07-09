@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import ExcelJS from 'exceljs';
+import JSZip from 'jszip';
 import {
   CATEGORIAS_606,
   generateFormato606,
@@ -20,13 +21,53 @@ const CATEGORIA_NOMBRE = new Map<string, string>(
 /** Estados cuyas facturas entran al 606 de un período. */
 const REPORTABLE = ['validada', 'incluida_en_606', 'reportada'] as const;
 
+/** Factura del período que no entró al 606, con contexto para ubicarla. */
+export interface Omitida {
+  id: string;
+  razon: string;
+  proveedor: string | null;
+  monto: number | null;
+}
+
 export interface Generate606Result extends Formato606Result {
   /** Cliente (contribuyente) informante del 606. */
   cliente: { id: string; razonSocial: string; rnc: string };
   /** Facturas del período que no se pudieron incluir y por qué. */
-  omitidas: { id: string; razon: string }[];
+  omitidas: Omitida[];
   /** Avisos del padrón RNC (no bloquean): RNC ausente, inactivo o razón social que no cuadra. */
   advertencias: PadronValidation[];
+}
+
+/** Una fila del panel de cierre del despacho: el 606 de un cliente de un vistazo. */
+export interface PanelClienteCierre {
+  clienteId: string;
+  razonSocial: string;
+  rnc: string;
+  rncValido: boolean;
+  semaforo: CierreEstado['semaforo'];
+  listoParaCerrar: boolean;
+  totales: CierreEstado['totales'];
+  bloqueos: string[];
+}
+
+export interface PanelCierre {
+  periodo: string;
+  fechaLimite: string;
+  diasRestantes: number;
+  vencido: boolean;
+  sinAsignar: number;
+  clientes: PanelClienteCierre[];
+}
+
+/** Un cierre de período registrado (para el historial). */
+export interface CierreHistorial {
+  periodo: string;
+  clientProfileId: string | null;
+  cliente: string | null;
+  rnc: string | null;
+  incluidas: number | null;
+  fecha: Date;
+  usuario: string | null;
 }
 
 export interface CierreEstado {
@@ -152,12 +193,17 @@ export class DgiiService {
     });
 
     const detalles: Formato606Detail[] = [];
-    const omitidas: { id: string; razon: string }[] = [];
+    const omitidas: Omitida[] = [];
     const validables: { rnc: string; razonSocial: string | null }[] = [];
     for (const inv of invoices) {
       const mapped = this.toDetail(inv);
       if ('error' in mapped) {
-        omitidas.push({ id: inv.id, razon: mapped.error });
+        omitidas.push({
+          id: inv.id,
+          razon: mapped.error,
+          proveedor: inv.razonSocialProveedor,
+          monto: inv.montoFacturado ? inv.montoFacturado.toNumber() : null,
+        });
       } else {
         detalles.push(mapped);
         validables.push({ rnc: mapped.rncCedula, razonSocial: inv.razonSocialProveedor });
@@ -191,7 +237,16 @@ export class DgiiService {
     const sinAsignar = await this.prisma.forOrg(orgId).invoice.count({
       where: { periodoFiscal: periodo, clientProfileId: null },
     });
+    return this.construirCierre(periodo, invoices, sinAsignar, clientId);
+  }
 
+  /** Arma el semáforo de cierre a partir de facturas ya cargadas (sin tocar la BD). */
+  private construirCierre(
+    periodo: string,
+    invoices: Invoice[],
+    sinAsignar: number,
+    clientId?: string,
+  ): CierreEstado {
     const t = {
       total: invoices.length,
       enProceso: 0,
@@ -370,5 +425,138 @@ export class DgiiService {
       omitidas: result.omitidas,
       nombreArchivo: result.nombreArchivo,
     };
+  }
+
+  /**
+   * Panel de cierre del despacho: el estado del 606 del período para CADA cliente
+   * en alcance, de un vistazo. Una sola lectura de facturas del período (evita
+   * N+1). Los clientes vienen ya filtrados por rol desde el controlador.
+   */
+  async panelCierre(
+    orgId: string,
+    periodo: string,
+    clientes: { id: string; razonSocial: string; rncOCedula: string }[],
+  ): Promise<PanelCierre> {
+    const ids = clientes.map((c) => c.id);
+    const invoices = ids.length
+      ? await this.prisma.forOrg(orgId).invoice.findMany({
+          where: { periodoFiscal: periodo, clientProfileId: { in: ids } },
+        })
+      : [];
+    const sinAsignar = await this.prisma.forOrg(orgId).invoice.count({
+      where: { periodoFiscal: periodo, clientProfileId: null },
+    });
+
+    const porCliente = new Map<string, Invoice[]>();
+    for (const inv of invoices) {
+      const k = inv.clientProfileId!;
+      const arr = porCliente.get(k);
+      if (arr) arr.push(inv);
+      else porCliente.set(k, [inv]);
+    }
+
+    const filas: PanelClienteCierre[] = clientes.map((c) => {
+      const taxId = validateTaxId(c.rncOCedula);
+      // sinAsignar=0 por cliente: repartir facturas es una tarea del despacho, no bloquea a un cliente.
+      const cierre = this.construirCierre(periodo, porCliente.get(c.id) ?? [], 0, c.id);
+      const bloqueos = [...cierre.bloqueos];
+      let semaforo = cierre.semaforo;
+      if (!taxId.valid) {
+        bloqueos.unshift(`RNC/cédula del cliente inválido (${taxId.error ?? 'revísalo'})`);
+        semaforo = 'rojo';
+      }
+      return {
+        clienteId: c.id,
+        razonSocial: c.razonSocial,
+        rnc: taxId.normalized ?? c.rncOCedula,
+        rncValido: taxId.valid,
+        semaforo,
+        listoParaCerrar: cierre.listoParaCerrar && taxId.valid,
+        totales: cierre.totales,
+        bloqueos,
+      };
+    });
+    // Los que requieren atención primero (rojo, amarillo, verde, vacío).
+    const orden: Record<CierreEstado['semaforo'], number> = { rojo: 0, amarillo: 1, verde: 2, vacio: 3 };
+    filas.sort(
+      (a, b) => orden[a.semaforo] - orden[b.semaforo] || a.razonSocial.localeCompare(b.razonSocial),
+    );
+
+    const fechaLimite = this.fechaLimite606(periodo);
+    const hoy = new Date();
+    const diasRestantes = Math.ceil(
+      (Date.UTC(fechaLimite.getUTCFullYear(), fechaLimite.getUTCMonth(), fechaLimite.getUTCDate()) -
+        Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), hoy.getUTCDate())) /
+        86_400_000,
+    );
+
+    return {
+      periodo,
+      fechaLimite: fechaLimite.toISOString().slice(0, 10),
+      diasRestantes,
+      vencido: diasRestantes < 0,
+      sinAsignar,
+      clientes: filas,
+    };
+  }
+
+  /**
+   * Historial de cierres del 606 (del audit_log). Si se pasan `clientIds`, se
+   * limita a esos clientes (alcance del contador); sin ellos, todo el despacho.
+   */
+  async historialCierres(orgId: string, clientIds?: string[]): Promise<CierreHistorial[]> {
+    const logs = await this.prisma.auditLog.findMany({
+      where: { organizationId: orgId, accion: 'dgii.cerrar_periodo_606' },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+      include: { user: { select: { nombre: true, email: true } } },
+    });
+    const permitido = clientIds ? new Set(clientIds) : null;
+    return logs
+      .map((l) => {
+        const d = (l.datos ?? {}) as {
+          clientProfileId?: string;
+          cliente?: string;
+          rncInformante?: string;
+          incluidas?: number;
+        };
+        return {
+          periodo: l.entidadId ?? '',
+          clientProfileId: d.clientProfileId ?? null,
+          cliente: d.cliente ?? null,
+          rnc: d.rncInformante ?? null,
+          incluidas: d.incluidas ?? null,
+          fecha: l.createdAt,
+          usuario: l.user?.nombre ?? l.user?.email ?? null,
+        };
+      })
+      .filter((h) => !permitido || (h.clientProfileId != null && permitido.has(h.clientProfileId)));
+  }
+
+  /**
+   * Empaqueta en un ZIP el 606 (.txt) de cada cliente del período que tenga
+   * facturas reportables. Omite silenciosamente clientes sin datos o con RNC
+   * inválido (el panel ya los señala).
+   */
+  async generar606Zip(
+    orgId: string,
+    periodo: string,
+    clienteIds: string[],
+  ): Promise<{ buffer: Buffer; nombreArchivo: string; incluidos: number }> {
+    const zip = new JSZip();
+    let incluidos = 0;
+    for (const id of clienteIds) {
+      try {
+        const r = await this.generate606(orgId, periodo, id);
+        if (r.cantidadRegistros > 0) {
+          zip.file(r.nombreArchivo, r.contenido);
+          incluidos++;
+        }
+      } catch {
+        // cliente con RNC inválido o sin datos: se omite (el panel lo refleja)
+      }
+    }
+    const buffer = await zip.generateAsync({ type: 'nodebuffer' });
+    return { buffer, nombreArchivo: `606_${periodo}.zip`, incluidos };
   }
 }

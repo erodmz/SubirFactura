@@ -105,13 +105,50 @@ export interface PadronAdvertencia {
   razonSocialOficial?: string;
 }
 
+export interface Omitida {
+  id: string;
+  razon: string;
+  proveedor: string | null;
+  monto: number | null;
+}
+
 export interface Preview606 {
   /** Cliente (contribuyente) informante del reporte. */
   cliente: { id: string; razonSocial: string; rnc: string };
   nombreArchivo: string;
   cantidadRegistros: number;
-  omitidas: { id: string; razon: string }[];
+  omitidas: Omitida[];
   advertencias: PadronAdvertencia[];
+}
+
+export interface PanelClienteCierre {
+  clienteId: string;
+  razonSocial: string;
+  rnc: string;
+  rncValido: boolean;
+  semaforo: CierreEstado['semaforo'];
+  listoParaCerrar: boolean;
+  totales: CierreEstado['totales'];
+  bloqueos: string[];
+}
+
+export interface PanelCierre {
+  periodo: string;
+  fechaLimite: string;
+  diasRestantes: number;
+  vencido: boolean;
+  sinAsignar: number;
+  clientes: PanelClienteCierre[];
+}
+
+export interface CierreHistorial {
+  periodo: string;
+  clientProfileId: string | null;
+  cliente: string | null;
+  rnc: string | null;
+  incluidas: number | null;
+  fecha: string;
+  usuario: string | null;
 }
 
 export interface CierreEstado {

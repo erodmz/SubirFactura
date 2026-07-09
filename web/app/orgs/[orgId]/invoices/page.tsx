@@ -33,7 +33,8 @@ export default function InvoicesPage() {
   const [estado, setEstado] = useState<string>(searchParams.get('estado') ?? 'en_revision');
   const [periodo, setPeriodo] = useState(searchParams.get('periodo') ?? '');
   const [busqueda, setBusqueda] = useState('');
-  const [expanded, setExpanded] = useState<string | null>(null);
+  // ?open=<id> abre esa factura directo (enlaces de "omitidas" del 606).
+  const [expanded, setExpanded] = useState<string | null>(searchParams.get('open'));
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 

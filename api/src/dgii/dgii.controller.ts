@@ -1,7 +1,9 @@
-import { BadRequestException, Controller, Get, Param, Post, Query, Res } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Param, Post, Query, Req, Res } from '@nestjs/common';
 import type { Response } from 'express';
+import type { Membership } from '@facturard/shared/db';
 import { DgiiService } from './dgii.service';
 import { PadronService } from './padron.service';
+import { ClientsService } from '../clients/clients.service';
 import { OrgRoles } from '../common/decorators/org-roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-user.decorator';
 
@@ -12,6 +14,7 @@ export class DgiiController {
   constructor(
     private readonly dgii: DgiiService,
     private readonly padron: PadronService,
+    private readonly clients: ClientsService,
   ) {}
 
   /** Estado del padrón RNC: cuántos registros y cuándo se actualizó. */
@@ -128,5 +131,56 @@ export class DgiiController {
       this.assertCliente(clientId),
       user.userId,
     );
+  }
+
+  /**
+   * Panel de cierre del despacho: el 606 del período para cada cliente en
+   * alcance (el contador solo ve sus asignados; el admin, todos).
+   */
+  @Get('606/panel')
+  @OrgRoles('org_admin', 'contador')
+  async panel(
+    @Param('orgId') orgId: string,
+    @Req() req: { membership: Membership },
+    @Query('periodo') periodo?: string,
+  ) {
+    const clientes = await this.clients.list(orgId, req.membership);
+    return this.dgii.panelCierre(
+      orgId,
+      this.assertPeriodo(periodo),
+      clientes.map((c) => ({ id: c.id, razonSocial: c.razonSocial, rncOCedula: c.rncOCedula })),
+    );
+  }
+
+  /** Historial de cierres del 606 (quién cerró qué y cuándo). */
+  @Get('606/historial')
+  @OrgRoles('org_admin', 'contador')
+  async historial(@Param('orgId') orgId: string, @Req() req: { membership: Membership }) {
+    // El contador solo ve el historial de sus clientes asignados; el admin, todo.
+    const clientIds =
+      req.membership.rol === 'contador'
+        ? (await this.clients.list(orgId, req.membership)).map((c) => c.id)
+        : undefined;
+    return this.dgii.historialCierres(orgId, clientIds);
+  }
+
+  /** Descarga en un ZIP el 606 (.txt) de todos los clientes del período. */
+  @Get('606/zip')
+  @OrgRoles('org_admin', 'contador')
+  async zip(
+    @Param('orgId') orgId: string,
+    @Req() req: { membership: Membership },
+    @Res() res: Response,
+    @Query('periodo') periodo?: string,
+  ) {
+    const clientes = await this.clients.list(orgId, req.membership);
+    const { buffer, nombreArchivo } = await this.dgii.generar606Zip(
+      orgId,
+      this.assertPeriodo(periodo),
+      clientes.map((c) => c.id),
+    );
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${nombreArchivo}"`);
+    res.send(buffer);
   }
 }
