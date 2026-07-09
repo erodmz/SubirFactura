@@ -654,6 +654,28 @@ th {
   }
 }
 
+/* Header del landing en móvil: evitar que los botones se salgan de pantalla. */
+@media (max-width: 560px) {
+  .landing {
+    padding: 0 16px 48px;
+  }
+  .landing-nav {
+    padding: 16px 0;
+  }
+  .landing-nav-actions {
+    gap: 8px;
+  }
+  .landing-nav .btn {
+    padding: 9px 14px;
+    font-size: 14px;
+    white-space: nowrap;
+  }
+  /* Iniciar sesión queda accesible desde el hero ("Entrar a la app →"). */
+  .landing-nav .btn-ghost {
+    display: none;
+  }
+}
+
 /* ── Logo ───────────────────────────────────────────────────────────────── */
 .logo-word {
   font-weight: 800;
