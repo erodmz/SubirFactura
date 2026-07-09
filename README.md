@@ -1,7 +1,7 @@
 # SubirFactura
 
 Plataforma SaaS multi-tenant para que contadores de República Dominicana recolecten,
-digitalicen y reporten facturas de gastos de sus clientes ante la DGII (Formatos 606/607).
+digitalicen y reporten facturas de gastos de sus clientes ante la DGII (Formato 606).
 
 La especificación completa está en [ESPECIFICACION.md](./ESPECIFICACION.md).
 
@@ -62,6 +62,8 @@ docker compose up -d --build  # migra, siembra y levanta todo detrás de Caddy (
 
 ## Estado del proyecto
 
+El detalle vivo (sprints, pendientes, decisiones) está en [docs/PROGRESO.md](./docs/PROGRESO.md).
+
 - [x] **Fase 0 — Fundación**: monorepo pnpm, Docker Compose, Prisma + seeds, CI, validadores fiscales
 - [x] **Fase 1 — Núcleo multi-tenant**: auth JWT + refresh rotado, memberships multi-empresa,
       invitaciones por enlace, clientes + asignaciones, límites de plan, RLS, panel super-admin,
@@ -71,7 +73,9 @@ docker compose up -d --build  # migra, siembra y levanta todo detrás de Caddy (
       determinísticas, detección de duplicados, cola de revisión con edición campo a campo,
       y respaldo de captura manual tras 3 reintentos
 - [x] **Fase 2 — App Flutter**: login multi-empresa, captura con guías, cola de subida
-      offline-first con reintentos, estados en vivo y revisión campo a campo
-- [ ] Fase 3 — DGII (en curso): **606 TXT + Excel + cierre de período + validación contra padrón RNC
-      + panel web del contador listos**; tema claro/oscuro en el panel. Pendiente: 607 (ventas)
-- [ ] Fase 4 — Pulido y lanzamiento
+      offline-first con reintentos, estados en vivo, revisión campo a campo y share extension
+- [ ] Fase 3 — DGII (en curso): **606 por cliente (TXT + Excel) + cierre de período + padrón RNC
+      + QR e-CF listos**; sprint de bloqueantes del consejo cerrado (IDOR, rate limiting,
+      quick-login fuera, P0s de release). Pendiente: 607 (ventas)
+- [ ] Fase 4 — Pulido y lanzamiento: verificación e-CF en vivo (flag) adelantada;
+      pendiente push, tiendas, hardening y pilotos

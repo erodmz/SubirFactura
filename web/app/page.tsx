@@ -22,7 +22,7 @@ const FEATURES = [
   {
     color: 'var(--m-green)',
     icon: '📄',
-    title: 'Reportes 606 / 607',
+    title: 'Reporte 606',
     text: 'Genera el TXT oficial de la DGII y el Excel del período en un clic, con validación del padrón RNC.',
   },
   {
@@ -78,8 +78,8 @@ export default function Landing() {
             <span className="hl-green">listos para la DGII</span>.
           </h1>
           <p className="hero-sub">
-            Deja de perseguir facturas físicas. SubirFactura recolecta, digitaliza y reporta el 606/607
-            por ti — desde la foto hasta el TXT oficial.
+            Deja de perseguir facturas físicas. SubirFactura recolecta, digitaliza y arma tu 606
+            por ti — desde la foto hasta el TXT oficial de la DGII.
           </p>
           <div className="hero-cta">
             <Link className="btn btn-primary btn-lg" href={authed ? '/app' : '/login'}>

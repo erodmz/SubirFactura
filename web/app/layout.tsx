@@ -3,7 +3,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'SubirFactura',
-  description: 'Digitalización de facturas y reportes 606/607 — DGII',
+  description: 'Digitalización de facturas de gastos y reporte 606 — DGII',
 };
 
 // Fija el tema antes del primer render (evita parpadeo claro→oscuro).
