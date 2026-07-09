@@ -4,22 +4,23 @@ import 'package:flutter/material.dart';
 
 import '../api/client.dart';
 import '../models.dart';
+import '../services/connectivity_service.dart';
 import '../services/upload_queue.dart';
 import '../widgets/logo.dart';
 
-/// Un despacho (organización) al que el usuario puede subir facturas.
-class _Org {
-  _Org(this.orgId, this.nombre);
+/// A dónde enviar la factura compartida. Para un cliente es su negocio (se
+/// asigna directo, como la cámara, y así la ve al instante en su lista). Para un
+/// contador es el despacho sin asignar: el OCR la clasifica por el RNC.
+class _Dest {
+  _Dest({required this.orgId, this.clientProfileId, required this.label});
   final String orgId;
-  final String nombre;
+  final String? clientProfileId;
+  final String label;
 }
 
-/// Recibe fotos compartidas (Share Extension) y las sube SIN preguntar a qué
-/// cliente: la factura entra "sin asignar" y el OCR la asigna sola por el RNC
-/// del comprador. Si no se puede leer, queda sin asignar para que el contador la
-/// asigne. Muestra un preview y un botón "Subir" explícito, y al terminar deja
-/// una confirmación clara en pantalla (no cierra sola) para que el usuario sepa
-/// que la factura llegó y se está procesando.
+/// Recibe fotos compartidas (Share Extension) y las sube. Muestra un preview y
+/// un botón "Subir"; al tocarlo, encola la subida y vuelve a la lista, donde la
+/// factura se ve subiendo/procesando con su loader (igual que al tomar la foto).
 class SharedUploadScreen extends StatefulWidget {
   const SharedUploadScreen({super.key, required this.photos});
 
@@ -30,12 +31,11 @@ class SharedUploadScreen extends StatefulWidget {
 }
 
 class _SharedUploadScreenState extends State<SharedUploadScreen> {
-  List<_Org> _orgs = [];
-  _Org? _selectedOrg;
+  List<_Dest> _dests = [];
+  _Dest? _selected;
   String? _error;
   bool _loading = true;
   bool _submitting = false;
-  bool _done = false;
 
   @override
   void initState() {
@@ -55,17 +55,16 @@ class _SharedUploadScreenState extends State<SharedUploadScreen> {
       final me = Me.fromJson(
         await ApiClient.instance.get('/api/me') as Map<String, dynamic>,
       );
-      // Despachos donde puede subir: como cliente (por sus negocios) o como contador.
-      final porId = <String, _Org>{};
-      for (final c in me.clientProfiles) {
-        porId[c.organizationId] = _Org(c.organizationId, c.organizationNombre);
-      }
-      for (final m in me.contadorMemberships) {
-        porId[m.orgId] = _Org(m.orgId, m.orgNombre);
-      }
-      final orgs = porId.values.toList();
+      final dests = <_Dest>[
+        // Negocios propios (cliente): se asignan directo → se ven al instante.
+        for (final c in me.clientProfiles)
+          _Dest(orgId: c.organizationId, clientProfileId: c.id, label: c.razonSocial),
+        // Despachos (contador): sin asignar, el OCR clasifica por el RNC.
+        for (final m in me.contadorMemberships)
+          _Dest(orgId: m.orgId, clientProfileId: null, label: m.orgNombre),
+      ];
       if (!mounted) return;
-      if (orgs.isEmpty) {
+      if (dests.isEmpty) {
         setState(() {
           _error = 'Tu cuenta no tiene ninguna empresa donde subir facturas.';
           _loading = false;
@@ -73,8 +72,8 @@ class _SharedUploadScreenState extends State<SharedUploadScreen> {
         return;
       }
       setState(() {
-        _orgs = orgs;
-        _selectedOrg = orgs.first;
+        _dests = dests;
+        _selected = dests.first;
         _loading = false;
       });
     } catch (_) {
@@ -88,143 +87,98 @@ class _SharedUploadScreenState extends State<SharedUploadScreen> {
   }
 
   Future<void> _upload() async {
-    final org = _selectedOrg;
-    if (_submitting || org == null || widget.photos.isEmpty) return;
+    final dest = _selected;
+    if (_submitting || dest == null || widget.photos.isEmpty) return;
     setState(() => _submitting = true);
-    // clientProfileId = null → el OCR asigna el cliente por el RNC del comprador.
     await UploadQueue.instance.enqueue(
-      orgId: org.orgId,
-      clientProfileId: null,
+      orgId: dest.orgId,
+      clientProfileId: dest.clientProfileId,
       images: List.of(widget.photos),
     );
     if (!mounted) return;
-    setState(() {
-      _submitting = false;
-      _done = true;
-    });
+    // Volver a la lista (raíz) y avisar; ahí se ve la factura subiendo.
+    final messenger = ScaffoldMessenger.of(context);
+    final online = ConnectivityService.instance.online.value;
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(online
+            ? 'Factura recibida — la verás procesarse aquí mismo'
+            : 'Sin conexión: guardada como pendiente, se subirá al reconectar'),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(title: const Logo(size: 22)),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : _done
-              ? _confirmacion()
-              : _formulario(),
-    );
-  }
-
-  /// Preview de la(s) foto(s) + selector de despacho (solo si hay varios) + botón.
-  Widget _formulario() {
-    final scheme = Theme.of(context).colorScheme;
-    return Column(
-      children: [
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              if (_error != null) ...[
-                Text(_error!, style: const TextStyle(color: Colors.red)),
-                const SizedBox(height: 12),
-              ],
-              Text('Factura a subir',
-                  style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 4),
-              Text(
-                'La leeremos con IA y la clasificaremos sola por el RNC. No hace falta elegir cliente.',
-                style: TextStyle(color: Theme.of(context).hintColor, fontSize: 13),
-              ),
-              const SizedBox(height: 16),
-              _preview(),
-              if (_error == null && _orgs.length > 1) ...[
-                const SizedBox(height: 24),
-                Text('¿A qué despacho la mandamos?',
-                    style: Theme.of(context).textTheme.titleSmall),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<_Org>(
-                  initialValue: _selectedOrg,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.apartment_outlined),
+          : Column(
+              children: [
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      if (_error != null) ...[
+                        Text(_error!, style: const TextStyle(color: Colors.red)),
+                        const SizedBox(height: 12),
+                      ],
+                      Text('Factura a subir',
+                          style: Theme.of(context).textTheme.titleMedium),
+                      const SizedBox(height: 12),
+                      _preview(),
+                      // Solo si hay varios destinos posibles (varios negocios o
+                      // despachos): elegir a cuál. Con uno solo, no se pregunta.
+                      if (_error == null && _dests.length > 1) ...[
+                        const SizedBox(height: 24),
+                        Text('¿A dónde la enviamos?',
+                            style: Theme.of(context).textTheme.titleSmall),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<_Dest>(
+                          initialValue: _selected,
+                          decoration: const InputDecoration(
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.storefront_outlined),
+                          ),
+                          items: [
+                            for (final d in _dests)
+                              DropdownMenuItem(value: d, child: Text(d.label)),
+                          ],
+                          onChanged: _submitting
+                              ? null
+                              : (d) => setState(() => _selected = d),
+                        ),
+                      ],
+                    ],
                   ),
-                  items: [
-                    for (final o in _orgs)
-                      DropdownMenuItem(value: o, child: Text(o.nombre)),
-                  ],
-                  onChanged: _submitting
-                      ? null
-                      : (o) => setState(() => _selectedOrg = o),
                 ),
+                if (_error == null)
+                  SafeArea(
+                    minimum: const EdgeInsets.all(16),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: _submitting ? null : _upload,
+                        icon: _submitting
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.cloud_upload_outlined),
+                        label: Text(_submitting ? 'Subiendo…' : 'Subir factura'),
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          backgroundColor: scheme.primary,
+                        ),
+                      ),
+                    ),
+                  ),
               ],
-            ],
-          ),
-        ),
-        if (_error == null)
-          SafeArea(
-            minimum: const EdgeInsets.all(16),
-            child: SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: _submitting ? null : _upload,
-                icon: _submitting
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.cloud_upload_outlined),
-                label: Text(_submitting ? 'Subiendo…' : 'Subir factura'),
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  backgroundColor: scheme.primary,
-                ),
-              ),
             ),
-          ),
-      ],
-    );
-  }
-
-  /// Confirmación persistente: el usuario ve que la factura llegó y se procesa.
-  Widget _confirmacion() {
-    final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          CircleAvatar(
-            radius: 40,
-            backgroundColor: scheme.primaryContainer,
-            child: Icon(Icons.check_rounded,
-                size: 44, color: scheme.onPrimaryContainer),
-          ),
-          const SizedBox(height: 20),
-          Text('¡Factura recibida!',
-              style: Theme.of(context).textTheme.titleLarge,
-              textAlign: TextAlign.center),
-          const SizedBox(height: 8),
-          Text(
-            'La estamos leyendo con IA y la clasificaremos sola por el RNC. '
-            'La verás en tus facturas en unos segundos.',
-            style: TextStyle(color: Theme.of(context).hintColor),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 28),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: () => Navigator.of(context).pop(),
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-              ),
-              child: const Text('Listo'),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -234,11 +188,11 @@ class _SharedUploadScreenState extends State<SharedUploadScreen> {
       return ClipRRect(
         borderRadius: BorderRadius.circular(12),
         child: Image.file(widget.photos.first,
-            width: double.infinity, height: 320, fit: BoxFit.cover),
+            width: double.infinity, height: 340, fit: BoxFit.cover),
       );
     }
     return SizedBox(
-      height: 200,
+      height: 220,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: widget.photos.length,
@@ -246,7 +200,7 @@ class _SharedUploadScreenState extends State<SharedUploadScreen> {
         itemBuilder: (context, i) => ClipRRect(
           borderRadius: BorderRadius.circular(10),
           child: Image.file(widget.photos[i],
-              width: 150, height: 200, fit: BoxFit.cover),
+              width: 165, height: 220, fit: BoxFit.cover),
         ),
       ),
     );
