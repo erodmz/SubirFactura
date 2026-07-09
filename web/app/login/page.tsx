@@ -88,7 +88,10 @@ export default function LoginPage() {
           </div>
           <button disabled={busy}>{busy ? 'Entrando…' : 'Entrar'}</button>
         </form>
-        <p className="muted" style={{ marginTop: 16 }}>
+        <p className="muted" style={{ marginTop: 16, textAlign: 'center' }}>
+          <Link href="/forgot-password">¿Olvidaste tu contraseña?</Link>
+        </p>
+        <p className="muted" style={{ marginTop: 8 }}>
           ¿No tienes cuenta? <Link href="/register">Regístrate</Link>
         </p>
         </div>

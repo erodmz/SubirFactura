@@ -1,7 +1,14 @@
-import { Body, Controller, Get, HttpCode, Post } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, Post } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
-import { ChangePasswordDto, LoginDto, RefreshDto, RegisterDto } from './dto/auth.dto';
+import {
+  ChangePasswordDto,
+  ForgotPasswordDto,
+  LoginDto,
+  RefreshDto,
+  RegisterDto,
+  ResetPasswordDto,
+} from './dto/auth.dto';
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.service';
@@ -45,6 +52,29 @@ export class AuthController {
   @Post('auth/logout')
   async logout(@Body() dto: RefreshDto) {
     await this.authService.logout(dto.refreshToken);
+  }
+
+  /**
+   * Solicita el restablecimiento de contraseña. Responde 200 siempre (no revela
+   * si el correo existe). El enlace apunta al panel web que hizo la petición.
+   */
+  @Public()
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
+  @HttpCode(200)
+  @Post('auth/forgot-password')
+  forgotPassword(@Body() dto: ForgotPasswordDto, @Headers('origin') origin?: string) {
+    const baseUrl = origin ?? process.env.WEB_ORIGIN?.split(',')[0] ?? 'http://localhost:3001';
+    return this.authService.forgotPassword(dto.email, baseUrl);
+  }
+
+  /** Restablece la contraseña con el token del enlace. */
+  @Public()
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  @HttpCode(200)
+  @Post('auth/reset-password')
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    await this.authService.resetPassword(dto.token, dto.newPassword);
+    return { ok: true };
   }
 
   /** Cambio de contraseña del usuario autenticado. Devuelve tokens nuevos. */

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   UnauthorizedException,
@@ -9,6 +10,7 @@ import bcrypt from 'bcryptjs';
 import type { User } from '@facturard/shared/db';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { MailService } from '../mail/mail.service';
 import { RegisterDto } from './dto/auth.dto';
 
 const BCRYPT_ROUNDS = 10;
@@ -37,6 +39,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly audit: AuditService,
+    private readonly mail: MailService,
   ) {}
 
   private refreshTtlMs(): number {
@@ -147,6 +150,68 @@ export class AuthService {
     });
 
     return this.issueTokens(updated);
+  }
+
+  /**
+   * Solicitud de restablecimiento. Siempre resuelve sin revelar si el correo
+   * existe (evita enumeración de cuentas). Si existe, crea un token de un solo
+   * uso (1 h) y envía el enlace. Devuelve el enlace SOLO fuera de producción,
+   * para poder probar sin proveedor de correo conectado.
+   */
+  async forgotPassword(email: string, baseUrl: string): Promise<{ devResetUrl?: string }> {
+    const user = await this.prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+    if (!user) return {};
+
+    const token = randomBytes(32).toString('hex');
+    await this.prisma.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        tokenHash: hashToken(token),
+        expiresAt: new Date(Date.now() + 3_600_000), // 1 hora
+      },
+    });
+    const resetUrl = `${baseUrl.replace(/\/$/, '')}/reset-password?token=${token}`;
+    await this.mail.sendPasswordReset(user.email, resetUrl);
+    await this.audit.log({
+      userId: user.id,
+      accion: 'user.forgot_password',
+      entidad: 'user',
+      entidadId: user.id,
+    });
+
+    return process.env.NODE_ENV === 'production' ? {} : { devResetUrl: resetUrl };
+  }
+
+  /**
+   * Restablece la contraseña con un token válido (no usado, no vencido). Marca
+   * el token como usado y revoca todas las sesiones del usuario.
+   */
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    const stored = await this.prisma.passwordResetToken.findUnique({
+      where: { tokenHash: hashToken(token) },
+    });
+    if (!stored || stored.usedAt || stored.expiresAt < new Date()) {
+      throw new BadRequestException('El enlace no es válido o ya venció. Solicita uno nuevo.');
+    }
+
+    await this.prisma.user.update({
+      where: { id: stored.userId },
+      data: { passwordHash: await bcrypt.hash(newPassword, BCRYPT_ROUNDS) },
+    });
+    await this.prisma.passwordResetToken.update({
+      where: { id: stored.id },
+      data: { usedAt: new Date() },
+    });
+    await this.prisma.refreshToken.updateMany({
+      where: { userId: stored.userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    await this.audit.log({
+      userId: stored.userId,
+      accion: 'user.reset_password',
+      entidad: 'user',
+      entidadId: stored.userId,
+    });
   }
 
   private async issueTokens(user: User): Promise<AuthTokens> {

@@ -36,9 +36,10 @@ function buildService(overrides: Record<string, unknown> = {}) {
   };
   const jwt = { signAsync: vi.fn().mockResolvedValue('access-token') };
   const audit = { log: vi.fn().mockResolvedValue(undefined) };
+  const mail = { sendPasswordReset: vi.fn().mockResolvedValue(undefined) };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const service = new AuthService(prisma as any, jwt as any, audit as any);
-  return { service, prisma, jwt, audit };
+  const service = new AuthService(prisma as any, jwt as any, audit as any, mail as any);
+  return { service, prisma, jwt, audit, mail };
 }
 
 const user = {
