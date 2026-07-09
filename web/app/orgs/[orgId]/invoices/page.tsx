@@ -388,19 +388,37 @@ function ReviewPanel({
     return () => document.removeEventListener('mousedown', onDown);
   }, [showHint]);
 
-  const numField = (label: string, key: keyof typeof form, critical?: string, full?: boolean) => (
+  const req = (on?: boolean) => (on ? <span style={{ color: 'var(--danger)' }}> *</span> : null);
+
+  const numField = (
+    label: string,
+    key: keyof typeof form,
+    critical?: string,
+    full?: boolean,
+    required?: boolean,
+  ) => (
     <div className={full ? 'full' : undefined}>
       <label style={marcados.has(critical ?? '') ? { color: 'var(--warning-text)' } : undefined}>
         {label}
         {marcados.has(critical ?? '') ? ' ⚠' : ''}
+        {req(required)}
       </label>
       <input value={form[key]} onChange={set(key)} inputMode="decimal" />
     </div>
   );
 
-  const textField = (label: string, key: keyof typeof form, placeholder?: string, full?: boolean) => (
+  const textField = (
+    label: string,
+    key: keyof typeof form,
+    placeholder?: string,
+    full?: boolean,
+    required?: boolean,
+  ) => (
     <div className={full ? 'full' : undefined}>
-      <label>{label}</label>
+      <label>
+        {label}
+        {req(required)}
+      </label>
       <input value={form[key]} onChange={set(key)} placeholder={placeholder} />
     </div>
   );
@@ -696,6 +714,7 @@ function ReviewPanel({
           <div>
             <label style={marcados.has('rnc_proveedor') ? { color: 'var(--warning-text)' } : undefined}>
               RNC / Cédula del proveedor{marcados.has('rnc_proveedor') ? ' ⚠' : ''}
+              {req(true)}
             </label>
             <input value={form.rncProveedor} onChange={set('rncProveedor')} />
           </div>
@@ -722,19 +741,20 @@ function ReviewPanel({
             { value: 'servicios', label: 'Servicios' },
           ])}
 
-          {textField('NCF', 'ncf', 'B0100000001')}
+          {textField('NCF', 'ncf', 'B0100000001', false, true)}
           {textField('NCF modificado (nota créd./déb.)', 'ncfModificado')}
 
           <div>
             <label style={marcados.has('fecha') ? { color: 'var(--warning-text)' } : undefined}>
               Fecha comprobante (AAAA-MM-DD){marcados.has('fecha') ? ' ⚠' : ''}
+              {req(true)}
             </label>
             <input value={form.fecha} onChange={set('fecha')} placeholder="2026-05-14" />
           </div>
           {textField('Fecha de pago (AAAA-MM-DD)', 'fechaPago', 'opcional')}
 
-          {numField('Monto facturado (subtotal)', 'montoFacturado', 'monto_facturado')}
-          {numField('ITBIS facturado', 'itbis', 'itbis')}
+          {numField('Monto facturado (subtotal)', 'montoFacturado', 'monto_facturado', false, true)}
+          {numField('ITBIS facturado', 'itbis', 'itbis', false, true)}
 
           {selectField('Forma de pago', 'formaPago', [
             { value: '', label: 'Sin especificar' },
@@ -746,7 +766,11 @@ function ReviewPanel({
             { value: '6', label: '6 · Nota de crédito' },
             { value: '7', label: '7 · Mixto / otras' },
           ])}
-          {numField('Total impreso (verifica aritmética)', 'montoTotal')}
+          {numField('Total impreso (verifica aritmética)', 'montoTotal', undefined, false, requiereAritmetica)}
+
+          <p className="muted full" style={{ margin: '4px 0 0', fontSize: 12 }}>
+            <span style={{ color: 'var(--danger)' }}>*</span> Campos requeridos para validar.
+          </p>
         </div>
       ) : (
         <>
@@ -796,16 +820,17 @@ function ReviewPanel({
         <button className="secondary" onClick={() => guardar(true)} disabled={busy}>
           Guardar
         </button>
-        <button className="secondary" onClick={guardarYValidar} disabled={busy}>
-          Guardar y validar
+        <button
+          className={haySiguiente ? 'secondary' : undefined}
+          onClick={guardarYValidar}
+          disabled={busy}
+          title={haySiguiente ? undefined : '⌘/Ctrl + Enter'}
+        >
+          {busy ? 'Guardando…' : 'Guardar y validar'}
         </button>
-        {haySiguiente ? (
+        {haySiguiente && (
           <button onClick={validarYSiguiente} disabled={busy} title="⌘/Ctrl + Enter">
             {busy ? 'Guardando…' : 'Validar y siguiente →'}
-          </button>
-        ) : (
-          <button onClick={guardarYValidar} disabled={busy} title="⌘/Ctrl + Enter">
-            {busy ? 'Guardando…' : 'Validar y cerrar'}
           </button>
         )}
         {/* Ayuda: qué hace cada botón (hint). */}
@@ -824,16 +849,16 @@ function ReviewPanel({
               <br />
               <strong>Guardar</strong>: guarda el avance sin validar.
               <br />
-              <strong>Guardar y validar</strong>: guarda y valida la factura.
-              <br />
-              <strong>{haySiguiente ? 'Validar y siguiente' : 'Validar y cerrar'}</strong>{' '}
-              (⌘/Ctrl+Enter): valida
-              {haySiguiente
-                ? ' y pasa a la próxima factura de la lista sin cerrar.'
-                : ' y cierra.'}
-              <br />
-              Para validar, los campos críticos deben estar completos (y la aritmética cuadrar, si
-              está activada).
+              <strong>Guardar y validar</strong>: guarda y valida la factura (los campos con{' '}
+              <span style={{ color: 'var(--danger)' }}>*</span> deben estar completos, y la
+              aritmética cuadrar si está activada).
+              {haySiguiente && (
+                <>
+                  <br />
+                  <strong>Validar y siguiente</strong> (⌘/Ctrl+Enter): igual, pero salta a la próxima
+                  factura de la lista sin cerrar.
+                </>
+              )}
               {esAdmin && (
                 <>
                   <br />

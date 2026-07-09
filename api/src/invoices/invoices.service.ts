@@ -415,6 +415,11 @@ export class InvoicesService {
       const errores = validateInvoiceFields(merged, {
         validarAritmetica: org.requiereValidacionAritmetica,
       });
+      // Con la validación aritmética activada, el total impreso es obligatorio:
+      // sin él no hay contra qué cuadrar el subtotal + impuestos.
+      if (org.requiereValidacionAritmetica && merged.montoTotal == null) {
+        errores.push('Ingresa el total impreso de la factura (requerido para verificar la aritmética)');
+      }
       if (errores.length > 0) {
         throw new BadRequestException({ message: errores, error: 'Validación fiscal' });
       }
