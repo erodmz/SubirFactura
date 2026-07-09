@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import {
   CreateBucketCommand,
+  DeleteObjectCommand,
   GetObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -57,6 +58,15 @@ export class StorageService implements OnModuleInit {
     await this.client.send(
       new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: body, ContentType: contentType }),
     );
+  }
+
+  /** Borra un objeto (best-effort: no tumba la operación si falla). */
+  async deleteObject(key: string): Promise<void> {
+    try {
+      await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
+    } catch (err) {
+      this.logger.warn(`No se pudo borrar el objeto "${key}": ${(err as Error).message}`);
+    }
   }
 
   /** URL firmada temporal para ver la imagen (default 1 hora). */

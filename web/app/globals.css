@@ -1068,7 +1068,7 @@ main.app-content {
   position: relative;
   margin: 0;
   background: transparent;
-  border: 1px solid var(--border);
+  border: none;
   border-radius: 999px;
   width: 40px;
   height: 40px;
@@ -1080,7 +1080,7 @@ main.app-content {
 }
 .notif-btn:hover {
   background: var(--bg-soft);
-  border-color: var(--brand);
+  color: var(--brand);
 }
 .notif-badge {
   position: absolute;

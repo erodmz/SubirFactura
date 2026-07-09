@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -116,5 +117,16 @@ export class InvoicesController {
     @Req() req: { membership: Membership },
   ) {
     return this.invoices.retry(orgId, invoiceId, user, req.membership);
+  }
+
+  /** Eliminar factura — solo administrador de la organización. */
+  @Delete(':invoiceId')
+  @OrgRoles('org_admin')
+  remove(
+    @Param('orgId') orgId: string,
+    @Param('invoiceId') invoiceId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.invoices.delete(orgId, invoiceId, user);
   }
 }

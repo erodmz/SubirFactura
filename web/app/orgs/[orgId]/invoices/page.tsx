@@ -45,8 +45,17 @@ export default function InvoicesPage() {
   useEffect(() => setMounted(true), []);
   // Config de la empresa: si exige aritmética, "Total impreso" se pide a mano.
   const [requiereAritmetica, setRequiereAritmetica] = useState(true);
+  // Solo el admin de la organización puede eliminar facturas.
+  const [esAdmin, setEsAdmin] = useState(false);
 
   useEffect(() => {
+    api<{ memberships: { rol: string; organization: { id: string } }[] }>(`/api/me`)
+      .then((me) =>
+        setEsAdmin(
+          me.memberships.some((m) => m.organization.id === orgId && m.rol === 'org_admin'),
+        ),
+      )
+      .catch(() => {});
     api<{ requiereValidacionAritmetica?: boolean }>(`/api/organizations/${orgId}`)
       .then((o) => setRequiereAritmetica(o.requiereValidacionAritmetica !== false))
       .catch(() => {});
@@ -250,6 +259,7 @@ export default function InvoicesPage() {
                 invoice={sel}
                 clientes={clientes}
                 requiereAritmetica={requiereAritmetica}
+                esAdmin={esAdmin}
                 haySiguiente={
                   visibles.findIndex((i) => i.id === sel.id) < visibles.length - 1
                 }
@@ -287,6 +297,7 @@ function ReviewPanel({
   invoice,
   clientes,
   requiereAritmetica,
+  esAdmin,
   haySiguiente,
   onSaved,
   onSavedNext,
@@ -296,6 +307,7 @@ function ReviewPanel({
   invoice: Invoice;
   clientes: { id: string; razonSocial: string }[];
   requiereAritmetica: boolean;
+  esAdmin: boolean;
   haySiguiente: boolean;
   onSaved: () => void;
   onSavedNext: () => void;
@@ -487,6 +499,21 @@ function ReviewPanel({
       onSaved();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo cambiar el estado');
+      setBusy(false);
+    }
+  }
+
+  // Eliminar la factura (solo admin). Confirmación explícita — es irreversible.
+  async function eliminar() {
+    const prov = invoice.razonSocialProveedor ?? 'esta factura';
+    if (!confirm(`¿Eliminar ${prov}? Esta acción no se puede deshacer.`)) return;
+    setBusy(true);
+    setError('');
+    try {
+      await api(`/api/organizations/${orgId}/invoices/${invoice.id}`, { method: 'DELETE' });
+      onSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo eliminar la factura');
       setBusy(false);
     }
   }
@@ -752,7 +779,18 @@ function ReviewPanel({
       )}
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14, alignItems: 'center' }}>
-        <button className="secondary" onClick={closeGuarded} disabled={busy}>
+        {esAdmin && (
+          <button
+            className="danger"
+            onClick={eliminar}
+            disabled={busy}
+            style={{ borderColor: 'var(--danger)', marginRight: 4 }}
+            title="Eliminar factura (solo administrador)"
+          >
+            Eliminar
+          </button>
+        )}
+        <button className="danger" onClick={closeGuarded} disabled={busy}>
           Cancelar
         </button>
         <button className="secondary" onClick={() => guardar(true)} disabled={busy}>
@@ -782,15 +820,26 @@ function ReviewPanel({
           </button>
           {showHint && (
             <div className="hint-pop">
+              <strong>Cancelar</strong>: cierra sin guardar.
+              <br />
               <strong>Guardar</strong>: guarda el avance sin validar.
               <br />
-              <strong>Guardar y validar</strong>: guarda y valida (cierra o queda).
+              <strong>Guardar y validar</strong>: guarda y valida la factura.
               <br />
-              <strong>Validar y siguiente</strong> (⌘/Ctrl+Enter): valida y salta a la próxima
-              factura sin cerrar.
+              <strong>{haySiguiente ? 'Validar y siguiente' : 'Validar y cerrar'}</strong>{' '}
+              (⌘/Ctrl+Enter): valida
+              {haySiguiente
+                ? ' y pasa a la próxima factura de la lista sin cerrar.'
+                : ' y cierra.'}
               <br />
               Para validar, los campos críticos deben estar completos (y la aritmética cuadrar, si
               está activada).
+              {esAdmin && (
+                <>
+                  <br />
+                  <strong>Eliminar</strong>: borra la factura (irreversible, solo admin).
+                </>
+              )}
             </div>
           )}
         </div>

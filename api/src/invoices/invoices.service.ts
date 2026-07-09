@@ -576,4 +576,44 @@ export class InvoicesService {
     });
     return { queued: true };
   }
+
+  /**
+   * Elimina una factura y sus imágenes (solo org_admin — la ruta lo exige).
+   * No se permite borrar facturas ya incluidas en un 606/reportadas (integridad
+   * fiscal): primero hay que reabrir el período. Deja rastro en la auditoría.
+   */
+  async delete(orgId: string, invoiceId: string, user: AuthenticatedUser) {
+    const invoice = await this.prisma.forOrg(orgId).invoice.findUnique({
+      where: { id: invoiceId },
+      include: { images: true },
+    });
+    if (!invoice) throw new NotFoundException('Factura no encontrada');
+    if (invoice.estado === 'incluida_en_606' || invoice.estado === 'reportada') {
+      throw new ConflictException(
+        'La factura ya fue incluida en un 606; no se puede eliminar. Reabre el período primero.',
+      );
+    }
+
+    // Borra primero las filas (dentro del alcance de la org), luego los objetos.
+    await this.prisma.forOrg(orgId).invoiceImage.deleteMany({ where: { invoiceId } });
+    await this.prisma.forOrg(orgId).invoice.delete({ where: { id: invoiceId } });
+    for (const key of [invoice.imagenUrl, ...invoice.images.map((i) => i.key)]) {
+      await this.storage.deleteObject(key);
+    }
+
+    await this.audit.log({
+      organizationId: orgId,
+      userId: user.userId,
+      accion: 'invoice.delete',
+      entidad: 'invoice',
+      entidadId: invoiceId,
+      datos: {
+        ncf: invoice.ncf,
+        rncProveedor: invoice.rncProveedor,
+        estado: invoice.estado,
+        clientProfileId: invoice.clientProfileId,
+      },
+    });
+    return { deleted: true };
+  }
 }
