@@ -42,6 +42,9 @@ class ClientInvoicesScreen extends StatefulWidget {
 class _ClientInvoicesScreenState extends State<ClientInvoicesScreen> {
   final Map<String, List<Invoice>> _byBusiness = {};
   final Map<String, String> _bizNameByInvoice = {};
+  // Mis subidas del share aún SIN asignar (el worker las clasifica por RNC).
+  // Se muestran en "Todas" para que el usuario las vea procesándose.
+  final List<Invoice> _unassigned = [];
   final _searchCtrl = TextEditingController();
 
   String? _businessFilter; // null = todas
@@ -81,6 +84,8 @@ class _ClientInvoicesScreenState extends State<ClientInvoicesScreen> {
     var anyError = false;
     final map = <String, List<Invoice>>{};
     final nameByInvoice = <String, String>{};
+    // Deduplicamos las sin asignar (cada consulta por-negocio las devuelve).
+    final unassignedById = <String, Invoice>{for (final i in _unassigned) i.id: i};
     await Future.wait(_businesses.map((b) async {
       try {
         final data = await ApiClient.instance.get(
@@ -88,9 +93,13 @@ class _ClientInvoicesScreenState extends State<ClientInvoicesScreen> {
         ) as List;
         final invoices =
             data.map((e) => Invoice.fromJson(e as Map<String, dynamic>)).toList();
-        map[b.id] = invoices;
-        for (final inv in invoices) {
+        // Asignadas a este negocio → su bucket; sin asignar → bucket compartido.
+        map[b.id] = invoices.where((i) => i.clientProfileId == b.id).toList();
+        for (final inv in map[b.id]!) {
           nameByInvoice[inv.id] = b.razonSocial;
+        }
+        for (final inv in invoices.where((i) => i.clientProfileId == null)) {
+          unassignedById[inv.id] = inv;
         }
       } catch (_) {
         anyError = true;
@@ -108,18 +117,22 @@ class _ClientInvoicesScreenState extends State<ClientInvoicesScreen> {
       _bizNameByInvoice
         ..clear()
         ..addAll(nameByInvoice);
+      _unassigned
+        ..clear()
+        ..addAll(unassignedById.values);
       _loading = false;
       _error = anyError ? 'Algunas facturas no se pudieron actualizar' : null;
     });
     _syncPolling();
   }
 
-  /// Todas las facturas (todos los negocios), ordenadas por fecha desc.
+  /// Todas las facturas (todos los negocios + mis subidas sin asignar), desc.
   List<Invoice> get _allInvoices {
     final list = <Invoice>[];
     for (final b in _businesses) {
       list.addAll(_byBusiness[b.id] ?? const []);
     }
+    list.addAll(_unassigned);
     list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return list;
   }

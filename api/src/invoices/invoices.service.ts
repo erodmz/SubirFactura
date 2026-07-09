@@ -144,7 +144,11 @@ export class InvoicesService {
   private async invoiceScope(
     user: AuthenticatedUser,
     membership: Membership,
-  ): Promise<{ ids: string[]; incluyeSinAsignar: boolean } | null> {
+  ): Promise<{
+    ids: string[];
+    incluyeSinAsignar: boolean;
+    sinAsignarDeUsuario?: string;
+  } | null> {
     if (membership.rol === 'contador') {
       const assignments = await this.prisma.assignment.findMany({
         where: { contadorMembershipId: membership.id },
@@ -157,7 +161,12 @@ export class InvoicesService {
         where: { userId: user.userId },
         select: { clientProfileId: true },
       });
-      return { ids: links.map((l) => l.clientProfileId), incluyeSinAsignar: false };
+      // No ve las sin asignar de otros, pero SÍ las suyas (share en proceso).
+      return {
+        ids: links.map((l) => l.clientProfileId),
+        incluyeSinAsignar: false,
+        sinAsignarDeUsuario: user.userId,
+      };
     }
     return null; // org_admin
   }
@@ -168,12 +177,20 @@ export class InvoicesService {
    * (404, sin revelar que el id existe).
    */
   private assertInvoiceInScope(
-    invoice: { clientProfileId: string | null },
-    scope: { ids: string[]; incluyeSinAsignar: boolean } | null,
+    invoice: { clientProfileId: string | null; subidoPorId?: string | null },
+    scope: {
+      ids: string[];
+      incluyeSinAsignar: boolean;
+      sinAsignarDeUsuario?: string;
+    } | null,
   ) {
     if (!scope) return;
     if (invoice.clientProfileId == null) {
       if (scope.incluyeSinAsignar) return;
+      // El cliente puede abrir SU propia subida aún sin asignar (share en proceso).
+      if (scope.sinAsignarDeUsuario && invoice.subidoPorId === scope.sinAsignarDeUsuario) {
+        return;
+      }
     } else if (scope.ids.includes(invoice.clientProfileId)) {
       return;
     }
@@ -210,11 +227,18 @@ export class InvoicesService {
       });
       const allowed = links.map((l) => l.clientProfileId);
       // Si pide un negocio concreto, respétalo (si está permitido); si no, todos los suyos.
-      where.clientProfileId = query.clientProfileId
-        ? allowed.includes(query.clientProfileId)
-          ? query.clientProfileId
-          : '__none__'
-        : { in: allowed };
+      const negocio: Prisma.InvoiceWhereInput = query.clientProfileId
+        ? {
+            clientProfileId: allowed.includes(query.clientProfileId)
+              ? query.clientProfileId
+              : '__none__',
+          }
+        : { clientProfileId: { in: allowed } };
+      // Además, sus PROPIAS subidas aún sin asignar (share): el worker las
+      // clasifica por RNC, pero el usuario debe verlas subiendo/procesando
+      // mientras tanto (si no, "subo algo por el share y no lo veo").
+      where.clientProfileId = undefined;
+      where.OR = [negocio, { clientProfileId: null, subidoPorId: user.userId }];
     }
 
     return this.prisma.forOrg(orgId).invoice.findMany({
