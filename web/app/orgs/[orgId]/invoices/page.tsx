@@ -6,6 +6,7 @@ import { useParams, useSearchParams } from 'next/navigation';
 import { api } from '../../../../lib/api';
 import DataTable from '../../../../components/DataTable';
 import ImageLightbox from '../../../../components/ImageLightbox';
+import InvoiceTimeline from '../../../../components/InvoiceTimeline';
 import { TrashIcon } from '../../../../components/icons';
 import { CATEGORIAS_606, ESTADO_LABELS, type Invoice } from '../../../../lib/types';
 
@@ -672,6 +673,8 @@ function ReviewPanel({
               Subido por <strong>{subidoPor.nombre || subidoPor.email}</strong>
             </p>
           )}
+
+          <InvoiceTimeline orgId={orgId} invoiceId={invoice.id} />
 
           {/* Alertas y validaciones: aprovechan el espacio bajo la imagen. */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>

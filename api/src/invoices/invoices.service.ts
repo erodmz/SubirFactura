@@ -623,4 +623,34 @@ export class InvoicesService {
     });
     return { deleted: true };
   }
+
+  /**
+   * Historial de trazabilidad de una factura (del audit_log): quién hizo qué y
+   * cuándo, desde la subida hasta cada edición/validación/cambio de estado.
+   * Respeta el alcance por rol (un cliente solo ve su propia factura).
+   */
+  async historial(
+    orgId: string,
+    invoiceId: string,
+    user: AuthenticatedUser,
+    membership: Membership,
+  ) {
+    const invoice = await this.prisma.forOrg(orgId).invoice.findUnique({
+      where: { id: invoiceId },
+    });
+    if (!invoice) throw new NotFoundException('Factura no encontrada');
+    this.assertInvoiceInScope(invoice, await this.invoiceScope(user, membership));
+
+    const logs = await this.prisma.auditLog.findMany({
+      where: { organizationId: orgId, entidad: 'invoice', entidadId: invoiceId },
+      orderBy: { createdAt: 'asc' },
+      include: { user: { select: { nombre: true, email: true } } },
+    });
+    return logs.map((l) => ({
+      accion: l.accion,
+      fecha: l.createdAt,
+      usuario: l.user ? { nombre: l.user.nombre, email: l.user.email } : null,
+      datos: l.datos,
+    }));
+  }
 }
