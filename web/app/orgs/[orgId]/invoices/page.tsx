@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { useParams, useSearchParams } from 'next/navigation';
 import { api } from '../../../../lib/api';
 import DataTable from '../../../../components/DataTable';
+import ImageLightbox from '../../../../components/ImageLightbox';
 import { CATEGORIAS_606, ESTADO_LABELS, type Invoice } from '../../../../lib/types';
 
 const ESTADOS = Object.keys(ESTADO_LABELS);
@@ -328,6 +329,7 @@ function ReviewPanel({
   const [busy, setBusy] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [imageUrls, setImageUrls] = useState<string[] | null>(null);
+  const [lightbox, setLightbox] = useState<number | null>(null); // índice de imagen ampliada
 
   useEffect(() => {
     api<{ imageUrl?: string; imageUrls?: string[] }>(
@@ -348,8 +350,8 @@ function ReviewPanel({
     onClose();
   }, [dirty, onClose]);
 
-  const numField = (label: string, key: keyof typeof form, critical?: string) => (
-    <div>
+  const numField = (label: string, key: keyof typeof form, critical?: string, full?: boolean) => (
+    <div className={full ? 'full' : undefined}>
       <label style={marcados.has(critical ?? '') ? { color: 'var(--warning-text)' } : undefined}>
         {label}
         {marcados.has(critical ?? '') ? ' ⚠' : ''}
@@ -358,8 +360,8 @@ function ReviewPanel({
     </div>
   );
 
-  const textField = (label: string, key: keyof typeof form, placeholder?: string) => (
-    <div>
+  const textField = (label: string, key: keyof typeof form, placeholder?: string, full?: boolean) => (
+    <div className={full ? 'full' : undefined}>
       <label>{label}</label>
       <input value={form[key]} onChange={set(key)} placeholder={placeholder} />
     </div>
@@ -369,8 +371,9 @@ function ReviewPanel({
     label: string,
     key: keyof typeof form,
     options: { value: string; label: string }[],
+    full?: boolean,
   ) => (
-    <div>
+    <div className={full ? 'full' : undefined}>
       <label>{label}</label>
       <select value={form[key]} onChange={set(key)}>
         {options.map((o) => (
@@ -514,94 +517,104 @@ function ReviewPanel({
           overflowY: 'auto',
         }}
       >
-        <div
-          style={{
-            flex: '1 1 320px',
-            minWidth: 280,
-            position: 'sticky',
-            top: 0,
-            maxHeight: '78vh',
-            overflowY: 'auto',
-          }}
-        >
+        <div style={{ flex: '1 1 320px', minWidth: 280 }}>
           {imageUrls === null ? (
             <p className="muted">Cargando imagen…</p>
           ) : imageUrls.length === 0 ? (
             <p className="muted">Sin imagen.</p>
           ) : (
-            <>
-              {imageUrls.length > 1 && (
-                <p className="muted" style={{ marginTop: 0 }}>
-                  {imageUrls.length} páginas · clic para ampliar
-                </p>
-              )}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {imageUrls.map((url, i) => (
-                  <a key={i} href={url} target="_blank" rel="noreferrer" title="Ver imagen completa">
-                    <img
-                      src={url}
-                      alt={`Página ${i + 1} de la factura`}
-                      style={{
-                        width: '100%',
-                        borderRadius: 8,
-                        border: '1px solid var(--border)',
-                        display: 'block',
-                      }}
-                    />
-                  </a>
-                ))}
-              </div>
-            </>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {imageUrls.map((url, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setLightbox(i)}
+                  title="Ampliar imagen"
+                  style={{
+                    margin: 0,
+                    padding: 0,
+                    border: '1px solid var(--border)',
+                    borderRadius: 8,
+                    overflow: 'hidden',
+                    cursor: 'zoom-in',
+                    background: 'var(--bg-soft)',
+                    position: 'relative',
+                    display: 'block',
+                  }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={url}
+                    alt={`Página ${i + 1} de la factura`}
+                    style={{ width: '100%', display: 'block' }}
+                  />
+                  <span
+                    style={{
+                      position: 'absolute',
+                      right: 8,
+                      bottom: 8,
+                      background: 'rgba(0,0,0,0.6)',
+                      color: '#fff',
+                      borderRadius: 999,
+                      padding: '4px 10px',
+                      fontSize: 12,
+                      fontWeight: 600,
+                    }}
+                  >
+                    🔍 Ampliar{imageUrls.length > 1 ? ` · ${i + 1}/${imageUrls.length}` : ''}
+                  </span>
+                </button>
+              ))}
+            </div>
           )}
+
+          {/* Alertas y validaciones: aprovechan el espacio bajo la imagen. */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
+            {invoice.validacionDgii && invoice.validacionDgii.alertas.length > 0 && (
+              <div className="error" style={{ margin: 0 }}>
+                <strong>Revisa antes de reportar a la DGII:</strong>
+                <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+                  {invoice.validacionDgii.alertas.map((a, i) => (
+                    <li key={i}>{a}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {marcados.size > 0 && (
+              <div className="notice" style={{ margin: 0 }}>
+                La IA marcó como dudosos: {[...marcados].map(campoLabel).join(', ')}. Verifícalos
+                contra la imagen.
+              </div>
+            )}
+            {invoice.confianzaPorCampo?.error && (
+              <div className="notice" style={{ margin: 0 }}>
+                OCR: {invoice.confianzaPorCampo.error}
+              </div>
+            )}
+            {invoice.validacionDgii?.ok && (
+              <p style={{ color: 'var(--ok)', fontSize: 14, margin: 0 }}>
+                ✓ NCF, RNC y padrón DGII verificados
+              </p>
+            )}
+            {invoice.validacionDgii?.ecf?.verificado && invoice.validacionDgii.ecf.aceptado && (
+              <p style={{ color: 'var(--ok)', fontSize: 14, margin: 0 }}>
+                ✓ e-CF verificado en vivo con la DGII (Aceptado)
+              </p>
+            )}
+          </div>
         </div>
 
         <div style={{ flex: '2 1 440px', minWidth: 320 }}>
-      <div className="row" style={{ alignItems: 'center', marginBottom: 12 }}>
-        <div>
-          <label style={{ margin: '0 0 4px' }}>Cambiar estado (corregir error)</label>
-          <select
-            value=""
-            onChange={(e) => changeStatus(e.target.value)}
-            disabled={busy}
-          >
-            <option value="">Mover a…</option>
-            <option value="en_revision">En revisión</option>
-            <option value="validada">Validada</option>
-            <option value="rechazada">Rechazada</option>
-          </select>
-        </div>
-        <div style={{ flex: 2 }} />
+      <div style={{ marginBottom: 12, maxWidth: 280 }}>
+        <label style={{ margin: '0 0 4px' }}>Cambiar estado (corregir error)</label>
+        <select value="" onChange={(e) => changeStatus(e.target.value)} disabled={busy}>
+          <option value="">Mover a…</option>
+          <option value="en_revision">En revisión</option>
+          <option value="validada">Validada</option>
+          <option value="rechazada">Rechazada</option>
+        </select>
       </div>
 
-      {invoice.confianzaPorCampo?.error && (
-        <div className="notice">OCR: {invoice.confianzaPorCampo.error}</div>
-      )}
-      {marcados.size > 0 && (
-        <div className="notice">
-          La IA marcó como dudosos: {[...marcados].map(campoLabel).join(', ')}. Verifícalos contra la
-          imagen.
-        </div>
-      )}
-      {invoice.validacionDgii && invoice.validacionDgii.alertas.length > 0 && (
-        <div className="error">
-          <strong>Revisa antes de reportar a la DGII:</strong>
-          <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
-            {invoice.validacionDgii.alertas.map((a, i) => (
-              <li key={i}>{a}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {invoice.validacionDgii?.ok && (
-        <p style={{ color: 'var(--ok)', fontSize: 14, margin: '12px 0' }}>
-          ✓ NCF, RNC y padrón DGII verificados
-        </p>
-      )}
-      {invoice.validacionDgii?.ecf?.verificado && invoice.validacionDgii.ecf.aceptado && (
-        <p style={{ color: 'var(--ok)', fontSize: 14, margin: '4px 0 12px' }}>
-          ✓ e-CF verificado en vivo con la DGII (Aceptado)
-        </p>
-      )}
       {error && <div className="error">{error}</div>}
 
       <div className="seg" style={{ margin: '4px 0 16px' }}>
@@ -622,102 +635,90 @@ function ReviewPanel({
       </div>
 
       {tab === 'basico' ? (
-        <>
-          {selectField('Empresa (cliente)', 'clientProfileId', [
-            { value: '', label: '— Sin asignar —' },
-            ...clientes.map((c) => ({ value: c.id, label: c.razonSocial })),
+        <div className="review-form">
+          {selectField(
+            'Empresa (cliente)',
+            'clientProfileId',
+            [
+              { value: '', label: '— Sin asignar —' },
+              ...clientes.map((c) => ({ value: c.id, label: c.razonSocial })),
+            ],
+            true,
+          )}
+
+          <div>
+            <label style={marcados.has('rnc_proveedor') ? { color: 'var(--warning-text)' } : undefined}>
+              RNC / Cédula del proveedor{marcados.has('rnc_proveedor') ? ' ⚠' : ''}
+            </label>
+            <input value={form.rncProveedor} onChange={set('rncProveedor')} />
+          </div>
+          {selectField('Tipo de documento', 'tipoIdProveedor', [
+            { value: '', label: 'Automático (por longitud)' },
+            { value: '1', label: '1 · RNC (9 dígitos)' },
+            { value: '2', label: '2 · Cédula (11 dígitos)' },
           ])}
 
-          <div className="row">
-            <div>
-              <label style={marcados.has('rnc_proveedor') ? { color: 'var(--warning-text)' } : undefined}>
-                RNC / Cédula del proveedor{marcados.has('rnc_proveedor') ? ' ⚠' : ''}
-              </label>
-              <input value={form.rncProveedor} onChange={set('rncProveedor')} />
-            </div>
-            {selectField('Tipo de documento', 'tipoIdProveedor', [
-              { value: '', label: 'Automático (por longitud)' },
-              { value: '1', label: '1 · RNC (9 dígitos)' },
-              { value: '2', label: '2 · Cédula (11 dígitos)' },
-            ])}
+          <div className="full">
+            <label>Razón social del proveedor</label>
+            <input value={form.razonSocialProveedor} onChange={set('razonSocialProveedor')} />
           </div>
 
-          <label>Razón social del proveedor</label>
-          <input value={form.razonSocialProveedor} onChange={set('razonSocialProveedor')} />
+          {selectField('Tipo de bienes/servicios (606)', 'categoria606', [
+            { value: '', label: 'Sin asignar' },
+            ...Object.entries(CATEGORIAS_606).map(([code, nombre]) => ({
+              value: code,
+              label: `${code} — ${nombre}`,
+            })),
+          ])}
+          {selectField('Bienes o servicios', 'tipoBienServicio', [
+            { value: 'bienes', label: 'Bienes' },
+            { value: 'servicios', label: 'Servicios' },
+          ])}
 
-          <div className="row">
-            {selectField('Tipo de bienes/servicios (606)', 'categoria606', [
-              { value: '', label: 'Sin asignar' },
-              ...Object.entries(CATEGORIAS_606).map(([code, nombre]) => ({
-                value: code,
-                label: `${code} — ${nombre}`,
-              })),
-            ])}
-            {selectField('Bienes o servicios', 'tipoBienServicio', [
-              { value: 'bienes', label: 'Bienes' },
-              { value: 'servicios', label: 'Servicios' },
-            ])}
-          </div>
+          {textField('NCF', 'ncf', 'B0100000001')}
+          {textField('NCF modificado (nota créd./déb.)', 'ncfModificado')}
 
-          <div className="row">
-            {textField('NCF', 'ncf', 'B0100000001')}
-            {textField('NCF modificado (nota créd./déb.)', 'ncfModificado')}
+          <div>
+            <label style={marcados.has('fecha') ? { color: 'var(--warning-text)' } : undefined}>
+              Fecha comprobante (AAAA-MM-DD){marcados.has('fecha') ? ' ⚠' : ''}
+            </label>
+            <input value={form.fecha} onChange={set('fecha')} placeholder="2026-05-14" />
           </div>
+          {textField('Fecha de pago (AAAA-MM-DD)', 'fechaPago', 'opcional')}
 
-          <div className="row">
-            <div>
-              <label style={marcados.has('fecha') ? { color: 'var(--warning-text)' } : undefined}>
-                Fecha comprobante (AAAA-MM-DD){marcados.has('fecha') ? ' ⚠' : ''}
-              </label>
-              <input value={form.fecha} onChange={set('fecha')} placeholder="2026-05-14" />
-            </div>
-            {textField('Fecha de pago (AAAA-MM-DD)', 'fechaPago', 'opcional')}
-          </div>
+          {numField('Monto facturado (subtotal)', 'montoFacturado', 'monto_facturado')}
+          {numField('ITBIS facturado', 'itbis', 'itbis')}
 
-          <div className="row">
-            {numField('Monto facturado (subtotal)', 'montoFacturado', 'monto_facturado')}
-            {numField('ITBIS facturado', 'itbis', 'itbis')}
-          </div>
+          {selectField('Forma de pago', 'formaPago', [
+            { value: '', label: 'Sin especificar' },
+            { value: '1', label: '1 · Efectivo' },
+            { value: '2', label: '2 · Cheque / transferencia' },
+            { value: '3', label: '3 · Tarjeta crédito/débito' },
+            { value: '4', label: '4 · Compra a crédito' },
+            { value: '5', label: '5 · Permuta' },
+            { value: '6', label: '6 · Nota de crédito' },
+            { value: '7', label: '7 · Mixto / otras' },
+          ])}
+          {numField('Total impreso (verifica aritmética)', 'montoTotal')}
 
-          <div className="row">
-            {selectField('Forma de pago', 'formaPago', [
-              { value: '', label: 'Sin especificar' },
-              { value: '1', label: '1 · Efectivo' },
-              { value: '2', label: '2 · Cheque / transferencia' },
-              { value: '3', label: '3 · Tarjeta crédito/débito' },
-              { value: '4', label: '4 · Compra a crédito' },
-              { value: '5', label: '5 · Permuta' },
-              { value: '6', label: '6 · Nota de crédito' },
-              { value: '7', label: '7 · Mixto / otras' },
-            ])}
-            <div>
-              <label>Total impreso (verifica aritmética)</label>
-              <input value={form.montoTotal} onChange={set('montoTotal')} inputMode="decimal" />
-              <p className="muted" style={{ marginTop: 4 }}>
-                Suma calculada (subtotal + ITBIS + propina):{' '}
-                <strong>{sumaCalculada.toFixed(2)}</strong>
-                {form.montoTotal !== '' &&
-                  Math.abs(sumaCalculada - Number(form.montoTotal)) > 0.01 && (
-                    <span style={{ color: 'var(--danger)' }}> · no coincide</span>
-                  )}
-              </p>
-            </div>
-          </div>
-        </>
+          <p className="muted full" style={{ margin: '2px 0 0' }}>
+            Suma calculada (subtotal + ITBIS + propina): <strong>{sumaCalculada.toFixed(2)}</strong>
+            {form.montoTotal !== '' &&
+              Math.abs(sumaCalculada - Number(form.montoTotal)) > 0.01 && (
+                <span style={{ color: 'var(--danger)' }}> · no coincide con el total impreso</span>
+              )}
+          </p>
+        </div>
       ) : (
         <>
           <p className="muted" style={{ marginTop: 0 }}>
             Columnas avanzadas del 606. Déjalas en blanco si no aplican.
           </p>
-          <div className="row">
+          <div className="review-form">
             {numField('ITBIS retenido', 'itbisRetenido')}
             {numField('ITBIS proporcionalidad (Art. 349)', 'itbisProporcionalidad')}
-          </div>
-          <div className="row">
             {numField('ITBIS llevado al costo', 'itbisCosto')}
             {numField('ITBIS percibido', 'itbisPercibido')}
-          </div>
-          <div className="row">
             {selectField('Tipo de retención en ISR', 'tipoRetencionIsr', [
               { value: '', label: 'Sin retención' },
               { value: '01', label: '01 · Alquileres' },
@@ -730,12 +731,8 @@ function ReviewPanel({
               { value: '08', label: '08 · Juegos de azar' },
             ])}
             {numField('Monto retención renta', 'montoRetencionRenta')}
-          </div>
-          <div className="row">
             {numField('ISR percibido', 'isrPercibido')}
             {numField('Impuesto selectivo al consumo', 'impuestoSelectivo')}
-          </div>
-          <div className="row">
             {numField('Otros impuestos / tasas', 'otrosImpuestos')}
             {numField('Propina legal', 'propinaLegal')}
           </div>
@@ -767,6 +764,9 @@ function ReviewPanel({
       </p>
         </div>
       </div>
+      {lightbox !== null && imageUrls && imageUrls.length > 0 && (
+        <ImageLightbox urls={imageUrls} startIndex={lightbox} onClose={() => setLightbox(null)} />
+      )}
     </div>
   );
 }

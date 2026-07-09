@@ -309,6 +309,22 @@ th {
   flex: 1;
 }
 
+/* ── Formulario en grilla de 2 columnas (revisión de factura) ───────────── */
+.review-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 16px;
+  align-items: end; /* alinea los inputs aunque las etiquetas ocupen 1 o 2 líneas */
+}
+.review-form .full {
+  grid-column: 1 / -1;
+}
+@media (max-width: 620px) {
+  .review-form {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ── Control segmentado (p. ej. selector de tema) ───────────────────────── */
 .seg {
   display: inline-flex;
