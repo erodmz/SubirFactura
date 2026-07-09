@@ -10,6 +10,7 @@ import '../widgets/logo.dart';
 import 'capture_screen.dart';
 import 'invoice_detail_screen.dart';
 import 'login_screen.dart';
+import 'resumen_gastos_screen.dart';
 import 'settings_screen.dart';
 
 const _estadoColors = <String, Color>{
@@ -133,6 +134,15 @@ class _HomeScreenState extends State<HomeScreen> {
         title: const Logo(size: 24),
         actions: [
           const ConnectivityBadge(),
+          IconButton(
+            tooltip: 'Resumen de gastos',
+            icon: const Icon(Icons.insights_outlined),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => ResumenGastosScreen(contadorOrg: widget.membership),
+              ),
+            ),
+          ),
           PopupMenuButton<String>(
             tooltip: 'Cuenta',
             offset: const Offset(0, 48),

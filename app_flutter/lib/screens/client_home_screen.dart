@@ -145,10 +145,13 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
           const ConnectivityBadge(),
           IconButton(
             tooltip: 'Resumen de gastos',
-            icon: const Icon(Icons.insights),
+            icon: const Icon(Icons.insights_outlined),
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => ResumenGastosScreen(client: widget.client),
+                builder: (_) => ResumenGastosScreen(
+                  empresas: widget.me.clientProfiles,
+                  initial: widget.client,
+                ),
               ),
             ),
           ),

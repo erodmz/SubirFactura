@@ -2,38 +2,109 @@ import 'package:flutter/material.dart';
 
 import '../api/client.dart';
 import '../models.dart';
+import '../services/connectivity_service.dart';
+import '../widgets/error_banner.dart';
 
-/// Resumen de gastos de un negocio: total, ITBIS, por categoría, por mes y
-/// principales proveedores. Da valor al cliente, no solo al contador.
+/// Resumen de gastos POR EMPRESA (contribuyente): total, ITBIS, por categoría,
+/// por mes y principales proveedores. Lo ve quien tenga acceso a la(s) empresa(s);
+/// si hay más de una, se elige cuál con el selector. El backend limita lo que
+/// cada rol puede ver.
+///
+/// - Rol cliente: se le pasan sus negocios en [empresas].
+/// - Rol contador/admin: se le pasa [contadorOrg] y la pantalla carga los
+///   clientes de esa organización.
 class ResumenGastosScreen extends StatefulWidget {
-  const ResumenGastosScreen({super.key, required this.client});
+  const ResumenGastosScreen({
+    super.key,
+    this.empresas,
+    this.initial,
+    this.contadorOrg,
+  }) : assert(empresas != null || contadorOrg != null,
+            'Pasa empresas (cliente) o contadorOrg (contador)');
 
-  final ClientAccess client;
+  final List<ClientAccess>? empresas;
+  final ClientAccess? initial;
+  final Membership? contadorOrg;
 
   @override
   State<ResumenGastosScreen> createState() => _ResumenGastosScreenState();
 }
 
 class _ResumenGastosScreenState extends State<ResumenGastosScreen> {
+  List<ClientAccess> _empresas = [];
+  ClientAccess? _selected;
   ResumenGastos? _data;
   String? _error;
+  IconData _errorIcon = Icons.error_outline;
   bool _loading = true;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _init();
   }
 
-  Future<void> _load() async {
+  /// Fija el error distinguiendo si es por falta de conexión.
+  void _setError(String genericMsg) {
+    final offline = !ConnectivityService.instance.online.value;
+    _error = offline
+        ? 'No pudimos conectar con el servidor.\nRevisa tu conexión a internet e inténtalo de nuevo.'
+        : genericMsg;
+    _errorIcon = offline ? Icons.wifi_off_rounded : Icons.error_outline;
+  }
+
+  Future<void> _init() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      // Cargar la lista de empresas según el rol.
+      if (widget.empresas != null) {
+        _empresas = widget.empresas!;
+      } else {
+        final org = widget.contadorOrg!;
+        final list = await ApiClient.instance
+            .get('/api/organizations/${org.orgId}/clients') as List;
+        _empresas = list
+            .map((e) => ClientAccess(
+                  id: e['id'] as String,
+                  razonSocial: e['razonSocial'] as String,
+                  rncOCedula: e['rncOCedula'] as String,
+                  organizationId: org.orgId,
+                  organizationNombre: org.orgNombre,
+                ))
+            .toList();
+      }
+      _selected = widget.initial ?? (_empresas.isNotEmpty ? _empresas.first : null);
+      if (_selected == null) {
+        setState(() {
+          _error = 'No hay empresas para mostrar.';
+          _loading = false;
+        });
+        return;
+      }
+      await _loadResumen();
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _setError('No se pudo cargar la lista de empresas.');
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadResumen() async {
+    final empresa = _selected!;
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
       final json = await ApiClient.instance.get(
-        '/api/organizations/${widget.client.organizationId}/invoices/resumen'
-        '?clientProfileId=${widget.client.id}',
+        '/api/organizations/${empresa.organizationId}/invoices/resumen'
+        '?clientProfileId=${empresa.id}',
       ) as Map<String, dynamic>;
       if (!mounted) return;
       setState(() {
@@ -43,7 +114,7 @@ class _ResumenGastosScreenState extends State<ResumenGastosScreen> {
     } catch (_) {
       if (mounted) {
         setState(() {
-          _error = 'No se pudo cargar el resumen';
+          _setError('No se pudo cargar el resumen.');
           _loading = false;
         });
       }
@@ -69,24 +140,60 @@ class _ResumenGastosScreenState extends State<ResumenGastosScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Resumen de gastos')),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(_error!),
-                      const SizedBox(height: 12),
-                      FilledButton(onPressed: _load, child: const Text('Reintentar')),
-                    ],
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _load,
-                  child: _content(context, _data!),
-                ),
+      body: Column(
+        children: [
+          if (_empresas.length > 1) _selector(),
+          Expanded(child: _body()),
+        ],
+      ),
     );
+  }
+
+  Widget _selector() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: DropdownButtonFormField<String>(
+        initialValue: _selected?.id,
+        isExpanded: true,
+        decoration: const InputDecoration(
+          labelText: 'Empresa',
+          prefixIcon: Icon(Icons.apartment_outlined),
+          border: OutlineInputBorder(),
+        ),
+        items: _empresas
+            .map((e) => DropdownMenuItem(value: e.id, child: Text(e.razonSocial)))
+            .toList(),
+        onChanged: (id) {
+          final e = _empresas.firstWhere((x) => x.id == id);
+          setState(() => _selected = e);
+          _loadResumen();
+        },
+      ),
+    );
+  }
+
+  Widget _body() {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ErrorBanner(message: _error!, icon: _errorIcon),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: _init,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Reintentar'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    return RefreshIndicator(onRefresh: _loadResumen, child: _content(context, _data!));
   }
 
   Widget _content(BuildContext context, ResumenGastos d) {
@@ -108,8 +215,7 @@ class _ResumenGastosScreenState extends State<ResumenGastosScreen> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Text(widget.client.razonSocial,
-            style: Theme.of(context).textTheme.titleMedium),
+        Text(_selected!.razonSocial, style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 12),
         Row(
           children: [
