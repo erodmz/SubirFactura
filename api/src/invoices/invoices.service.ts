@@ -72,11 +72,11 @@ export class InvoicesService {
           throw new ForbiddenException('No estás habilitado para subir facturas de este cliente');
         }
       }
-    } else if (membership.rol === 'cliente') {
-      // Un cliente siempre sube a su propia empresa.
-      throw new BadRequestException('Indica a qué empresa pertenece la factura');
     }
-    // Contador/admin sin empresa: se auto-asigna por RNC del comprador en el worker.
+    // Sin empresa (cualquier rol): la factura entra "sin asignar" y el worker la
+    // auto-asigna por el RNC del comprador del QR e-CF (único por organización).
+    // Si no se puede leer, queda sin asignar para que el contador la asigne.
+    // Lo usa la Share Extension: comparte la foto sin preguntar a qué cliente va.
 
     const limitWarning = await this.planLimits.ensureCanAddFactura(orgId);
 

@@ -6,22 +6,17 @@ import '../api/client.dart';
 import '../models.dart';
 import '../services/upload_queue.dart';
 
-/// Destino posible para una factura compartida desde otra app (Fotos, etc.).
-class _Destino {
-  _Destino({
-    required this.orgId,
-    required this.clientProfileId,
-    required this.label,
-    required this.subtitle,
-  });
+/// Un despacho (organización) al que el usuario puede subir facturas.
+class _Org {
+  _Org(this.orgId, this.nombre);
   final String orgId;
-  final String? clientProfileId;
-  final String label;
-  final String subtitle;
+  final String nombre;
 }
 
-/// Recibe fotos compartidas (Share Extension) y las encola para subir, igual
-/// que si se hubieran tomado en la app. Deja elegir a qué empresa van.
+/// Recibe fotos compartidas (Share Extension) y las sube SIN preguntar a qué
+/// cliente: la factura entra "sin asignar" y el OCR la asigna sola por el RNC
+/// del comprador. Si no se puede leer, queda sin asignar para que el contador la
+/// asigne. Solo pregunta el despacho cuando el usuario pertenece a varios.
 class SharedUploadScreen extends StatefulWidget {
   const SharedUploadScreen({super.key, required this.photos});
 
@@ -32,10 +27,10 @@ class SharedUploadScreen extends StatefulWidget {
 }
 
 class _SharedUploadScreenState extends State<SharedUploadScreen> {
-  List<_Destino> _destinos = [];
-  _Destino? _selected;
+  List<_Org> _orgs = [];
   String? _error;
   bool _loading = true;
+  bool _submitting = false;
 
   @override
   void initState() {
@@ -55,28 +50,29 @@ class _SharedUploadScreenState extends State<SharedUploadScreen> {
       final me = Me.fromJson(
         await ApiClient.instance.get('/api/me') as Map<String, dynamic>,
       );
-      final destinos = <_Destino>[
-        for (final c in me.clientProfiles)
-          _Destino(
-            orgId: c.organizationId,
-            clientProfileId: c.id,
-            label: c.razonSocial,
-            subtitle: 'Tu negocio',
-          ),
-        for (final m in me.contadorMemberships)
-          _Destino(
-            orgId: m.orgId,
-            clientProfileId: null,
-            label: m.orgNombre,
-            subtitle: 'Despacho · se asigna sola por el RNC',
-          ),
-      ];
+      // Despachos donde puede subir: como cliente (por sus negocios) o como contador.
+      final porId = <String, _Org>{};
+      for (final c in me.clientProfiles) {
+        porId[c.organizationId] = _Org(c.organizationId, c.organizationNombre);
+      }
+      for (final m in me.contadorMemberships) {
+        porId[m.orgId] = _Org(m.orgId, m.orgNombre);
+      }
+      final orgs = porId.values.toList();
       if (!mounted) return;
+      if (orgs.isEmpty) {
+        setState(() {
+          _error = 'Tu cuenta no tiene ninguna empresa donde subir facturas.';
+          _loading = false;
+        });
+        return;
+      }
       setState(() {
-        _destinos = destinos;
-        _selected = destinos.length == 1 ? destinos.first : null;
+        _orgs = orgs;
         _loading = false;
       });
+      // Un solo despacho: subir directo, sin preguntar nada.
+      if (orgs.length == 1) _upload(orgs.first);
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -87,17 +83,20 @@ class _SharedUploadScreenState extends State<SharedUploadScreen> {
     }
   }
 
-  Future<void> _submit() async {
-    final dest = _selected;
-    if (dest == null || widget.photos.isEmpty) return;
+  Future<void> _upload(_Org org) async {
+    if (_submitting || widget.photos.isEmpty) return;
+    setState(() => _submitting = true);
+    // clientProfileId = null → el OCR asigna el cliente por el RNC del comprador.
     await UploadQueue.instance.enqueue(
-      orgId: dest.orgId,
-      clientProfileId: dest.clientProfileId,
+      orgId: org.orgId,
+      clientProfileId: null,
       images: List.of(widget.photos),
     );
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Factura recibida — se subirá y procesará sola')),
+      const SnackBar(
+        content: Text('Factura recibida — se subirá y clasificará sola'),
+      ),
     );
     Navigator.of(context).pop();
   }
@@ -124,38 +123,52 @@ class _SharedUploadScreenState extends State<SharedUploadScreen> {
                       separatorBuilder: (_, __) => const SizedBox(width: 10),
                       itemBuilder: (context, i) => ClipRRect(
                         borderRadius: BorderRadius.circular(10),
-                        child: Image.file(widget.photos[i], width: 105, height: 140, fit: BoxFit.cover),
+                        child: Image.file(widget.photos[i],
+                            width: 105, height: 140, fit: BoxFit.cover),
                       ),
                     ),
                   ),
                 const SizedBox(height: 20),
-                if (_destinos.isNotEmpty) ...[
-                  Text('¿A qué empresa la subimos?',
+
+                // Un solo despacho (o subiendo): mensaje de progreso.
+                if (_error == null && _orgs.length <= 1) ...[
+                  Row(
+                    children: [
+                      const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Subiendo tu factura… la clasificaremos sola por el RNC.',
+                          style: TextStyle(color: Theme.of(context).hintColor),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+
+                // Varios despachos: elegir a cuál (el OCR sigue asignando el cliente).
+                if (_error == null && _orgs.length > 1) ...[
+                  Text('¿A qué despacho la mandamos?',
                       style: Theme.of(context).textTheme.titleSmall),
-                  const SizedBox(height: 8),
-                  for (final d in _destinos)
+                  const SizedBox(height: 4),
+                  Text(
+                    'El cliente lo asigna solo el OCR por el RNC de la factura.',
+                    style: TextStyle(color: Theme.of(context).hintColor, fontSize: 13),
+                  ),
+                  const SizedBox(height: 10),
+                  for (final o in _orgs)
                     Card(
                       child: ListTile(
-                        onTap: () => setState(() => _selected = d),
-                        leading: Icon(
-                          _selected == d ? Icons.check_circle : Icons.circle_outlined,
-                          color: _selected == d
-                              ? Theme.of(context).colorScheme.primary
-                              : Theme.of(context).hintColor,
-                        ),
-                        title: Text(d.label),
-                        subtitle: Text(d.subtitle),
+                        leading: const Icon(Icons.apartment_outlined),
+                        title: Text(o.nombre),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: _submitting ? null : () => _upload(o),
                       ),
                     ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: _selected != null ? _submit : null,
-                      style: FilledButton.styleFrom(padding: const EdgeInsets.all(16)),
-                      child: const Text('Subir factura'),
-                    ),
-                  ),
                 ],
               ],
             ),
