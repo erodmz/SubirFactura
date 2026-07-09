@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../api/client.dart';
 import '../models.dart';
 import 'client_home_screen.dart';
-import 'client_picker_screen.dart';
+import 'client_invoices_screen.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
 import 'org_selector_screen.dart';
@@ -113,7 +113,8 @@ class _HomeRouterState extends State<HomeRouter> {
         if (negocios.length == 1) {
           return ClientHomeScreen(client: negocios.first, me: me, canSwitch: false);
         }
-        return ClientPickerScreen(me: me);
+        // Varios negocios: una sola pantalla con filtro de empresas + búsqueda.
+        return ClientInvoicesScreen(me: me);
       },
     );
   }
