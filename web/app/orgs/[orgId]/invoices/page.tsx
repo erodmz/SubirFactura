@@ -6,6 +6,7 @@ import { useParams, useSearchParams } from 'next/navigation';
 import { api } from '../../../../lib/api';
 import DataTable from '../../../../components/DataTable';
 import ImageLightbox from '../../../../components/ImageLightbox';
+import { TrashIcon } from '../../../../components/icons';
 import { CATEGORIAS_606, ESTADO_LABELS, type Invoice } from '../../../../lib/types';
 
 const ESTADOS = Object.keys(ESTADO_LABELS);
@@ -263,7 +264,10 @@ export default function InvoicesPage() {
                 haySiguiente={
                   visibles.findIndex((i) => i.id === sel.id) < visibles.length - 1
                 }
-                onClose={() => setExpanded(null)}
+                onClose={() => {
+                  setExpanded(null);
+                  load();
+                }}
                 onSaved={() => {
                   setExpanded(null);
                   load();
@@ -355,6 +359,10 @@ function ReviewPanel({
   const [busy, setBusy] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [showHint, setShowHint] = useState(false);
+  // Estado local para reflejar cambios sin cerrar el modal (dropdown "Cambiar estado").
+  const [estadoActual, setEstadoActual] = useState(invoice.estado);
+  // Tras un intento de validar, resaltamos en rojo los requeridos que falten.
+  const [intentoValidar, setIntentoValidar] = useState(false);
   const hintRef = useRef<HTMLDivElement>(null);
   const [imageUrls, setImageUrls] = useState<string[] | null>(null);
   const [lightbox, setLightbox] = useState<number | null>(null); // índice de imagen ampliada
@@ -390,6 +398,12 @@ function ReviewPanel({
 
   const req = (on?: boolean) => (on ? <span style={{ color: 'var(--danger)' }}> *</span> : null);
 
+  // Borde rojo si el campo es requerido, está vacío y ya se intentó validar.
+  const faltante = (key: keyof typeof form, required?: boolean) =>
+    !!required && intentoValidar && String(form[key]).trim() === '';
+  const errBorder = (key: keyof typeof form, required?: boolean) =>
+    faltante(key, required) ? { borderColor: 'var(--danger)' } : undefined;
+
   const numField = (
     label: string,
     key: keyof typeof form,
@@ -403,7 +417,7 @@ function ReviewPanel({
         {marcados.has(critical ?? '') ? ' ⚠' : ''}
         {req(required)}
       </label>
-      <input value={form[key]} onChange={set(key)} inputMode="decimal" />
+      <input value={form[key]} onChange={set(key)} inputMode="decimal" style={errBorder(key, required)} />
     </div>
   );
 
@@ -419,7 +433,12 @@ function ReviewPanel({
         {label}
         {req(required)}
       </label>
-      <input value={form[key]} onChange={set(key)} placeholder={placeholder} />
+      <input
+        value={form[key]}
+        onChange={set(key)}
+        placeholder={placeholder}
+        style={errBorder(key, required)}
+      />
     </div>
   );
 
@@ -444,6 +463,7 @@ function ReviewPanel({
   // Guarda (y opcionalmente valida). Devuelve true si tuvo éxito, para que
   // quien llama decida cerrar, saltar a la siguiente, o quedarse por el error.
   async function save(validar: boolean): Promise<boolean> {
+    if (validar) setIntentoValidar(true);
     setBusy(true);
     setError('');
     try {
@@ -504,9 +524,16 @@ function ReviewPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busy, haySiguiente, dirty, form]);
 
-  // Corregir el estado manualmente (p. ej. desvalidar una factura marcada por error).
+  // Cambia el estado desde el dropdown SIN cerrar el modal. Pasar a "validada"
+  // ejecuta la validación completa (guarda + valida requeridos); los demás
+  // estados solo cambian el estado.
   async function changeStatus(estado: string) {
-    if (!estado || estado === invoice.estado) return;
+    if (!estado || estado === estadoActual) return;
+    if (estado === 'validada') {
+      // Igual que "Validar": revisa que los requeridos estén completos.
+      if (await save(true)) setEstadoActual('validada');
+      return;
+    }
     setBusy(true);
     setError('');
     try {
@@ -514,9 +541,10 @@ function ReviewPanel({
         method: 'PATCH',
         body: { estado },
       });
-      onSaved();
+      setEstadoActual(estado);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo cambiar el estado');
+    } finally {
       setBusy(false);
     }
   }
@@ -556,7 +584,7 @@ function ReviewPanel({
         }}
       >
         <h2 style={{ margin: 0, flex: 1 }}>Revisar factura</h2>
-        <span className="badge">{ESTADO_LABELS[invoice.estado] ?? invoice.estado}</span>
+        <span className="badge">{ESTADO_LABELS[estadoActual] ?? estadoActual}</span>
         <button
           type="button"
           className="secondary"
@@ -719,7 +747,11 @@ function ReviewPanel({
               RNC / Cédula del proveedor{marcados.has('rnc_proveedor') ? ' ⚠' : ''}
               {req(true)}
             </label>
-            <input value={form.rncProveedor} onChange={set('rncProveedor')} />
+            <input
+              value={form.rncProveedor}
+              onChange={set('rncProveedor')}
+              style={errBorder('rncProveedor', true)}
+            />
           </div>
           {selectField('Tipo de documento', 'tipoIdProveedor', [
             { value: '', label: 'Automático (por longitud)' },
@@ -752,7 +784,12 @@ function ReviewPanel({
               Fecha comprobante (AAAA-MM-DD){marcados.has('fecha') ? ' ⚠' : ''}
               {req(true)}
             </label>
-            <input value={form.fecha} onChange={set('fecha')} placeholder="2026-05-14" />
+            <input
+              value={form.fecha}
+              onChange={set('fecha')}
+              placeholder="2026-05-14"
+              style={errBorder('fecha', true)}
+            />
           </div>
           {textField('Fecha de pago (AAAA-MM-DD)', 'fechaPago', 'opcional')}
 
@@ -808,13 +845,14 @@ function ReviewPanel({
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14, alignItems: 'center' }}>
         {esAdmin && (
           <button
-            className="danger"
+            className="danger icon-btn"
             onClick={eliminar}
             disabled={busy}
             style={{ borderColor: 'var(--danger)', marginRight: 4 }}
             title="Eliminar factura (solo administrador)"
+            aria-label="Eliminar factura"
           >
-            Eliminar
+            <TrashIcon size={18} />
           </button>
         )}
         <button className="danger" onClick={closeGuarded} disabled={busy}>
@@ -829,7 +867,7 @@ function ReviewPanel({
           disabled={busy}
           title={haySiguiente ? undefined : '⌘/Ctrl + Enter'}
         >
-          {busy ? 'Guardando…' : 'Guardar y validar'}
+          {busy ? 'Validando…' : 'Validar'}
         </button>
         {haySiguiente && (
           <button onClick={validarYSiguiente} disabled={busy} title="⌘/Ctrl + Enter">
@@ -852,7 +890,7 @@ function ReviewPanel({
               <br />
               <strong>Guardar</strong>: guarda el avance sin validar.
               <br />
-              <strong>Guardar y validar</strong>: guarda y valida la factura (los campos con{' '}
+              <strong>Validar</strong>: guarda y valida la factura (los campos con{' '}
               <span style={{ color: 'var(--danger)' }}>*</span> deben estar completos, y la
               aritmética cuadrar si está activada).
               {haySiguiente && (
