@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { api } from '../../../../lib/api';
+import DataTable from '../../../../components/DataTable';
 import type { Client, Member } from '../../../../lib/types';
 
 export default function ClientsPage() {
@@ -144,35 +145,27 @@ export default function ClientsPage() {
       </div>
 
       <div className="card">
-        <table>
-          <thead>
-            <tr>
-              <th>Razón social</th>
-              <th>RNC / Cédula</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {clients.map((c) => (
-              <tr key={c.id}>
-                <td>{c.razonSocial}</td>
-                <td>{c.rncOCedula}</td>
-                <td style={{ textAlign: 'right' }}>
-                  <a style={{ cursor: 'pointer' }} onClick={() => openDetail(c)}>
-                    Gestionar
-                  </a>
-                </td>
-              </tr>
-            ))}
-            {clients.length === 0 && (
-              <tr>
-                <td colSpan={3} className="muted">
-                  Sin clientes todavía
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+        <DataTable
+          rows={clients}
+          getKey={(c) => c.id}
+          initialSort={{ key: 'razonSocial', dir: 'asc' }}
+          exportFileName="clientes"
+          emptyText="Sin clientes todavía"
+          columns={[
+            { key: 'razonSocial', header: 'Razón social', value: (c) => c.razonSocial },
+            { key: 'rncOCedula', header: 'RNC / Cédula', value: (c) => c.rncOCedula },
+            {
+              key: 'accion',
+              header: '',
+              align: 'right',
+              render: (c) => (
+                <a style={{ cursor: 'pointer' }} onClick={() => openDetail(c)}>
+                  Gestionar
+                </a>
+              ),
+            },
+          ]}
+        />
       </div>
 
       {expanded && (

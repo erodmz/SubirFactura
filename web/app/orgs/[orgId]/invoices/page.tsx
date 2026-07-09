@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { api } from '../../../../lib/api';
+import DataTable from '../../../../components/DataTable';
 import { CATEGORIAS_606, ESTADO_LABELS, type Invoice } from '../../../../lib/types';
 
 const ESTADOS = Object.keys(ESTADO_LABELS);
@@ -137,62 +138,78 @@ export default function InvoicesPage() {
         {loading ? (
           <p className="muted">Cargando…</p>
         ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Cliente</th>
-                <th>Proveedor</th>
-                <th>NCF</th>
-                <th>Fecha</th>
-                <th style={{ textAlign: 'right' }}>Monto</th>
-                <th>Estado</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibles.map((inv) => (
-                <tr key={inv.id}>
-                  <td>
-                    {inv.clientProfile?.razonSocial ?? (
-                      <span style={{ color: 'var(--warning-text)' }}>Sin asignar</span>
-                    )}
-                  </td>
-                  <td>{inv.razonSocialProveedor ?? '—'}</td>
-                  <td>{inv.ncf ?? '—'}</td>
-                  <td>{fechaCorta(inv.fecha) || '—'}</td>
-                  <td style={{ textAlign: 'right' }}>{money(inv.montoFacturado)}</td>
-                  <td>
-                    <span className="badge">{ESTADO_LABELS[inv.estado] ?? inv.estado}</span>
-                  </td>
-                  <td style={{ textAlign: 'right' }}>
-                    <a style={{ cursor: 'pointer' }} onClick={() => setExpanded(inv.id)}>
-                      Revisar
-                    </a>
-                  </td>
-                </tr>
-              ))}
-              {visibles.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="muted">
-                    {invoices.length === 0
-                      ? 'No hay facturas con estos filtros'
-                      : 'Ninguna factura coincide con la búsqueda'}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-            {visibles.length > 0 && (
-              <tfoot>
-                <tr>
-                  <td colSpan={4} style={{ fontWeight: 600 }}>
-                    {visibles.length} factura(s)
-                  </td>
-                  <td style={{ textAlign: 'right', fontWeight: 600 }}>RD$ {money(totalMonto)}</td>
-                  <td colSpan={2} />
-                </tr>
-              </tfoot>
-            )}
-          </table>
+          <DataTable
+            rows={visibles}
+            getKey={(inv) => inv.id}
+            initialSort={{ key: 'fecha', dir: 'desc' }}
+            exportFileName={`facturas${periodo ? '_' + periodo : ''}`}
+            emptyText={
+              invoices.length === 0
+                ? 'No hay facturas con estos filtros'
+                : 'Ninguna factura coincide con la búsqueda'
+            }
+            columns={[
+              {
+                key: 'cliente',
+                header: 'Cliente',
+                value: (inv) => inv.clientProfile?.razonSocial ?? '',
+                render: (inv) =>
+                  inv.clientProfile?.razonSocial ?? (
+                    <span style={{ color: 'var(--warning-text)' }}>Sin asignar</span>
+                  ),
+              },
+              {
+                key: 'proveedor',
+                header: 'Proveedor',
+                value: (inv) => inv.razonSocialProveedor ?? '',
+                render: (inv) => inv.razonSocialProveedor ?? '—',
+              },
+              { key: 'ncf', header: 'NCF', value: (inv) => inv.ncf ?? '' , render: (inv) => inv.ncf ?? '—' },
+              {
+                key: 'fecha',
+                header: 'Fecha',
+                value: (inv) => fechaCorta(inv.fecha),
+                render: (inv) => fechaCorta(inv.fecha) || '—',
+              },
+              {
+                key: 'monto',
+                header: 'Monto',
+                align: 'right',
+                value: (inv) => Number(inv.montoFacturado) || 0,
+                csv: (inv) => (inv.montoFacturado == null ? '' : Number(inv.montoFacturado)),
+                render: (inv) => money(inv.montoFacturado),
+              },
+              {
+                key: 'estado',
+                header: 'Estado',
+                value: (inv) => ESTADO_LABELS[inv.estado] ?? inv.estado,
+                render: (inv) => <span className="badge">{ESTADO_LABELS[inv.estado] ?? inv.estado}</span>,
+              },
+              {
+                key: 'accion',
+                header: '',
+                align: 'right',
+                render: (inv) => (
+                  <a style={{ cursor: 'pointer' }} onClick={() => setExpanded(inv.id)}>
+                    Revisar
+                  </a>
+                ),
+              },
+            ]}
+            footer={
+              visibles.length > 0 ? (
+                <tfoot>
+                  <tr>
+                    <td colSpan={4} style={{ fontWeight: 600 }}>
+                      {visibles.length} factura(s)
+                    </td>
+                    <td style={{ textAlign: 'right', fontWeight: 600 }}>RD$ {money(totalMonto)}</td>
+                    <td colSpan={2} />
+                  </tr>
+                </tfoot>
+              ) : undefined
+            }
+          />
         )}
       </div>
 
