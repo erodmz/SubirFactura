@@ -223,7 +223,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _capture,
-        icon: const Icon(Icons.camera_alt),
+        icon: const Icon(Icons.camera_alt_outlined),
         label: const Text('Subir factura'),
       ),
       body: Column(
@@ -299,7 +299,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                                           valueColor: AlwaysStoppedAnimation(color),
                                         ),
                                       )
-                                    : Icon(Icons.receipt_long, color: color),
+                                    : Icon(Icons.receipt_long_outlined, color: color),
                               ),
                               title: Text(
                                 invoice.razonSocialProveedor ??

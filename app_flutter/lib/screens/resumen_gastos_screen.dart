@@ -113,9 +113,9 @@ class _ResumenGastosScreenState extends State<ResumenGastosScreen> {
         const SizedBox(height: 12),
         Row(
           children: [
-            Expanded(child: _statCard(context, 'Total gastado', _money(d.totalGastado), Icons.payments)),
+            Expanded(child: _statCard(context, 'Total gastado', _money(d.totalGastado), Icons.payments_outlined)),
             const SizedBox(width: 12),
-            Expanded(child: _statCard(context, 'ITBIS pagado', _money(d.totalItbis), Icons.receipt_long)),
+            Expanded(child: _statCard(context, 'ITBIS pagado', _money(d.totalItbis), Icons.receipt_long_outlined)),
           ],
         ),
         const SizedBox(height: 6),

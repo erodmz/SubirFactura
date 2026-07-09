@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../api/client.dart';
+import '../widgets/error_banner.dart';
 import '../widgets/logo.dart';
 import 'forgot_password_screen.dart';
 import 'home_router.dart';
@@ -16,6 +17,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _email = TextEditingController();
   final _password = TextEditingController();
   String? _error;
+  IconData _errorIcon = Icons.error_outline;
   bool _busy = false;
   bool _obscure = true;
 
@@ -37,9 +39,17 @@ class _LoginScreenState extends State<LoginScreen> {
         MaterialPageRoute(builder: (_) => const HomeRouter()),
       );
     } on ApiException catch (e) {
-      setState(() => _error = e.message);
+      // Error del servidor (credenciales, límite de intentos, etc.).
+      setState(() {
+        _error = e.message;
+        _errorIcon = Icons.lock_outline;
+      });
     } catch (_) {
-      setState(() => _error = 'No se pudo conectar al servidor');
+      // Sin respuesta del servidor: problema de conexión.
+      setState(() {
+        _error = 'No pudimos conectar con el servidor.\nRevisa tu conexión a internet e inténtalo de nuevo.';
+        _errorIcon = Icons.wifi_off_rounded;
+      });
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -72,11 +82,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 style: TextStyle(color: Colors.grey),
               ),
               const SizedBox(height: 32),
-              if (_error != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: Text(_error!, style: const TextStyle(color: Colors.red)),
-                ),
               TextField(
                 controller: _email,
                 keyboardType: TextInputType.emailAddress,
@@ -106,6 +111,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 onPressed: _busy ? null : _login,
                 child: Text(_busy ? 'Entrando…' : 'Entrar'),
               ),
+              if (_error != null) ...[
+                const SizedBox(height: 16),
+                ErrorBanner(message: _error!, icon: _errorIcon),
+              ],
               const SizedBox(height: 8),
               TextButton(
                 onPressed: _busy

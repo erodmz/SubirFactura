@@ -160,7 +160,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
               ['subida', 'en_revision', 'procesando'].contains(invoice.estado))
             IconButton(
               onPressed: _retryOcr,
-              icon: const Icon(Icons.auto_awesome),
+              icon: const Icon(Icons.auto_awesome_outlined),
               tooltip: 'Reprocesar con IA',
             ),
           // Corregir el estado manualmente (contador); no si ya está en un reporte.
@@ -241,7 +241,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 4),
                     child: Row(
                       children: [
-                        const Icon(Icons.verified, color: Colors.green, size: 18),
+                        const Icon(Icons.verified_outlined, color: Colors.green, size: 18),
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text('NCF, RNC y padrón DGII verificados',

@@ -115,14 +115,14 @@ class _CaptureScreenState extends State<CaptureScreen> {
                     Expanded(
                       child: FilledButton.icon(
                         onPressed: () => _addPhoto(ImageSource.camera),
-                        icon: const Icon(Icons.camera_alt),
+                        icon: const Icon(Icons.camera_alt_outlined),
                         label: Text(_photos.isEmpty ? 'Tomar foto o escanear QR' : 'Agregar página'),
                       ),
                     ),
                     const SizedBox(width: 12),
                     OutlinedButton.icon(
                       onPressed: () => _addPhoto(ImageSource.gallery),
-                      icon: const Icon(Icons.photo_library),
+                      icon: const Icon(Icons.photo_library_outlined),
                       label: const Text('Galería'),
                     ),
                   ],
@@ -181,7 +181,7 @@ class _PagesStrip extends StatelessWidget {
               right: 2,
               top: 2,
               child: IconButton(
-                icon: const Icon(Icons.cancel, color: Colors.white),
+                icon: const Icon(Icons.cancel_outlined, color: Colors.white),
                 style: IconButton.styleFrom(backgroundColor: Colors.black38),
                 iconSize: 20,
                 visualDensity: VisualDensity.compact,
