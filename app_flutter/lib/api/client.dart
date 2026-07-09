@@ -95,6 +95,8 @@ class ApiClient {
 
   Future<dynamic> patch(String path, [Object? body]) => _request('PATCH', path, body);
 
+  Future<dynamic> delete(String path) => _request('DELETE', path);
+
   Future<dynamic> _request(String method, String path, [Object? body]) async {
     var response = await _send(method, path, body);
     if (response.statusCode == 401 && await _tryRefresh()) {
@@ -115,6 +117,8 @@ class ApiClient {
         return http.post(uri, headers: headers, body: encoded);
       case 'PATCH':
         return http.patch(uri, headers: headers, body: encoded);
+      case 'DELETE':
+        return http.delete(uri, headers: headers);
       default:
         return http.get(uri, headers: headers);
     }

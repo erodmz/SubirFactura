@@ -23,13 +23,56 @@ class InvoiceDetailScreen extends StatefulWidget {
   State<InvoiceDetailScreen> createState() => _InvoiceDetailScreenState();
 }
 
+/// Tipo de identificación del 606 por longitud: 9 díg → RNC (1); 11 díg → Cédula (2).
+String _tipoIdPorLongitud(String rnc) =>
+    rnc.replaceAll(RegExp(r'\D'), '').length == 11 ? '2' : '1';
+
+const _formasPago = <String, String>{
+  '1': '1 · Efectivo',
+  '2': '2 · Cheque / transferencia',
+  '3': '3 · Tarjeta crédito/débito',
+  '4': '4 · Compra a crédito',
+  '5': '5 · Permuta',
+  '6': '6 · Nota de crédito',
+  '7': '7 · Mixto / otras',
+};
+
+const _tiposRetencionIsr = <String, String>{
+  '01': '01 · Alquileres',
+  '02': '02 · Honorarios por servicios',
+  '03': '03 · Otras rentas',
+  '04': '04 · Rentas presuntas',
+  '05': '05 · Intereses pagados a PJ',
+  '06': '06 · Intereses pagados a PF',
+  '07': '07 · Proveedores del Estado',
+  '08': '08 · Juegos de azar',
+};
+
+/// Campos requeridos para validar (resaltados si faltan tras intentar validar).
+const _requeridos = {'ncf', 'rncProveedor', 'fecha', 'montoFacturado', 'itbis'};
+
 class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
   Invoice? _invoice;
   String? _error;
   bool _saving = false;
+  bool _intentoValidar = false;
+  String _tab = 'basico';
 
   final _controllers = <String, TextEditingController>{};
+  // Dropdowns (estado propio; los textos van por controladores).
+  String? _clientProfileId;
+  String? _tipoIdProveedor;
   String? _categoria;
+  String? _tipoBienServicio;
+  String? _formaPago;
+  String? _tipoRetencionIsr;
+
+  // Empresas de la organización (para el dropdown "Empresa", solo contador/admin).
+  List<ClientProfile> _clientes = [];
+
+  bool get _esCliente => widget.membership.rol == 'cliente';
+  bool get _esContador => !_esCliente;
+  bool get _esAdmin => widget.membership.rol == 'org_admin';
 
   String get _base =>
       '/api/organizations/${widget.membership.orgId}/invoices/${widget.invoiceId}';
@@ -52,10 +95,35 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     try {
       final data = await ApiClient.instance.get(_base) as Map<String, dynamic>;
       final invoice = Invoice.fromJson(data);
+      // Empresas para reasignar (solo el contador puede; el cliente ve la suya fija).
+      if (_esContador && _clientes.isEmpty) {
+        try {
+          final list = await ApiClient.instance
+              .get('/api/organizations/${widget.membership.orgId}/clients') as List;
+          _clientes = list
+              .map((e) => ClientProfile.fromJson(e as Map<String, dynamic>))
+              .toList();
+        } catch (_) {/* sin lista: el dropdown queda con la actual */}
+      }
       if (!mounted) return;
       setState(() {
         _invoice = invoice;
-        _categoria = invoice.categoria606;
+        _clientProfileId = invoice.clientProfileId;
+        // Normaliza a valores válidos del dropdown (evita aserciones si el backend
+        // guardó algo fuera de las opciones, p.ej. tipoBienServicio 'ambos').
+        _tipoIdProveedor = (invoice.tipoIdProveedor == '1' || invoice.tipoIdProveedor == '2')
+            ? invoice.tipoIdProveedor
+            : _tipoIdPorLongitud(invoice.rncProveedor ?? '');
+        _categoria =
+            categorias606.containsKey(invoice.categoria606) ? invoice.categoria606 : null;
+        _tipoBienServicio = (invoice.tipoBienServicio == 'bienes' ||
+                invoice.tipoBienServicio == 'servicios')
+            ? invoice.tipoBienServicio
+            : null;
+        _formaPago = _formasPago.containsKey(invoice.formaPago) ? invoice.formaPago : null;
+        _tipoRetencionIsr = _tiposRetencionIsr.containsKey(invoice.tipoRetencionIsr)
+            ? invoice.tipoRetencionIsr
+            : null;
         _error = null;
       });
       _initControllers(invoice);
@@ -67,17 +135,39 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
   void _initControllers(Invoice invoice) {
     String fmt(double? value) => value?.toStringAsFixed(2) ?? '';
     final values = {
+      // Básico (1–11)
       'ncf': invoice.ncf ?? '',
+      'ncfModificado': invoice.ncfModificado ?? '',
       'rncProveedor': invoice.rncProveedor ?? '',
       'razonSocialProveedor': invoice.razonSocialProveedor ?? '',
       'fecha': invoice.fecha ?? '',
+      'fechaPago': invoice.fechaPago ?? '',
       'montoFacturado': fmt(invoice.montoFacturado),
       'itbis': fmt(invoice.itbis),
-      'propinaLegal': fmt(invoice.propinaLegal),
       'montoTotal': '',
+      // Avanzado (12–23)
+      'itbisRetenido': fmt(invoice.itbisRetenido),
+      'itbisProporcionalidad': fmt(invoice.itbisProporcionalidad),
+      'itbisCosto': fmt(invoice.itbisCosto),
+      'itbisPercibido': fmt(invoice.itbisPercibido),
+      'montoRetencionRenta': fmt(invoice.montoRetencionRenta),
+      'isrPercibido': fmt(invoice.isrPercibido),
+      'impuestoSelectivo': fmt(invoice.impuestoSelectivo),
+      'otrosImpuestos': fmt(invoice.otrosImpuestos),
+      'propinaLegal': fmt(invoice.propinaLegal),
     };
     values.forEach((key, value) {
-      _controllers.putIfAbsent(key, TextEditingController.new).text = value;
+      final c = _controllers.putIfAbsent(key, () {
+        final ctrl = TextEditingController();
+        // Refrescar bordes en vivo si el campo es requerido (tras intentar validar).
+        if (_requeridos.contains(key)) {
+          ctrl.addListener(() {
+            if (_intentoValidar && mounted) setState(() {});
+          });
+        }
+        return ctrl;
+      });
+      c.text = value;
     });
   }
 
@@ -91,25 +181,52 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     return text.isEmpty ? null : text;
   }
 
+  bool _falta(String key) =>
+      _intentoValidar &&
+      _requeridos.contains(key) &&
+      (_controllers[key]?.text.trim().isEmpty ?? true);
+
   Future<void> _save({required bool validar}) async {
     setState(() {
+      if (validar) _intentoValidar = true;
       _saving = true;
       _error = null;
     });
     try {
-      await ApiClient.instance.patch('$_base/review', {
-        if (_text('ncf') != null) 'ncf': _text('ncf'),
-        if (_text('rncProveedor') != null) 'rncProveedor': _text('rncProveedor'),
-        if (_text('razonSocialProveedor') != null)
-          'razonSocialProveedor': _text('razonSocialProveedor'),
-        if (_text('fecha') != null) 'fecha': _text('fecha'),
-        if (_num('montoFacturado') != null) 'montoFacturado': _num('montoFacturado'),
-        if (_num('itbis') != null) 'itbis': _num('itbis'),
-        if (_num('propinaLegal') != null) 'propinaLegal': _num('propinaLegal'),
-        if (_num('montoTotal') != null) 'montoTotal': _num('montoTotal'),
-        if (_categoria != null) 'categoria606': _categoria,
-        'validar': validar,
-      });
+      final body = <String, dynamic>{'validar': validar};
+      void putText(String key, String? value) {
+        if (value != null) body[key] = value;
+      }
+      void putNum(String key) {
+        final n = _num(key);
+        if (n != null) body[key] = n;
+      }
+
+      // Texto y selects (se envían si tienen valor).
+      putText('ncf', _text('ncf'));
+      putText('ncfModificado', _text('ncfModificado'));
+      putText('rncProveedor', _text('rncProveedor'));
+      putText('razonSocialProveedor', _text('razonSocialProveedor'));
+      putText('fecha', _text('fecha'));
+      putText('fechaPago', _text('fechaPago'));
+      putText('tipoIdProveedor', _tipoIdProveedor);
+      putText('categoria606', _categoria);
+      putText('tipoBienServicio', _tipoBienServicio);
+      putText('formaPago', _formaPago);
+      putText('tipoRetencionIsr', _tipoRetencionIsr);
+      // El cliente no reasigna empresa; solo el contador/admin.
+      if (_esContador) putText('clientProfileId', _clientProfileId);
+
+      // Montos.
+      for (final k in const [
+        'montoFacturado', 'itbis', 'montoTotal', 'propinaLegal', 'otrosImpuestos',
+        'impuestoSelectivo', 'itbisRetenido', 'itbisProporcionalidad', 'itbisCosto',
+        'itbisPercibido', 'montoRetencionRenta', 'isrPercibido',
+      ]) {
+        putNum(k);
+      }
+
+      await ApiClient.instance.patch('$_base/review', body);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(validar ? 'Factura validada' : 'Cambios guardados')),
@@ -119,6 +236,42 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
       if (mounted) setState(() => _error = e.message);
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _delete() async {
+    final prov = _invoice?.razonSocialProveedor ?? 'esta factura';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Eliminar factura'),
+        content: Text('¿Eliminar $prov? Esta acción no se puede deshacer.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await ApiClient.instance.delete(_base);
+      if (!mounted) return;
+      Navigator.of(context).pop();
+    } on ApiException catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.message;
+          _saving = false;
+        });
+      }
     }
   }
 
@@ -267,7 +420,9 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     child: Text(_error!, style: const TextStyle(color: Colors.red)),
                   ),
-                if (invoice.estado == 'en_revision' || invoice.estado == 'extraida')
+                // Editable en todos los estados salvo los ya incluidos en un
+                // reporte (igual que el backend y el panel web).
+                if (!['reportada', 'incluida_en_606'].contains(invoice.estado))
                   ..._buildForm(invoice)
                 else
                   ..._buildReadOnly(invoice),
@@ -277,17 +432,28 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
   }
 
   List<Widget> _buildForm(Invoice invoice) {
-    Widget field(String key, String label, {TextInputType? keyboard, String? hint}) {
+    const numDecimal = TextInputType.numberWithOptions(decimal: true);
+
+    Widget textField(
+      String key,
+      String label, {
+      bool required = false,
+      TextInputType? keyboard,
+      String? hint,
+      void Function(String)? onChanged,
+    }) {
       final dudoso = invoice.camposBajaConfianza.contains(_apiFieldName(key));
       return Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: TextField(
           controller: _controllers[key],
           keyboardType: keyboard,
+          onChanged: onChanged,
           decoration: InputDecoration(
-            labelText: label,
+            labelText: required ? '$label *' : label,
             hintText: hint,
             border: const OutlineInputBorder(),
+            errorText: _falta(key) ? 'Requerido para validar' : null,
             suffixIcon: dudoso
                 ? const Tooltip(
                     message: 'La IA no está segura de este campo: verifícalo',
@@ -299,34 +465,141 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
       );
     }
 
-    return [
-      const Text('Corrige y confirma los datos:',
-          style: TextStyle(fontWeight: FontWeight.bold)),
-      const SizedBox(height: 12),
-      field('ncf', 'NCF', hint: 'B0100000123'),
-      field('rncProveedor', 'RNC del proveedor', keyboard: TextInputType.number),
-      field('razonSocialProveedor', 'Razón social del proveedor'),
-      field('fecha', 'Fecha (AAAA-MM-DD)', keyboard: TextInputType.datetime),
-      field('montoFacturado', 'Subtotal sin impuestos',
-          keyboard: const TextInputType.numberWithOptions(decimal: true)),
-      field('itbis', 'ITBIS',
-          keyboard: const TextInputType.numberWithOptions(decimal: true)),
-      field('propinaLegal', 'Propina legal (10%)',
-          keyboard: const TextInputType.numberWithOptions(decimal: true)),
-      field('montoTotal', 'Total impreso (para verificar montos)',
-          keyboard: const TextInputType.numberWithOptions(decimal: true)),
-      DropdownButtonFormField<String>(
-        value: _categoria,
-        decoration: const InputDecoration(
-          labelText: 'Categoría de gasto (606)',
-          border: OutlineInputBorder(),
+    Widget dropdown(
+      String label,
+      String? value,
+      Map<String, String> options,
+      void Function(String?) onChanged, {
+      String? placeholder,
+      bool controlled = false,
+    }) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: DropdownButtonFormField<String>(
+          // Cuando el valor cambia por código (p.ej. tipo por longitud), la key
+          // fuerza el refresco del valor mostrado.
+          key: controlled ? ValueKey('$label-$value') : null,
+          initialValue: value,
+          isExpanded: true,
+          decoration: InputDecoration(
+            labelText: label,
+            border: const OutlineInputBorder(),
+          ),
+          items: [
+            if (placeholder != null)
+              DropdownMenuItem(value: null, child: Text(placeholder)),
+            for (final e in options.entries)
+              DropdownMenuItem(value: e.key, child: Text(e.value)),
+          ],
+          onChanged: onChanged,
         ),
-        items: [
-          for (final entry in categorias606.entries)
-            DropdownMenuItem(value: entry.key, child: Text('${entry.key} · ${entry.value}')),
+      );
+    }
+
+    return [
+      SegmentedButton<String>(
+        segments: const [
+          ButtonSegment(value: 'basico', label: Text('Datos básicos')),
+          ButtonSegment(value: 'avanzado', label: Text('Retenciones')),
         ],
-        onChanged: (value) => setState(() => _categoria = value),
+        selected: {_tab},
+        showSelectedIcon: false,
+        onSelectionChanged: (s) => setState(() => _tab = s.first),
       ),
+      const SizedBox(height: 16),
+      if (_tab == 'basico') ...[
+        // Empresa: solo el contador puede reasignar; el cliente ve su factura fija.
+        if (_esContador)
+          dropdown(
+            'Empresa (cliente)',
+            _clientProfileId,
+            {
+              for (final c in _clientes) c.id: c.razonSocial,
+              // Garantiza que la empresa actual esté en la lista aunque el fetch falle.
+              if (_clientProfileId != null &&
+                  !_clientes.any((c) => c.id == _clientProfileId))
+                _clientProfileId!: invoice.clientRazonSocial ?? 'Empresa actual',
+            },
+            (v) => setState(() => _clientProfileId = v),
+            placeholder: '— Sin asignar —',
+          ),
+        textField(
+          'rncProveedor',
+          'RNC / Cédula del proveedor',
+          required: true,
+          keyboard: TextInputType.number,
+          onChanged: (v) => setState(() => _tipoIdProveedor = _tipoIdPorLongitud(v)),
+        ),
+        dropdown(
+          'Tipo de documento',
+          _tipoIdProveedor,
+          const {'1': '1 · RNC (9 dígitos)', '2': '2 · Cédula (11 dígitos)'},
+          (v) => setState(() => _tipoIdProveedor = v),
+          controlled: true,
+        ),
+        textField('razonSocialProveedor', 'Razón social del proveedor'),
+        dropdown(
+          'Tipo de bienes/servicios (606)',
+          _categoria,
+          {for (final e in categorias606.entries) e.key: '${e.key} · ${e.value}'},
+          (v) => setState(() => _categoria = v),
+          placeholder: 'Sin asignar',
+        ),
+        dropdown(
+          'Bienes o servicios',
+          _tipoBienServicio,
+          const {'bienes': 'Bienes', 'servicios': 'Servicios'},
+          (v) => setState(() => _tipoBienServicio = v),
+          placeholder: 'Sin especificar',
+        ),
+        textField('ncf', 'NCF', required: true, hint: 'B0100000001'),
+        textField('ncfModificado', 'NCF modificado (nota créd./déb.)'),
+        textField('fecha', 'Fecha comprobante (AAAA-MM-DD)',
+            required: true, keyboard: TextInputType.datetime, hint: '2026-05-14'),
+        textField('fechaPago', 'Fecha de pago (AAAA-MM-DD)',
+            keyboard: TextInputType.datetime, hint: 'opcional'),
+        textField('montoFacturado', 'Monto facturado (subtotal)',
+            required: true, keyboard: numDecimal),
+        textField('itbis', 'ITBIS facturado', required: true, keyboard: numDecimal),
+        dropdown(
+          'Forma de pago',
+          _formaPago,
+          _formasPago,
+          (v) => setState(() => _formaPago = v),
+          placeholder: 'Sin especificar',
+        ),
+        textField('montoTotal', 'Total impreso (verifica aritmética)',
+            keyboard: numDecimal),
+        Padding(
+          padding: const EdgeInsets.only(top: 4, bottom: 4),
+          child: Text('* Campos requeridos para validar.',
+              style: TextStyle(fontSize: 12, color: Theme.of(context).hintColor)),
+        ),
+      ] else ...[
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Text('Columnas avanzadas del 606. Déjalas en blanco si no aplican.',
+              style: TextStyle(color: Theme.of(context).hintColor)),
+        ),
+        textField('itbisRetenido', 'ITBIS retenido', keyboard: numDecimal),
+        textField('itbisProporcionalidad', 'ITBIS proporcionalidad (Art. 349)',
+            keyboard: numDecimal),
+        textField('itbisCosto', 'ITBIS llevado al costo', keyboard: numDecimal),
+        textField('itbisPercibido', 'ITBIS percibido', keyboard: numDecimal),
+        dropdown(
+          'Tipo de retención en ISR',
+          _tipoRetencionIsr,
+          _tiposRetencionIsr,
+          (v) => setState(() => _tipoRetencionIsr = v),
+          placeholder: 'Sin retención',
+        ),
+        textField('montoRetencionRenta', 'Monto retención renta', keyboard: numDecimal),
+        textField('isrPercibido', 'ISR percibido', keyboard: numDecimal),
+        textField('impuestoSelectivo', 'Impuesto selectivo al consumo',
+            keyboard: numDecimal),
+        textField('otrosImpuestos', 'Otros impuestos / tasas', keyboard: numDecimal),
+        textField('propinaLegal', 'Propina legal', keyboard: numDecimal),
+      ],
       const SizedBox(height: 16),
       if (widget.canValidate)
         Row(
@@ -343,7 +616,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
               child: FilledButton(
                 onPressed: _saving ? null : () => _save(validar: true),
                 style: FilledButton.styleFrom(padding: const EdgeInsets.all(16)),
-                child: Text(_saving ? 'Guardando…' : 'Guardar y validar'),
+                child: Text(_saving ? 'Guardando…' : 'Validar'),
               ),
             ),
           ],
@@ -361,6 +634,22 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
         Text(
           'Tu contador revisará y validará esta factura.',
           style: TextStyle(fontSize: 12, color: Theme.of(context).hintColor),
+        ),
+      ],
+      // Eliminar: solo administrador (irreversible).
+      if (_esAdmin) ...[
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: _saving ? null : _delete,
+            icon: const Icon(Icons.delete_outline, color: Colors.red),
+            label: const Text('Eliminar factura', style: TextStyle(color: Colors.red)),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.all(14),
+              side: const BorderSide(color: Colors.red),
+            ),
+          ),
         ),
       ],
       const SizedBox(height: 32),

@@ -5,7 +5,8 @@
     <application
         android:label="SubirFactura"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true"><!-- dev: API/MinIO por HTTP en la IP LAN (prod usa HTTPS) -->
         <activity
             android:name=".MainActivity"
             android:exported="true"

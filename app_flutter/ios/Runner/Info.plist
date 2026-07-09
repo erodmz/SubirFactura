@@ -37,6 +37,14 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<!-- Permite HTTP a hosts de red local (API y MinIO en la IP LAN de la Mac
+		     durante el desarrollo). En producción todo va por HTTPS. Sin esto,
+		     iOS bloquea las imágenes de la factura (van a la IP LAN por HTTP). -->
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>FacturaRD necesita la cámara para fotografiar tus facturas</string>
 	<key>NSPhotoLibraryUsageDescription</key>

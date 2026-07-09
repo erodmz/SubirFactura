@@ -223,18 +223,33 @@ class Invoice {
     required this.id,
     required this.estado,
     required this.createdAt,
+    this.clientProfileId,
     this.clientRazonSocial,
     this.ncf,
     this.rncProveedor,
+    this.tipoIdProveedor,
     this.razonSocialProveedor,
     this.fecha,
+    this.fechaPago,
     this.montoFacturado,
     this.itbis,
     this.propinaLegal,
     this.otrosImpuestos,
+    this.impuestoSelectivo,
     this.categoria606,
     this.tipoComprobante,
+    this.tipoBienServicio,
+    this.formaPago,
+    this.ncfModificado,
     this.periodoFiscal,
+    // Retenciones e impuestos (col. 12–23)
+    this.itbisRetenido,
+    this.itbisProporcionalidad,
+    this.itbisCosto,
+    this.itbisPercibido,
+    this.tipoRetencionIsr,
+    this.montoRetencionRenta,
+    this.isrPercibido,
     this.imageUrl,
     this.imageUrls = const [],
     this.camposBajaConfianza = const [],
@@ -254,22 +269,37 @@ class Invoice {
       if (confianza?['error'] is String) confianza!['error'] as String,
     ];
     final validacion = json['validacionDgii'] as Map<String, dynamic>?;
+    String? fechaCorta(dynamic v) => (v as String?)?.substring(0, 10);
     return Invoice(
       id: json['id'] as String,
       estado: json['estado'] as String,
       createdAt: DateTime.parse(json['createdAt'] as String),
+      clientProfileId: client?['id'] as String?,
       clientRazonSocial: client?['razonSocial'] as String?,
       ncf: json['ncf'] as String?,
       rncProveedor: json['rncProveedor'] as String?,
+      tipoIdProveedor: json['tipoIdProveedor'] as String?,
       razonSocialProveedor: json['razonSocialProveedor'] as String?,
-      fecha: (json['fecha'] as String?)?.substring(0, 10),
+      fecha: fechaCorta(json['fecha']),
+      fechaPago: fechaCorta(json['fechaPago']),
       montoFacturado: parseNum(json['montoFacturado']),
       itbis: parseNum(json['itbis']),
       propinaLegal: parseNum(json['propinaLegal']),
       otrosImpuestos: parseNum(json['otrosImpuestos']),
+      impuestoSelectivo: parseNum(json['impuestoSelectivo']),
       categoria606: json['categoria606'] as String?,
       tipoComprobante: json['tipoComprobante'] as String?,
+      tipoBienServicio: json['tipoBienServicio'] as String?,
+      formaPago: json['formaPago'] as String?,
+      ncfModificado: json['ncfModificado'] as String?,
       periodoFiscal: json['periodoFiscal'] as String?,
+      itbisRetenido: parseNum(json['itbisRetenido']),
+      itbisProporcionalidad: parseNum(json['itbisProporcionalidad']),
+      itbisCosto: parseNum(json['itbisCosto']),
+      itbisPercibido: parseNum(json['itbisPercibido']),
+      tipoRetencionIsr: json['tipoRetencionIsr'] as String?,
+      montoRetencionRenta: parseNum(json['montoRetencionRenta']),
+      isrPercibido: parseNum(json['isrPercibido']),
       imageUrl: json['imageUrl'] as String?,
       imageUrls: (json['imageUrls'] as List?)?.cast<String>() ?? const [],
       camposBajaConfianza:
@@ -284,20 +314,35 @@ class Invoice {
   final String id;
   final String estado;
   final DateTime createdAt;
+  final String? clientProfileId;
   final String? clientRazonSocial;
   /// Nombre (o correo) de quien subió la factura. Solo lectura.
   final String? subidoPor;
   final String? ncf;
   final String? rncProveedor;
+  final String? tipoIdProveedor;
   final String? razonSocialProveedor;
   final String? fecha;
+  final String? fechaPago;
   final double? montoFacturado;
   final double? itbis;
   final double? propinaLegal;
   final double? otrosImpuestos;
+  final double? impuestoSelectivo;
   final String? categoria606;
   final String? tipoComprobante;
+  final String? tipoBienServicio;
+  final String? formaPago;
+  final String? ncfModificado;
   final String? periodoFiscal;
+  // Retenciones e impuestos (col. 12–23)
+  final double? itbisRetenido;
+  final double? itbisProporcionalidad;
+  final double? itbisCosto;
+  final double? itbisPercibido;
+  final String? tipoRetencionIsr;
+  final double? montoRetencionRenta;
+  final double? isrPercibido;
   final String? imageUrl;
   final List<String> imageUrls;
   final List<String> camposBajaConfianza;
