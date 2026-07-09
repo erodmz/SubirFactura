@@ -141,11 +141,16 @@ class _ClientInvoicesScreenState extends State<ClientInvoicesScreen> {
       ? _allInvoices.length
       : (_byBusiness[businessId]?.length ?? 0);
 
-  /// Facturas visibles según empresa + estado + búsqueda.
+  /// Facturas visibles según empresa + estado + búsqueda. Las subidas sin
+  /// asignar (share en proceso) se ven en TODOS los filtros: si subo algo, lo veo.
   List<Invoice> get _visible {
-    var list = _businessFilter == null
-        ? _allInvoices
-        : List<Invoice>.from(_byBusiness[_businessFilter] ?? const []);
+    List<Invoice> list;
+    if (_businessFilter == null) {
+      list = _allInvoices;
+    } else {
+      list = [...(_byBusiness[_businessFilter] ?? const []), ..._unassigned]
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    }
     if (_estadoFilter != null) {
       list = list.where((i) => i.estado == _estadoFilter).toList();
     }

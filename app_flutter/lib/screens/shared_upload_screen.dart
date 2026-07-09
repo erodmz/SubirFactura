@@ -161,23 +161,36 @@ class _SharedUploadScreenState extends State<SharedUploadScreen> {
                 if (_error == null)
                   SafeArea(
                     minimum: const EdgeInsets.all(16),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.icon(
-                        onPressed: _submitting ? null : _upload,
-                        icon: _submitting
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Icon(Icons.cloud_upload_outlined),
-                        label: Text(_submitting ? 'Subiendo…' : 'Subir factura'),
-                        style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          backgroundColor: scheme.primary,
+                    child: Row(
+                      children: [
+                        OutlinedButton(
+                          onPressed:
+                              _submitting ? null : () => Navigator.of(context).pop(),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 14, horizontal: 20),
+                          ),
+                          child: const Text('Cancelar'),
                         ),
-                      ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton.icon(
+                            onPressed: _submitting ? null : _upload,
+                            icon: _submitting
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : const Icon(Icons.cloud_upload_outlined),
+                            label: Text(_submitting ? 'Subiendo…' : 'Subir factura'),
+                            style: FilledButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              backgroundColor: scheme.primary,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
               ],
