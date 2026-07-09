@@ -7,6 +7,7 @@ import '../models.dart';
 import '../services/connectivity_service.dart';
 import '../services/upload_queue.dart';
 import '../widgets/connectivity_badge.dart';
+import '../widgets/logo.dart';
 import 'capture_screen.dart';
 import 'invoice_detail_screen.dart';
 import 'login_screen.dart';
@@ -140,7 +141,27 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.client.razonSocial),
+        // Marca de la app, no el nombre de la empresa: un cliente puede tener
+        // acceso a varios negocios. Si puede cambiar, mostramos el negocio
+        // activo como subtítulo para que sepa en cuál está.
+        title: widget.canSwitch
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Logo(size: 20),
+                  const SizedBox(height: 2),
+                  Text(
+                    widget.client.razonSocial,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              )
+            : const Logo(size: 24),
         actions: [
           const ConnectivityBadge(),
           IconButton(
