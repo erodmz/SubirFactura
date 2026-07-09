@@ -47,6 +47,9 @@ class ClientHomeScreen extends StatefulWidget {
 
 class _ClientHomeScreenState extends State<ClientHomeScreen> {
   List<Invoice> _invoices = [];
+  final _searchCtrl = TextEditingController();
+  String? _estadoFilter; // null = todos
+  String _search = '';
   String? _error;
   bool _loading = true;
   Timer? _poll;
@@ -63,8 +66,26 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   @override
   void dispose() {
     _poll?.cancel();
+    _searchCtrl.dispose();
     UploadQueue.instance.removeListener(_onQueueChanged);
     super.dispose();
+  }
+
+  /// Facturas visibles según estado + búsqueda (filtro en cliente).
+  List<Invoice> get _visible {
+    var list = _invoices;
+    if (_estadoFilter != null) {
+      list = list.where((i) => i.estado == _estadoFilter).toList();
+    }
+    final q = _search.trim().toLowerCase();
+    if (q.isNotEmpty) {
+      list = list.where((i) {
+        return (i.razonSocialProveedor ?? '').toLowerCase().contains(q) ||
+            (i.ncf ?? '').toLowerCase().contains(q) ||
+            (i.rncProveedor ?? '').toLowerCase().contains(q);
+      }).toList();
+    }
+    return list;
   }
 
   void _onQueueChanged() {
@@ -281,34 +302,83 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                   )
                 : const SizedBox(width: double.infinity),
           ),
+          // Búsqueda + filtro por estado (aparecen cuando hay facturas).
+          if (!_loading && _invoices.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+              child: TextField(
+                controller: _searchCtrl,
+                onChanged: (v) => setState(() => _search = v),
+                textInputAction: TextInputAction.search,
+                decoration: InputDecoration(
+                  hintText: 'Buscar por proveedor, NCF o RNC…',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _search.isEmpty
+                      ? null
+                      : IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () {
+                            _searchCtrl.clear();
+                            setState(() => _search = '');
+                          },
+                        ),
+                  isDense: true,
+                  filled: true,
+                  fillColor: scheme.surfaceContainerHighest,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(
+              height: 46,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                children: [
+                  _estadoChip(null, 'Todas'),
+                  for (final estado in ['en_revision', 'procesando', 'extraida', 'validada'])
+                    _estadoChip(estado, estadoLabels[estado]!),
+                ],
+              ),
+            ),
+          ],
           Expanded(
             child: RefreshIndicator(
               onRefresh: _load,
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
-                  : _invoices.isEmpty
-                      ? ListView(
-                          children: [
-                            const Padding(
-                              padding: EdgeInsets.all(32),
-                              child: Text(
-                                'Sin facturas todavía.\nToca "Subir factura" para fotografiar la primera.',
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                            if (_error != null)
+                  : Builder(
+                      builder: (context) {
+                        final invoices = _visible;
+                        if (invoices.isEmpty) {
+                          return ListView(
+                            children: [
                               Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 16),
-                                child: Text(_error!,
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(color: Colors.orange)),
+                                padding: const EdgeInsets.all(32),
+                                child: Text(
+                                  _invoices.isEmpty
+                                      ? 'Sin facturas todavía.\nToca "Subir factura" para fotografiar la primera.'
+                                      : 'No hay facturas que coincidan con el filtro.',
+                                  textAlign: TextAlign.center,
+                                ),
                               ),
-                          ],
-                        )
-                      : ListView.builder(
-                          itemCount: _invoices.length,
+                              if (_error != null)
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                                  child: Text(_error!,
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(color: Colors.orange)),
+                                ),
+                            ],
+                          );
+                        }
+                        return ListView.builder(
+                          itemCount: invoices.length,
                           itemBuilder: (context, index) {
-                            final invoice = _invoices[index];
+                            final invoice = invoices[index];
                             final color = _estadoColors[invoice.estado] ?? Colors.grey;
                             final procesando = _processingStates.contains(invoice.estado);
                             return ListTile(
@@ -366,10 +436,24 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                               },
                             );
                           },
-                        ),
+                        );
+                      },
+                    ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _estadoChip(String? estado, String label) {
+    final selected = _estadoFilter == estado;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: FilterChip(
+        label: Text(label),
+        selected: selected,
+        onSelected: (_) => setState(() => _estadoFilter = selected ? null : estado),
       ),
     );
   }
