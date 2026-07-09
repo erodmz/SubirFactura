@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useSearchParams } from 'next/navigation';
 import { api } from '../../../../lib/api';
@@ -43,8 +43,13 @@ export default function InvoicesPage() {
   // El modal se renderiza por portal a <body>; esperar a montar (evita SSR).
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+  // Config de la empresa: si exige aritmética, "Total impreso" se pide a mano.
+  const [requiereAritmetica, setRequiereAritmetica] = useState(true);
 
   useEffect(() => {
+    api<{ requiereValidacionAritmetica?: boolean }>(`/api/organizations/${orgId}`)
+      .then((o) => setRequiereAritmetica(o.requiereValidacionAritmetica !== false))
+      .catch(() => {});
     api<{ id: string; razonSocial: string }[]>(`/api/organizations/${orgId}/clients`)
       .then(setClientes)
       .catch(() => {});
@@ -244,6 +249,7 @@ export default function InvoicesPage() {
                 orgId={orgId}
                 invoice={sel}
                 clientes={clientes}
+                requiereAritmetica={requiereAritmetica}
                 haySiguiente={
                   visibles.findIndex((i) => i.id === sel.id) < visibles.length - 1
                 }
@@ -280,6 +286,7 @@ function ReviewPanel({
   orgId,
   invoice,
   clientes,
+  requiereAritmetica,
   haySiguiente,
   onSaved,
   onSavedNext,
@@ -288,6 +295,7 @@ function ReviewPanel({
   orgId: string;
   invoice: Invoice;
   clientes: { id: string; razonSocial: string }[];
+  requiereAritmetica: boolean;
   haySiguiente: boolean;
   onSaved: () => void;
   onSavedNext: () => void;
@@ -295,6 +303,12 @@ function ReviewPanel({
 }) {
   const marcados = dudosos(invoice);
   const str = (v: number | string | null | undefined) => (v == null ? '' : v.toString());
+  // Total impreso: si la empresa NO exige validación aritmética, lo autocompletamos
+  // con la suma; si la exige, se deja vacío para que el contador lo digite y cuadre.
+  const sumaInicial =
+    (Number(invoice.montoFacturado) || 0) +
+    (Number(invoice.itbis) || 0) +
+    (Number(invoice.propinaLegal) || 0);
   const [form, setForm] = useState({
     // Empresa (cliente) a la que pertenece la factura
     clientProfileId: invoice.clientProfile?.id ?? '',
@@ -310,7 +324,7 @@ function ReviewPanel({
     tipoBienServicio: invoice.tipoBienServicio ?? 'bienes',
     montoFacturado: str(invoice.montoFacturado),
     itbis: str(invoice.itbis),
-    montoTotal: '',
+    montoTotal: requiereAritmetica || sumaInicial === 0 ? '' : sumaInicial.toFixed(2),
     formaPago: invoice.formaPago ?? '',
     // Tab 2 · avanzado (col. 12–23)
     itbisRetenido: str(invoice.itbisRetenido),
@@ -328,6 +342,8 @@ function ReviewPanel({
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [showHint, setShowHint] = useState(false);
+  const hintRef = useRef<HTMLDivElement>(null);
   const [imageUrls, setImageUrls] = useState<string[] | null>(null);
   const [lightbox, setLightbox] = useState<number | null>(null); // índice de imagen ampliada
 
@@ -349,6 +365,16 @@ function ReviewPanel({
     if (dirty && !confirm('Tienes cambios sin guardar. ¿Descartarlos?')) return;
     onClose();
   }, [dirty, onClose]);
+
+  // Cierra el hint al hacer clic fuera de él.
+  useEffect(() => {
+    if (!showHint) return;
+    function onDown(e: MouseEvent) {
+      if (hintRef.current && !hintRef.current.contains(e.target as Node)) setShowHint(false);
+    }
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [showHint]);
 
   const numField = (label: string, key: keyof typeof form, critical?: string, full?: boolean) => (
     <div className={full ? 'full' : undefined}>
@@ -383,12 +409,6 @@ function ReviewPanel({
         ))}
       </select>
     </div>
-  );
-
-  // Suma esperada según los montos capturados (para validar contra el total impreso).
-  const sumaCalculada = (['montoFacturado', 'itbis', 'propinaLegal'] as const).reduce(
-    (acc, k) => acc + (Number(form[k]) || 0),
-    0,
   );
 
   // Guarda (y opcionalmente valida). Devuelve true si tuvo éxito, para que
@@ -700,14 +720,6 @@ function ReviewPanel({
             { value: '7', label: '7 · Mixto / otras' },
           ])}
           {numField('Total impreso (verifica aritmética)', 'montoTotal')}
-
-          <p className="muted full" style={{ margin: '2px 0 0' }}>
-            Suma calculada (subtotal + ITBIS + propina): <strong>{sumaCalculada.toFixed(2)}</strong>
-            {form.montoTotal !== '' &&
-              Math.abs(sumaCalculada - Number(form.montoTotal)) > 0.01 && (
-                <span style={{ color: 'var(--danger)' }}> · no coincide con el total impreso</span>
-              )}
-          </p>
         </div>
       ) : (
         <>
@@ -739,29 +751,50 @@ function ReviewPanel({
         </>
       )}
 
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14 }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14, alignItems: 'center' }}>
+        <button className="secondary" onClick={closeGuarded} disabled={busy}>
+          Cancelar
+        </button>
         <button className="secondary" onClick={() => guardar(true)} disabled={busy}>
           Guardar
         </button>
         <button className="secondary" onClick={guardarYValidar} disabled={busy}>
           Guardar y validar
         </button>
-        {haySiguiente && (
+        {haySiguiente ? (
           <button onClick={validarYSiguiente} disabled={busy} title="⌘/Ctrl + Enter">
             {busy ? 'Guardando…' : 'Validar y siguiente →'}
           </button>
-        )}
-        {!haySiguiente && (
+        ) : (
           <button onClick={guardarYValidar} disabled={busy} title="⌘/Ctrl + Enter">
             {busy ? 'Guardando…' : 'Validar y cerrar'}
           </button>
         )}
+        {/* Ayuda: qué hace cada botón (hint). */}
+        <div className="hint" ref={hintRef} style={{ marginLeft: 'auto', position: 'relative' }}>
+          <button
+            type="button"
+            className="hint-btn"
+            aria-label="¿Qué hace cada botón?"
+            onClick={() => setShowHint((v) => !v)}
+          >
+            ?
+          </button>
+          {showHint && (
+            <div className="hint-pop">
+              <strong>Guardar</strong>: guarda el avance sin validar.
+              <br />
+              <strong>Guardar y validar</strong>: guarda y valida (cierra o queda).
+              <br />
+              <strong>Validar y siguiente</strong> (⌘/Ctrl+Enter): valida y salta a la próxima
+              factura sin cerrar.
+              <br />
+              Para validar, los campos críticos deben estar completos (y la aritmética cuadrar, si
+              está activada).
+            </div>
+          )}
+        </div>
       </div>
-      <p className="muted" style={{ marginTop: 8 }}>
-        <strong>Guardar</strong>: guarda el avance sin validar. <strong>Validar y siguiente</strong>{' '}
-        (⌘/Ctrl+Enter): valida y salta a la próxima factura sin cerrar. Para validar, los campos
-        críticos deben estar completos (y la aritmética cuadrar, si está activada).
-      </p>
         </div>
       </div>
       {lightbox !== null && imageUrls && imageUrls.length > 0 && (
