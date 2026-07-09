@@ -18,6 +18,7 @@ const campo = <T extends z.ZodType>(valor: T) =>
 const ExtractionSchema = z.object({
   ncf: campo(z.string()),
   rnc_proveedor: campo(z.string()),
+  rnc_comprador: campo(z.string()),
   razon_social: campo(z.string()),
   fecha: campo(z.string()),
   monto_facturado: campo(z.number()),
@@ -42,6 +43,7 @@ const PROMPT = `Eres un extractor de datos fiscales de República Dominicana. An
 Reglas:
 - NCF: comprobante fiscal (serie B + 2 dígitos de tipo + 8 secuenciales, p.ej. B0100000123; o e-CF serie E de 13 caracteres). Transcríbelo EXACTAMENTE como aparece.
 - rnc_proveedor: RNC (9 dígitos) o cédula (11 dígitos) del PROVEEDOR que emite la factura, no del comprador.
+- rnc_comprador: RNC (9 dígitos) o cédula (11 dígitos) del COMPRADOR/receptor (a quién se le facturó, suele aparecer como "RNC cliente", "Señores", "Facturar a"). Si no aparece, deja el valor vacío y confianza 0.
 - fecha: fecha de emisión en formato AAAA-MM-DD.
 - monto_facturado: subtotal SIN impuestos. itbis: el ITBIS (18%). propina_legal: propina del 10% si aparece. monto_total: el total final impreso.
 - tipo_comprobante: los 2 dígitos de tipo del NCF (p.ej. "01" para crédito fiscal).

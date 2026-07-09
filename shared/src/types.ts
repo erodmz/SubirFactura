@@ -8,6 +8,9 @@ export interface ExtractedField<T> {
 export interface InvoiceExtraction {
   ncf: ExtractedField<string>;
   rnc_proveedor: ExtractedField<string>;
+  // Comprador/receptor: no es campo crítico, pero permite auto-asignar la
+  // factura a su cliente cuando se sube sin elegir (Share Extension).
+  rnc_comprador: ExtractedField<string>;
   razon_social: ExtractedField<string>;
   fecha: ExtractedField<string>; // ISO AAAA-MM-DD
   monto_facturado: ExtractedField<number>; // subtotal sin impuestos
