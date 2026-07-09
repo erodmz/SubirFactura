@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { api } from '../../lib/api';
 import ThemeToggle from '../../components/ThemeToggle';
 import Logo from '../../components/Logo';
+import { EyeIcon, EyeOffIcon } from '../../components/icons';
 
 function ResetForm() {
   const router = useRouter();
@@ -84,15 +85,16 @@ function ResetForm() {
                   right: 6,
                   top: 6,
                   margin: 0,
-                  padding: '4px 8px',
+                  padding: '8px',
                   background: 'transparent',
                   border: 'none',
                   color: 'var(--muted)',
-                  fontSize: 18,
                   cursor: 'pointer',
+                  display: 'grid',
+                  placeItems: 'center',
                 }}
               >
-                {show ? '🙈' : '👁️'}
+                {show ? <EyeOffIcon size={20} /> : <EyeIcon size={20} />}
               </button>
             </div>
             <label>Confirmar contraseña</label>

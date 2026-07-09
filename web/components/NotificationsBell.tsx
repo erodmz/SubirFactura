@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { api } from '../lib/api';
+import { BellIcon } from './icons';
 import type { CierreEstado } from '../lib/types';
 
 function periodoActual(): string {
@@ -80,7 +81,7 @@ export default function NotificationsBell({ orgId }: { orgId: string }) {
         aria-label={`Notificaciones${alertas.length ? ` (${alertas.length})` : ''}`}
         title="Notificaciones"
       >
-        🔔
+        <BellIcon size={20} />
         {alertas.length > 0 && <span className="notif-badge">{alertas.length}</span>}
       </button>
       {open && (

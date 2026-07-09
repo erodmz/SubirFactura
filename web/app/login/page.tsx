@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { api, saveTokens, PENDING_INVITE_KEY, type Tokens } from '../../lib/api';
 import ThemeToggle from '../../components/ThemeToggle';
 import Logo from '../../components/Logo';
+import { EyeIcon, EyeOffIcon } from '../../components/icons';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -75,15 +76,16 @@ export default function LoginPage() {
                 right: 6,
                 top: 6,
                 margin: 0,
-                padding: '4px 8px',
+                padding: '8px',
                 background: 'transparent',
                 border: 'none',
                 color: 'var(--muted)',
-                fontSize: 18,
                 cursor: 'pointer',
+                display: 'grid',
+                placeItems: 'center',
               }}
             >
-              {showPassword ? '🙈' : '👁️'}
+              {showPassword ? <EyeOffIcon size={20} /> : <EyeIcon size={20} />}
             </button>
           </div>
           <button disabled={busy}>{busy ? 'Entrando…' : 'Entrar'}</button>

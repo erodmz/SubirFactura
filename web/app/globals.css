@@ -964,10 +964,11 @@ main.app-content {
   border-radius: 999px;
   width: 40px;
   height: 40px;
-  font-size: 17px;
   line-height: 1;
   color: var(--text);
   cursor: pointer;
+  display: grid;
+  place-items: center;
 }
 .notif-btn:hover {
   background: var(--bg-soft);
