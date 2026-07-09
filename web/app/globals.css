@@ -903,6 +903,24 @@ main.app-content {
   color: var(--brand);
   font-size: 26px;
 }
+/* Logo real de la empresa: se muestra completo (sin recortar) sobre fondo
+   neutro claro — funciona con logos transparentes o de cualquier proporción. */
+.org-logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  padding: 5px;
+  background: #fff;
+  border: 1px solid var(--border);
+}
+.org-logo img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
 
 /* ── Animaciones ────────────────────────────────────────────────────────── */
 @keyframes fadeInUp {

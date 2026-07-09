@@ -75,12 +75,8 @@ export default function HomePage() {
               {me.memberships.map((m) => (
                 <Link key={m.membershipId} href={`/orgs/${m.organization.id}`} className="org-card">
                   {m.organization.logoUrl ? (
-                    <span className="org-initial" style={{ overflow: 'hidden', padding: 0 }}>
-                      <img
-                        src={m.organization.logoUrl}
-                        alt={m.organization.nombre}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      />
+                    <span className="org-logo">
+                      <img src={m.organization.logoUrl} alt={m.organization.nombre} />
                     </span>
                   ) : (
                     <span className="org-initial">

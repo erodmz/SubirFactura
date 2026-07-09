@@ -48,7 +48,19 @@ class OrgSelectorScreen extends StatelessWidget {
             Card(
               child: ListTile(
                 leading: m.orgLogoUrl != null
-                    ? CircleAvatar(backgroundImage: NetworkImage(m.orgLogoUrl!))
+                    // Logo completo (sin recortar) sobre fondo blanco; funciona con
+                    // logos anchos o transparentes.
+                    ? Container(
+                        width: 44,
+                        height: 44,
+                        padding: const EdgeInsets.all(5),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Theme.of(context).dividerColor),
+                        ),
+                        child: Image.network(m.orgLogoUrl!, fit: BoxFit.contain),
+                      )
                     : CircleAvatar(
                         child: Text(
                           (m.orgNombre.isNotEmpty ? m.orgNombre[0] : '?').toUpperCase(),
