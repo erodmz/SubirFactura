@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useSearchParams } from 'next/navigation';
 import { api } from '../../../../lib/api';
 import DataTable from '../../../../components/DataTable';
@@ -38,6 +39,9 @@ export default function InvoicesPage() {
   const [expanded, setExpanded] = useState<string | null>(searchParams.get('open'));
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  // El modal se renderiza por portal a <body>; esperar a montar (evita SSR).
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     api<{ id: string; razonSocial: string }[]>(`/api/organizations/${orgId}/clients`)
@@ -215,8 +219,10 @@ export default function InvoicesPage() {
 
       {(() => {
         const sel = expanded ? invoices.find((i) => i.id === expanded) : undefined;
-        if (!sel) return null;
-        return (
+        if (!sel || !mounted) return null;
+        // Portal a <body>: escapa cualquier transform de ancestros (p. ej. la
+        // animación de .app-content) que rompía el position:fixed del overlay.
+        return createPortal(
           <div
             style={{
               position: 'fixed',
@@ -225,7 +231,7 @@ export default function InvoicesPage() {
               display: 'flex',
               alignItems: 'flex-start',
               justifyContent: 'center',
-              padding: '32px 16px',
+              padding: '24px 16px',
               overflowY: 'auto',
               zIndex: 50,
             }}
@@ -248,7 +254,8 @@ export default function InvoicesPage() {
                 onSavedNext={() => irASiguiente(sel.id)}
               />
             </div>
-          </div>
+          </div>,
+          document.body,
         );
       })()}
     </>
@@ -462,8 +469,24 @@ function ReviewPanel({
   }
 
   return (
-    <div className="card">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+    <div
+      className="card"
+      style={{
+        maxHeight: 'calc(100dvh - 48px)',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          marginBottom: 12,
+          flexShrink: 0,
+        }}
+      >
         <h2 style={{ margin: 0, flex: 1 }}>Revisar factura</h2>
         <span className="badge">{ESTADO_LABELS[invoice.estado] ?? invoice.estado}</span>
         <button
@@ -478,8 +501,19 @@ function ReviewPanel({
         </button>
       </div>
 
-      {/* Split view: imagen fija a la izquierda, formulario a la derecha (se apila en móvil). */}
-      <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+      {/* Split view: imagen fija a la izquierda, formulario a la derecha (se apila en móvil).
+          El contenedor scrollea internamente; el encabezado queda fijo arriba. */}
+      <div
+        style={{
+          display: 'flex',
+          gap: 20,
+          flexWrap: 'wrap',
+          alignItems: 'flex-start',
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+        }}
+      >
         <div
           style={{
             flex: '1 1 320px',
