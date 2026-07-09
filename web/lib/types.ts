@@ -137,6 +137,15 @@ export interface CierreEstado {
   avisos: string[];
 }
 
+export interface ResumenGastos {
+  totalGastado: number;
+  totalItbis: number;
+  cantidad: number;
+  porCategoria: { codigo: string; nombre: string; total: number; cantidad: number }[];
+  porMes: { periodo: string; total: number; itbis: number; cantidad: number }[];
+  topProveedores: { razonSocial: string; total: number; cantidad: number }[];
+}
+
 /** Las 11 categorías de gasto del Formato 606. */
 export const CATEGORIAS_606: Record<string, string> = {
   '01': 'Gastos de personal',

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { api } from '../../../../lib/api';
 import { CATEGORIAS_606, ESTADO_LABELS, type Invoice } from '../../../../lib/types';
 
@@ -25,11 +25,13 @@ function fechaCorta(fecha: string | null): string {
 
 export default function InvoicesPage() {
   const { orgId } = useParams<{ orgId: string }>();
+  const searchParams = useSearchParams();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [clientes, setClientes] = useState<{ id: string; razonSocial: string }[]>([]);
-  const [clientId, setClientId] = useState<string>('');
-  const [estado, setEstado] = useState<string>('en_revision');
-  const [periodo, setPeriodo] = useState('');
+  // Filtros iniciales desde la URL (enlaces del dashboard: ?estado=…&clientId=…&periodo=…).
+  const [clientId, setClientId] = useState<string>(searchParams.get('clientId') ?? '');
+  const [estado, setEstado] = useState<string>(searchParams.get('estado') ?? 'en_revision');
+  const [periodo, setPeriodo] = useState(searchParams.get('periodo') ?? '');
   const [busqueda, setBusqueda] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
   const [error, setError] = useState('');
