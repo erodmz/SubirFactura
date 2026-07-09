@@ -84,8 +84,11 @@ class _ClientInvoicesScreenState extends State<ClientInvoicesScreen> {
     var anyError = false;
     final map = <String, List<Invoice>>{};
     final nameByInvoice = <String, String>{};
-    // Deduplicamos las sin asignar (cada consulta por-negocio las devuelve).
-    final unassignedById = <String, Invoice>{for (final i in _unassigned) i.id: i};
+    // Se reconstruye desde cero en cada carga (NO se siembra con el valor
+    // anterior): si no, una factura que el worker ya asignó seguiría apareciendo
+    // como copia fantasma "Procesando". Cada consulta por-negocio devuelve las
+    // sin asignar, así que aquí solo deduplicamos.
+    final unassignedById = <String, Invoice>{};
     await Future.wait(_businesses.map((b) async {
       try {
         final data = await ApiClient.instance.get(
@@ -109,6 +112,13 @@ class _ClientInvoicesScreenState extends State<ClientInvoicesScreen> {
         }
       }
     }));
+    // Si alguna consulta ya la vio asignada (raza en el instante en que el
+    // worker la clasifica), no la muestres además como "sin asignar".
+    final asignadas = <String>{
+      for (final list in map.values)
+        for (final inv in list) inv.id,
+    };
+    unassignedById.removeWhere((id, _) => asignadas.contains(id));
     if (!mounted) return;
     setState(() {
       _byBusiness
