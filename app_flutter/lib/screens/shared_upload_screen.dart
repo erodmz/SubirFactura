@@ -36,6 +36,9 @@ class _SharedUploadScreenState extends State<SharedUploadScreen> {
   String? _error;
   bool _loading = true;
   bool _submitting = false;
+  // Con varias fotos: false = una factura por foto (por defecto, no fusiona);
+  // true = páginas de un mismo comprobante (recibo largo en partes).
+  bool _comoUnaFactura = false;
 
   @override
   void initState() {
@@ -92,22 +95,33 @@ class _SharedUploadScreenState extends State<SharedUploadScreen> {
     final org = _selected;
     if (_submitting || org == null || widget.photos.isEmpty) return;
     setState(() => _submitting = true);
+    final photos = List.of(widget.photos);
     // clientProfileId = null SIEMPRE → el worker asigna el cliente por el RNC.
-    await UploadQueue.instance.enqueue(
-      orgId: org.orgId,
-      clientProfileId: null,
-      images: List.of(widget.photos),
-    );
+    final unaSola = _comoUnaFactura || photos.length == 1;
+    if (unaSola) {
+      // Una factura (todas las fotos como páginas de un mismo comprobante).
+      await UploadQueue.instance
+          .enqueue(orgId: org.orgId, clientProfileId: null, images: photos);
+    } else {
+      // Una factura por cada foto (facturas separadas).
+      for (final p in photos) {
+        await UploadQueue.instance
+            .enqueue(orgId: org.orgId, clientProfileId: null, images: [p]);
+      }
+    }
     if (!mounted) return;
-    // Volver a la lista (raíz) y avisar; ahí se ve la factura subiendo.
+    // Volver a la lista (raíz) y avisar; ahí se ven subiendo.
     final messenger = ScaffoldMessenger.of(context);
     final online = ConnectivityService.instance.online.value;
+    final n = unaSola ? 1 : photos.length;
     Navigator.of(context).popUntil((route) => route.isFirst);
     messenger.showSnackBar(
       SnackBar(
-        content: Text(online
-            ? 'Factura recibida — se clasificará sola por el RNC'
-            : 'Sin conexión: guardada como pendiente, se subirá al reconectar'),
+        content: Text(!online
+            ? 'Sin conexión: guardada${n > 1 ? 's' : ''} como pendiente${n > 1 ? 's' : ''}, se subirá${n > 1 ? 'n' : ''} al reconectar'
+            : n == 1
+                ? 'Factura recibida — se clasificará sola por el RNC'
+                : '$n facturas recibidas — se clasifican solas por el RNC'),
       ),
     );
   }
@@ -129,10 +143,42 @@ class _SharedUploadScreenState extends State<SharedUploadScreen> {
                         Text(_error!, style: const TextStyle(color: Colors.red)),
                         const SizedBox(height: 12),
                       ],
-                      Text('Factura a subir',
-                          style: Theme.of(context).textTheme.titleMedium),
+                      Text(
+                        widget.photos.length > 1
+                            ? '${widget.photos.length} fotos a subir'
+                            : 'Factura a subir',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
                       const SizedBox(height: 12),
                       _preview(),
+                      // Con varias fotos: ¿facturas separadas o una de varias páginas?
+                      if (_error == null && widget.photos.length > 1) ...[
+                        const SizedBox(height: 20),
+                        Text('¿Cómo las subimos?',
+                            style: Theme.of(context).textTheme.titleSmall),
+                        const SizedBox(height: 8),
+                        SegmentedButton<bool>(
+                          segments: const [
+                            ButtonSegment(
+                                value: false, label: Text('Separadas')),
+                            ButtonSegment(
+                                value: true, label: Text('Una factura')),
+                          ],
+                          selected: {_comoUnaFactura},
+                          showSelectedIcon: false,
+                          onSelectionChanged: _submitting
+                              ? null
+                              : (s) => setState(() => _comoUnaFactura = s.first),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          _comoUnaFactura
+                              ? 'Se subirán como páginas de un mismo comprobante.'
+                              : 'Una factura por cada foto; el RNC clasifica cada una.',
+                          style: TextStyle(
+                              color: Theme.of(context).hintColor, fontSize: 13),
+                        ),
+                      ],
                       // Solo si el usuario pertenece a VARIOS despachos: elegir a
                       // cuál. El cliente lo asigna el worker por el RNC, no aquí.
                       if (_error == null && _orgs.length > 1) ...[
@@ -183,7 +229,11 @@ class _SharedUploadScreenState extends State<SharedUploadScreen> {
                                     child: CircularProgressIndicator(strokeWidth: 2),
                                   )
                                 : const Icon(Icons.cloud_upload_outlined),
-                            label: Text(_submitting ? 'Subiendo…' : 'Subir factura'),
+                            label: Text(_submitting
+                                ? 'Subiendo…'
+                                : (!_comoUnaFactura && widget.photos.length > 1)
+                                    ? 'Subir ${widget.photos.length} facturas'
+                                    : 'Subir factura'),
                             style: FilledButton.styleFrom(
                               padding: const EdgeInsets.symmetric(vertical: 14),
                               backgroundColor: scheme.primary,
