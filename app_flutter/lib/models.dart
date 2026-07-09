@@ -230,10 +230,12 @@ class Invoice {
     this.erroresValidacion = const [],
     this.alertasDgii = const [],
     this.validacionDgiiOk = false,
+    this.subidoPor,
   });
 
   factory Invoice.fromJson(Map<String, dynamic> json) {
     final client = json['clientProfile'] as Map<String, dynamic>?;
+    final subido = json['subidoPor'] as Map<String, dynamic>?;
     final confianza = json['confianzaPorCampo'] as Map<String, dynamic>?;
     final evaluation = confianza?['evaluation'] as Map<String, dynamic>?;
     final errores = <String>[
@@ -264,6 +266,7 @@ class Invoice {
       erroresValidacion: errores,
       alertasDgii: (validacion?['alertas'] as List?)?.cast<String>() ?? const [],
       validacionDgiiOk: validacion?['ok'] as bool? ?? false,
+      subidoPor: subido?['nombre'] as String? ?? subido?['email'] as String?,
     );
   }
 
@@ -271,6 +274,8 @@ class Invoice {
   final String estado;
   final DateTime createdAt;
   final String? clientRazonSocial;
+  /// Nombre (o correo) de quien subió la factura. Solo lectura.
+  final String? subidoPor;
   final String? ncf;
   final String? rncProveedor;
   final String? razonSocialProveedor;

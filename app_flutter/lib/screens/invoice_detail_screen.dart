@@ -195,6 +195,18 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                       ? invoice.imageUrls
                       : [if (invoice.imageUrl != null) invoice.imageUrl!],
                 ),
+                if (invoice.subidoPor != null) ...[
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Icon(Icons.person_outline,
+                          size: 16, color: Theme.of(context).hintColor),
+                      const SizedBox(width: 6),
+                      Text('Subido por ${invoice.subidoPor}',
+                          style: TextStyle(color: Theme.of(context).hintColor, fontSize: 13)),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 16),
                 if (invoice.erroresValidacion.isNotEmpty)
                   Card(

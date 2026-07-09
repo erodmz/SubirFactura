@@ -109,6 +109,7 @@ export class InvoicesService {
       data: {
         organizationId: orgId,
         clientProfileId: clientProfileId ?? null,
+        subidoPorId: user.userId,
         estado: 'subida',
         imagenUrl: primaryKey,
         imagenPhash: imageHash,
@@ -341,6 +342,7 @@ export class InvoicesService {
       where: { id: invoiceId },
       include: {
         clientProfile: { select: { id: true, razonSocial: true, rncOCedula: true } },
+        subidoPor: { select: { nombre: true, email: true } },
         images: { orderBy: { orderIndex: 'asc' } },
       },
     });

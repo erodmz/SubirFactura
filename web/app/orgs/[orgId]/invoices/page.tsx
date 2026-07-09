@@ -366,12 +366,18 @@ function ReviewPanel({
   const hintRef = useRef<HTMLDivElement>(null);
   const [imageUrls, setImageUrls] = useState<string[] | null>(null);
   const [lightbox, setLightbox] = useState<number | null>(null); // índice de imagen ampliada
+  const [subidoPor, setSubidoPor] = useState<{ nombre: string; email: string } | null>(null);
 
   useEffect(() => {
-    api<{ imageUrl?: string; imageUrls?: string[] }>(
-      `/api/organizations/${orgId}/invoices/${invoice.id}`,
-    )
-      .then((d) => setImageUrls(d.imageUrls ?? (d.imageUrl ? [d.imageUrl] : [])))
+    api<{
+      imageUrl?: string;
+      imageUrls?: string[];
+      subidoPor?: { nombre: string; email: string } | null;
+    }>(`/api/organizations/${orgId}/invoices/${invoice.id}`)
+      .then((d) => {
+        setImageUrls(d.imageUrls ?? (d.imageUrl ? [d.imageUrl] : []));
+        setSubidoPor(d.subidoPor ?? null);
+      })
       .catch(() => {});
   }, [orgId, invoice.id]);
 
@@ -659,6 +665,12 @@ function ReviewPanel({
                 </button>
               ))}
             </div>
+          )}
+
+          {subidoPor && (
+            <p className="muted" style={{ margin: '10px 0 0', fontSize: 13 }}>
+              Subido por <strong>{subidoPor.nombre || subidoPor.email}</strong>
+            </p>
           )}
 
           {/* Alertas y validaciones: aprovechan el espacio bajo la imagen. */}
