@@ -41,6 +41,22 @@ export class ListInvoicesQueryDto {
   periodoFiscal?: string;
 }
 
+/**
+ * Asignación de forma de pago EN LOTE: destraba el cierre del 606 cuando hay
+ * facturas validadas sin forma de pago (el 606 la requiere y no se inventa).
+ */
+export class BulkFormaPagoDto {
+  @IsString()
+  @IsNotEmpty({ message: 'Falta el cliente' })
+  clientProfileId!: string;
+
+  @Matches(/^\d{6}$/, { message: 'Período fiscal inválido (AAAAMM)' })
+  periodoFiscal!: string;
+
+  @IsIn(['1', '2', '3', '4', '5', '6', '7'], { message: 'Forma de pago inválida (1–7)' })
+  formaPago!: string;
+}
+
 /** Edición campo a campo en la cola de revisión (§5.3). Todos opcionales. */
 export class ReviewInvoiceDto {
   @IsOptional()

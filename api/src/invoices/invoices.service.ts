@@ -833,6 +833,39 @@ export class InvoicesService {
     return { validacion, razonSocialOficial };
   }
 
+  /**
+   * Asigna la forma de pago EN LOTE a las facturas validadas de un cliente y
+   * período que no la tengan. Solo toca `validada`: las ya incluidas en un 606
+   * están selladas. Devuelve cuántas se actualizaron.
+   */
+  async bulkFormaPago(
+    orgId: string,
+    clientProfileId: string,
+    periodoFiscal: string,
+    formaPago: string,
+    user: AuthenticatedUser,
+  ) {
+    const result = await this.prisma.forOrg(orgId).invoice.updateMany({
+      where: {
+        organizationId: orgId,
+        clientProfileId,
+        periodoFiscal,
+        estado: 'validada',
+        formaPago: null,
+      },
+      data: { formaPago },
+    });
+    await this.audit.log({
+      organizationId: orgId,
+      userId: user.userId,
+      accion: 'invoice.bulk_forma_pago',
+      entidad: 'client_profile',
+      entidadId: clientProfileId,
+      datos: { periodoFiscal, formaPago, actualizadas: result.count },
+    });
+    return { actualizadas: result.count };
+  }
+
   /** Re-encola el OCR (p.ej. tras un fallo). */
   async retry(orgId: string, invoiceId: string, user: AuthenticatedUser, membership: Membership) {
     const invoice = await this.prisma.forOrg(orgId).invoice.findUnique({

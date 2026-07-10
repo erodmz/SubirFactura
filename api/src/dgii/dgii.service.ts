@@ -86,6 +86,8 @@ export interface CierreEstado {
     duplicadas: number;
     conAlertasDgii: number;
     sinDatos606: number;
+    /** Reportables a las que solo les falta la forma de pago (arreglable en lote). */
+    sinFormaPago: number;
     /** Facturas del período sin asignar a ningún cliente (no entran a ningún 606). */
     sinAsignar: number;
   };
@@ -114,6 +116,9 @@ export class DgiiService {
     if (!invoice.ncf) return { error: 'sin NCF' };
     if (!invoice.fecha) return { error: 'sin fecha del comprobante' };
     if (!invoice.categoria606) return { error: 'sin categoría 606 confirmada' };
+    // La forma de pago es una columna del 606: sin ella NO se inventa un valor
+    // (antes se reportaba "1 · Efectivo" en silencio — dato falso ante la DGII).
+    if (!invoice.formaPago) return { error: 'sin forma de pago' };
 
     const taxId = validateTaxId(invoice.rncProveedor);
     if (!taxId.valid) return { error: `RNC/cédula inválido: ${taxId.error}` };
@@ -156,7 +161,7 @@ export class DgiiService {
       impuestoSelectivo: n(invoice.impuestoSelectivo),
       otrosImpuestos: n(invoice.otrosImpuestos),
       propinaLegal: n(invoice.propinaLegal),
-      formaPago: invoice.formaPago ?? '1',
+      formaPago: invoice.formaPago,
     };
   }
 
@@ -256,6 +261,7 @@ export class DgiiService {
       duplicadas: 0,
       conAlertasDgii: 0,
       sinDatos606: 0,
+      sinFormaPago: 0,
       sinAsignar,
     };
     for (const inv of invoices) {
@@ -265,7 +271,12 @@ export class DgiiService {
       else if (inv.estado === 'duplicada') t.duplicadas++;
       else if ((REPORTABLE as readonly string[]).includes(inv.estado)) {
         t.reportables++;
-        if ('error' in this.toDetail(inv)) t.sinDatos606++;
+        const detail = this.toDetail(inv);
+        if ('error' in detail) {
+          // La forma de pago se cuenta aparte: tiene arreglo en lote desde el panel.
+          if (detail.error === 'sin forma de pago') t.sinFormaPago++;
+          else t.sinDatos606++;
+        }
         const val = inv.validacionDgii as { ok?: boolean } | null;
         if (val && val.ok === false) t.conAlertasDgii++;
       }
@@ -283,6 +294,8 @@ export class DgiiService {
     if (t.enProceso > 0) bloqueos.push(`${t.enProceso} factura(s) aún procesándose`);
     if (t.enRevision > 0) bloqueos.push(`${t.enRevision} factura(s) en revisión`);
     if (t.sinDatos606 > 0) bloqueos.push(`${t.sinDatos606} validada(s) sin datos completos para el 606`);
+    if (t.sinFormaPago > 0)
+      bloqueos.push(`${t.sinFormaPago} factura(s) sin forma de pago (el 606 la requiere; asígnala en lote abajo)`);
 
     const avisos: string[] = [];
     if (t.conAlertasDgii > 0) avisos.push(`${t.conAlertasDgii} con alertas de la DGII (RNC/padrón)`);

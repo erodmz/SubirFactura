@@ -195,6 +195,8 @@ export interface CierreEstado {
     duplicadas: number;
     conAlertasDgii: number;
     sinDatos606: number;
+    /** Reportables a las que solo les falta la forma de pago (arreglable en lote). */
+    sinFormaPago: number;
     /** Facturas del período sin asignar a ningún cliente (no entran a ningún 606). */
     sinAsignar: number;
   };

@@ -18,6 +18,7 @@ import { InvoicesService } from './invoices.service';
 import { OrgRoles } from '../common/decorators/org-roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-user.decorator';
 import {
+  BulkFormaPagoDto,
   ChangeStatusDto,
   ListInvoicesQueryDto,
   ReviewInvoiceDto,
@@ -45,6 +46,24 @@ export class InvoicesController {
       throw new Error('Falta el archivo: enviar multipart/form-data con el campo "file" o "files"');
     }
     return this.invoices.upload(orgId, user, req.membership, dto.clientProfileId, files);
+  }
+
+  // Ruta literal ANTES de las rutas con :invoiceId para que Nest no la capture
+  // como un id. Destraba el cierre del 606 asignando la forma de pago en lote.
+  @Patch('forma-pago-lote')
+  @OrgRoles('org_admin', 'contador')
+  bulkFormaPago(
+    @Param('orgId') orgId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: BulkFormaPagoDto,
+  ) {
+    return this.invoices.bulkFormaPago(
+      orgId,
+      dto.clientProfileId,
+      dto.periodoFiscal,
+      dto.formaPago,
+      user,
+    );
   }
 
   @Get()

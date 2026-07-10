@@ -66,6 +66,8 @@ export default function DgiiPage() {
   const [estado, setEstado] = useState<CierreEstado | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  // Forma de pago elegida para aplicar en lote a las facturas que no la tienen.
+  const [bulkFormaPago, setBulkFormaPago] = useState('');
 
   const validPeriodo = /^\d{6}$/.test(periodo);
   const cliente = clients.find((c) => c.id === clientId) ?? null;
@@ -124,6 +126,27 @@ export default function DgiiPage() {
     setPreview(null);
     setCierre(null);
   }, [clientId, periodo]);
+
+  // Destraba el cierre: asigna la forma de pago a todas las validadas que no
+  // la tienen (el 606 la requiere y ya no se inventa un default).
+  async function aplicarFormaPagoLote() {
+    if (!bulkFormaPago) return;
+    setBusy(true);
+    setError('');
+    try {
+      await api(`/api/organizations/${orgId}/invoices/forma-pago-lote`, {
+        method: 'PATCH',
+        body: { clientProfileId: clientId, periodoFiscal: periodo, formaPago: bulkFormaPago },
+      });
+      setBulkFormaPago('');
+      await loadEstado();
+      await loadPanel();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo asignar la forma de pago');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function doPreview() {
     setBusy(true);
@@ -387,6 +410,33 @@ export default function DgiiPage() {
                 <Link href={invLink({ clientId, periodo, estado: 'en_revision' })}>
                   Ir a revisar sus facturas →
                 </Link>
+              )}
+              {estado.totales.sinFormaPago > 0 && (
+                <div
+                  style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}
+                >
+                  <select
+                    value={bulkFormaPago}
+                    onChange={(e) => setBulkFormaPago(e.target.value)}
+                    aria-label="Forma de pago para aplicar en lote"
+                  >
+                    <option value="">Forma de pago…</option>
+                    <option value="1">1 · Efectivo</option>
+                    <option value="2">2 · Cheque / transferencia</option>
+                    <option value="3">3 · Tarjeta crédito/débito</option>
+                    <option value="4">4 · Compra a crédito</option>
+                    <option value="5">5 · Permuta</option>
+                    <option value="6">6 · Nota de crédito</option>
+                    <option value="7">7 · Mixto / otras</option>
+                  </select>
+                  <button
+                    className="secondary"
+                    disabled={!bulkFormaPago || busy}
+                    onClick={aplicarFormaPagoLote}
+                  >
+                    Aplicar a las {estado.totales.sinFormaPago} sin forma de pago
+                  </button>
+                </div>
               )}
             </div>
           )}
