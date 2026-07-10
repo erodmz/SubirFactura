@@ -367,6 +367,49 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                   ),
                 ],
                 const SizedBox(height: 16),
+                // Lectura atascada: en vez de un spinner eterno, salida clara.
+                // Visible para TODOS los roles (el API permite reintentar al
+                // cliente sobre sus propias facturas).
+                if (invoice.pareceAtascada) ...[
+                  Card(
+                    color: Theme.of(context).colorScheme.secondaryContainer,
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.hourglass_bottom_outlined,
+                                  size: 18,
+                                  color: Theme.of(context).colorScheme.onSecondaryContainer),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'La lectura está tardando más de lo normal',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Theme.of(context).colorScheme.onSecondaryContainer,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: FilledButton.tonalIcon(
+                              onPressed: _retryOcr,
+                              icon: const Icon(Icons.refresh_outlined, size: 18),
+                              label: const Text('Reintentar lectura'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 if (invoice.erroresValidacion.isNotEmpty)
                   Card(
                     color: Theme.of(context).colorScheme.tertiaryContainer,

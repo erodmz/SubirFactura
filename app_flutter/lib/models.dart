@@ -223,6 +223,7 @@ class Invoice {
     required this.id,
     required this.estado,
     required this.createdAt,
+    this.updatedAt,
     this.clientProfileId,
     this.clientRazonSocial,
     this.ncf,
@@ -274,6 +275,9 @@ class Invoice {
       id: json['id'] as String,
       estado: json['estado'] as String,
       createdAt: DateTime.parse(json['createdAt'] as String),
+      updatedAt: json['updatedAt'] is String
+          ? DateTime.tryParse(json['updatedAt'] as String)
+          : null,
       clientProfileId: client?['id'] as String?,
       clientRazonSocial: client?['razonSocial'] as String?,
       ncf: json['ncf'] as String?,
@@ -314,6 +318,14 @@ class Invoice {
   final String id;
   final String estado;
   final DateTime createdAt;
+  /// Último avance del pipeline (null en respuestas antiguas sin el campo).
+  final DateTime? updatedAt;
+
+  /// La factura lleva demasiado tiempo sin avanzar del OCR: el usuario debería
+  /// poder reintentar en vez de mirar un spinner eterno.
+  bool get pareceAtascada =>
+      (estado == 'subida' || estado == 'procesando') &&
+      DateTime.now().difference(updatedAt ?? createdAt) > const Duration(minutes: 2);
   final String? clientProfileId;
   final String? clientRazonSocial;
   /// Nombre (o correo) de quien subió la factura. Solo lectura.

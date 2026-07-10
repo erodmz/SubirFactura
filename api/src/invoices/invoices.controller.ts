@@ -151,8 +151,10 @@ export class InvoicesController {
     return this.invoices.changeStatus(orgId, invoiceId, dto.estado, user, req.membership);
   }
 
+  // El cliente también puede reintentar SUS facturas atascadas (el service ya
+  // limita el alcance con assertInvoiceInScope); reintentar el OCR es inocuo.
   @Post(':invoiceId/retry')
-  @OrgRoles('org_admin', 'contador')
+  @OrgRoles('org_admin', 'contador', 'cliente')
   retry(
     @Param('orgId') orgId: string,
     @Param('invoiceId') invoiceId: string,
