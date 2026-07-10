@@ -89,6 +89,16 @@ class ApiClient {
     return jsonDecode(raw) as Map<String, dynamic>;
   }
 
+  /// Headers para cargar imágenes por el proxy del API (Image.network las
+  /// necesita porque el endpoint exige el token).
+  Map<String, String> get authImageHeaders =>
+      _accessToken == null ? const {} : {'Authorization': 'Bearer $_accessToken'};
+
+  /// URL de la imagen de una factura servida por el propio API (no MinIO). El
+  /// host del API sí es alcanzable desde el teléfono; el de MinIO no.
+  String invoiceImageUrl(String orgId, String invoiceId, int index) =>
+      '$baseUrl/api/organizations/$orgId/invoices/$invoiceId/image?i=$index';
+
   Future<dynamic> get(String path) => _request('GET', path);
 
   Future<dynamic> post(String path, [Object? body]) => _request('POST', path, body);

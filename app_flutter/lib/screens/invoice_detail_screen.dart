@@ -79,6 +79,11 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
   String get _base =>
       '/api/organizations/${widget.membership.orgId}/invoices/${widget.invoiceId}';
 
+  /// Cuántas páginas tiene la factura (para pedirlas por el proxy por índice).
+  int _imageCount(Invoice invoice) => invoice.imageUrls.isNotEmpty
+      ? invoice.imageUrls.length
+      : (invoice.imageUrl != null ? 1 : 0);
+
   @override
   void initState() {
     super.initState();
@@ -337,9 +342,17 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
               padding: const EdgeInsets.all(16),
               children: [
                 _InvoiceImages(
-                  urls: invoice.imageUrls.isNotEmpty
-                      ? invoice.imageUrls
-                      : [if (invoice.imageUrl != null) invoice.imageUrl!],
+                  // Cargamos por el proxy del API (host alcanzable desde el
+                  // teléfono), no por la URL firmada de MinIO.
+                  urls: [
+                    for (var i = 0; i < _imageCount(invoice); i++)
+                      ApiClient.instance.invoiceImageUrl(
+                        widget.membership.orgId,
+                        widget.invoiceId,
+                        i,
+                      ),
+                  ],
+                  headers: ApiClient.instance.authImageHeaders,
                 ),
                 if (invoice.subidoPor != null) ...[
                   const SizedBox(height: 10),
@@ -696,9 +709,10 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
 
 /// Visor de imagen a pantalla completa con zoom de pellizco, paneo y doble-tap.
 class _PhotoViewer extends StatefulWidget {
-  const _PhotoViewer({required this.url});
+  const _PhotoViewer({required this.url, this.headers});
 
   final String url;
+  final Map<String, String>? headers;
 
   @override
   State<_PhotoViewer> createState() => _PhotoViewerState();
@@ -749,6 +763,7 @@ class _PhotoViewerState extends State<_PhotoViewer> {
           child: Center(
             child: Image.network(
               widget.url,
+              headers: widget.headers,
               fit: BoxFit.contain,
               loadingBuilder: (context, child, progress) => progress == null
                   ? child
@@ -768,15 +783,16 @@ class _PhotoViewerState extends State<_PhotoViewer> {
 /// Muestra las páginas de la factura. Una imagen → vista grande; varias →
 /// tira horizontal numerada. Cualquier página se toca para ampliar con zoom.
 class _InvoiceImages extends StatelessWidget {
-  const _InvoiceImages({required this.urls});
+  const _InvoiceImages({required this.urls, this.headers});
 
   final List<String> urls;
+  final Map<String, String>? headers;
 
   void _open(BuildContext context, String url) {
     Navigator.of(context).push(
       MaterialPageRoute(
         fullscreenDialog: true,
-        builder: (_) => _PhotoViewer(url: url),
+        builder: (_) => _PhotoViewer(url: url, headers: headers),
       ),
     );
   }
@@ -794,6 +810,7 @@ class _InvoiceImages extends StatelessWidget {
             children: [
               Image.network(
                 urls.first,
+                headers: headers,
                 height: 260,
                 width: double.infinity,
                 fit: BoxFit.cover,
@@ -834,6 +851,7 @@ class _InvoiceImages extends StatelessWidget {
                   children: [
                     Image.network(
                       urls[i],
+                      headers: headers,
                       width: 160,
                       height: 220,
                       fit: BoxFit.cover,

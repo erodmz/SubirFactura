@@ -7,6 +7,7 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import type { Readable } from 'node:stream';
 
 /**
  * Almacenamiento de imágenes en MinIO (S3-compatible). 12-factor: migrar a S3
@@ -67,6 +68,24 @@ export class StorageService implements OnModuleInit {
     } catch (err) {
       this.logger.warn(`No se pudo borrar el objeto "${key}": ${(err as Error).message}`);
     }
+  }
+
+  /**
+   * Stream de un objeto (+ content-type y tamaño). Lo usa el proxy de imágenes
+   * del API: el móvil no puede alcanzar el host de MinIO (localhost/IP LAN), así
+   * que servimos la imagen por el mismo host del API, que ya funciona.
+   */
+  async getObject(
+    key: string,
+  ): Promise<{ body: Readable; contentType: string; contentLength?: number }> {
+    const out = await this.client.send(
+      new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+    );
+    return {
+      body: out.Body as Readable,
+      contentType: out.ContentType ?? 'application/octet-stream',
+      contentLength: out.ContentLength,
+    };
   }
 
   /** URL firmada temporal para ver la imagen (default 1 hora). */

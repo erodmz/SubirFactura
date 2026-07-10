@@ -8,6 +8,7 @@ import {
   Post,
   Query,
   Req,
+  StreamableFile,
   UploadedFiles,
   UseInterceptors,
 } from '@nestjs/common';
@@ -95,6 +96,35 @@ export class InvoicesController {
     @Req() req: { membership: Membership },
   ) {
     return this.invoices.get(orgId, invoiceId, user, req.membership);
+  }
+
+  /**
+   * Sirve la imagen de la factura por el propio API (proxy hacia MinIO). El
+   * móvil usa esto en vez de la URL firmada porque el host de MinIO no es
+   * alcanzable desde el teléfono; el host del API sí. `i` = índice de página.
+   */
+  @Get(':invoiceId/image')
+  @OrgRoles('org_admin', 'contador', 'cliente')
+  async image(
+    @Param('orgId') orgId: string,
+    @Param('invoiceId') invoiceId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: { membership: Membership },
+    @Query('i') i?: string,
+  ): Promise<StreamableFile> {
+    const index = Math.max(0, Number(i) || 0);
+    const { body, contentType, contentLength } = await this.invoices.imageBytes(
+      orgId,
+      invoiceId,
+      index,
+      user,
+      req.membership,
+    );
+    return new StreamableFile(body, {
+      type: contentType,
+      disposition: 'inline',
+      length: contentLength,
+    });
   }
 
   @Patch(':invoiceId/review')

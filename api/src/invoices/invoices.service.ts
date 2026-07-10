@@ -554,6 +554,31 @@ export class InvoicesService {
   }
 
   /**
+   * Devuelve los bytes de una imagen de la factura para servirla por el propio
+   * API (proxy). El móvil no puede alcanzar el host de MinIO (localhost desde el
+   * teléfono es el teléfono, y una IP LAN firmada es frágil); en cambio el host
+   * del API ya funciona. `index` = 0 es la imagen principal.
+   */
+  async imageBytes(
+    orgId: string,
+    invoiceId: string,
+    index: number,
+    user: AuthenticatedUser,
+    membership: Membership,
+  ) {
+    const invoice = await this.prisma.forOrg(orgId).invoice.findUnique({
+      where: { id: invoiceId },
+      include: { images: { orderBy: { orderIndex: 'asc' } } },
+    });
+    if (!invoice) throw new NotFoundException('Factura no encontrada');
+    this.assertInvoiceInScope(invoice, await this.invoiceScope(user, membership));
+    const keys = [invoice.imagenUrl, ...invoice.images.map((i) => i.key)];
+    const key = keys[index];
+    if (!key) throw new NotFoundException('Imagen no encontrada');
+    return this.storage.getObject(key);
+  }
+
+  /**
    * Edición campo a campo desde la cola de revisión. Si las validaciones
    * determinísticas pasan y los campos críticos están completos → `validada`.
    */
