@@ -491,11 +491,24 @@ export class InvoicesService {
       .map(([id, v]) => ({ id, razonSocial: nombreCliente.get(id) ?? '—', ...v }))
       .sort((a, b) => b.n - a.n);
 
+    // Mes anterior (para deltas ▲/▼ en los KPIs).
+    let pmm = m0 - 1;
+    let pyy = y0;
+    if (pmm <= 0) {
+      pmm += 12;
+      pyy -= 1;
+    }
+    const prevPeriodo = `${pyy}${String(pmm).padStart(2, '0')}`;
+
     return {
       periodo,
       hoy: dia(now),
       total: rows.length,
       kpis: { subidasMes, reportablesMes, montoMes, itbisMes },
+      kpisPrev: {
+        subidas: subidasPorMes.get(prevPeriodo) ?? 0,
+        monto: montoPorPeriodo.get(prevPeriodo) ?? 0,
+      },
       records: {
         subidas: topMes ? { valor: topMes[1], periodo: topMes[0] } : null,
         monto: topMonto ? { valor: topMonto[1], periodo: topMonto[0] } : null,

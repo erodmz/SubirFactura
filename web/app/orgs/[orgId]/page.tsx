@@ -48,6 +48,68 @@ const SEMAFORO: Record<CierreEstado['semaforo'], string> = {
   vacio: 'var(--muted)',
 };
 
+// Catálogo de widgets del dashboard (orden por defecto).
+const WIDGETS: { id: string; label: string; span: 1 | 2 }[] = [
+  { id: 'cierre', label: '606 del período', span: 2 },
+  { id: 'kpis', label: 'KPIs del mes', span: 2 },
+  { id: 'insights', label: 'Qué atender', span: 2 },
+  { id: 'clientes', label: 'Clientes por atender', span: 2 },
+  { id: 'estado', label: 'Facturas por estado', span: 1 },
+  { id: 'tendencia', label: 'Monto reportado (12 meses)', span: 1 },
+  { id: 'categoria', label: 'Gasto por categoría', span: 1 },
+  { id: 'clienteChart', label: 'Facturas por cliente', span: 1 },
+  { id: 'proveedores', label: 'Top proveedores', span: 1 },
+  { id: 'actividad', label: 'Actividad (14 días)', span: 2 },
+  { id: 'plan', label: 'Uso del plan', span: 2 },
+];
+const DEFAULT_ORDER = WIDGETS.map((w) => w.id);
+const WIDGET = new Map(WIDGETS.map((w) => [w.id, w]));
+
+function useDashConfig(orgId: string) {
+  const key = `facturard-dash-${orgId}`;
+  const [order, setOrder] = useState<string[]>(DEFAULT_ORDER);
+  const [hidden, setHidden] = useState<string[]>([]);
+  const [editing, setEditing] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const c = JSON.parse(raw) as { order?: string[]; hidden?: string[] };
+        const known = new Set(DEFAULT_ORDER);
+        const ord = (c.order ?? []).filter((id) => known.has(id));
+        for (const id of DEFAULT_ORDER) if (!ord.includes(id)) ord.push(id);
+        setOrder(ord);
+        setHidden((c.hidden ?? []).filter((id) => known.has(id)));
+      }
+    } catch {
+      /* localStorage no disponible */
+    }
+  }, [key]);
+
+  function persist(ord: string[], hid: string[]) {
+    setOrder(ord);
+    setHidden(hid);
+    try {
+      localStorage.setItem(key, JSON.stringify({ order: ord, hidden: hid }));
+    } catch {
+      /* ignore */
+    }
+  }
+  const toggle = (id: string) =>
+    persist(order, hidden.includes(id) ? hidden.filter((x) => x !== id) : [...hidden, id]);
+  const move = (id: string, dir: -1 | 1) => {
+    const i = order.indexOf(id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= order.length) return;
+    const ord = [...order];
+    [ord[i], ord[j]] = [ord[j], ord[i]];
+    persist(ord, hidden);
+  };
+  const reset = () => persist(DEFAULT_ORDER, []);
+  return { order, hidden, editing, setEditing, toggle, move, reset };
+}
+
 export default function OrgDashboard() {
   const { orgId } = useParams<{ orgId: string }>();
   const periodo = periodoActual();
@@ -57,6 +119,7 @@ export default function OrgDashboard() {
   const [dash, setDash] = useState<DashboardData | null>(null);
   const [panel, setPanel] = useState<PanelCierre | null>(null);
   const [error, setError] = useState('');
+  const cfg = useDashConfig(orgId);
 
   useEffect(() => {
     api<OrgUsage>(`/api/organizations/${orgId}/usage`)
@@ -77,14 +140,10 @@ export default function OrgDashboard() {
   }, [orgId, periodo]);
 
   const invUrl = (estado: string) => `/orgs/${orgId}/invoices?estado=${estado}`;
-  const maxMes = resumen ? Math.max(1, ...resumen.porMes.map((m) => m.total)) : 1;
 
-  // Clientes ordenados por urgencia (los más atrasados primero).
   const clientesAtencion = useMemo(() => {
     if (!panel) return [];
-    return panel.clientes
-      .filter(necesitaAtencion)
-      .sort((a, b) => urgencia(b) - urgencia(a));
+    return panel.clientes.filter(necesitaAtencion).sort((a, b) => urgencia(b) - urgencia(a));
   }, [panel]);
 
   const insights = useMemo(
@@ -92,13 +151,10 @@ export default function OrgDashboard() {
     [panel, dash, orgId],
   );
 
-  return (
-    <>
-      <h1>Resumen</h1>
-      {error && <div className="error">{error}</div>}
-
-      {/* Semáforo del período: qué requiere atención y cuándo vence el 606. */}
-      {cierre && (
+  // ── Render de cada widget (null = sin datos → no se muestra) ──────────────
+  const renderers: Record<string, () => ReactNode> = {
+    cierre: () =>
+      cierre && (
         <div className="card" style={{ borderLeft: `4px solid ${SEMAFORO[cierre.semaforo]}` }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
             <h2 style={{ margin: 0 }}>606 de {periodoLabel(periodo)}</h2>
@@ -116,46 +172,29 @@ export default function OrgDashboard() {
               </span>
             )}
           </div>
-
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 14 }}>
-            <Stat
-              label="En revisión"
-              value={cierre.totales.enRevision}
-              href={invUrl('en_revision')}
-              danger={cierre.totales.enRevision > 0}
-            />
+            <Stat label="En revisión" value={cierre.totales.enRevision} href={invUrl('en_revision')} danger={cierre.totales.enRevision > 0} />
             <Stat label="Procesando" value={cierre.totales.enProceso} href={invUrl('procesando')} />
-            <Stat
-              label="Listas para el 606"
-              value={cierre.totales.reportables}
-              href={invUrl('validada')}
-              ok={cierre.totales.reportables > 0}
-            />
+            <Stat label="Listas para el 606" value={cierre.totales.reportables} href={invUrl('validada')} ok={cierre.totales.reportables > 0} />
             {cierre.totales.sinAsignar > 0 && (
-              <Stat
-                label="Sin asignar"
-                value={cierre.totales.sinAsignar}
-                href={`/orgs/${orgId}/invoices`}
-                danger
-              />
+              <Stat label="Sin asignar" value={cierre.totales.sinAsignar} href={`/orgs/${orgId}/invoices`} danger />
             )}
             {cierre.totales.conAlertasDgii > 0 && (
               <Stat label="Con alertas DGII" value={cierre.totales.conAlertasDgii} danger />
             )}
           </div>
-
           <div style={{ marginTop: 14 }}>
             <Link href={`/orgs/${orgId}/dgii`}>Ir al cierre del 606 →</Link>
           </div>
         </div>
-      )}
-
-      {/* KPIs del mes con récord histórico. */}
-      {dash && (
+      ),
+    kpis: () =>
+      dash && (
         <div className="tiles">
           <Tile
             label="Subidas este mes"
             value={String(dash.kpis.subidasMes)}
+            delta={pctDelta(dash.kpis.subidasMes, dash.kpisPrev.subidas)}
             record={
               dash.records.subidas && dash.records.subidas.periodo !== dash.periodo
                 ? `récord ${dash.records.subidas.valor} · ${periodoLabel(dash.records.subidas.periodo)}`
@@ -164,14 +203,11 @@ export default function OrgDashboard() {
                   : undefined
             }
           />
-          <Tile
-            label="Listas para el 606"
-            value={String(dash.kpis.reportablesMes)}
-            accent="var(--ok)"
-          />
+          <Tile label="Listas para el 606" value={String(dash.kpis.reportablesMes)} accent="var(--ok)" />
           <Tile
             label="Monto reportado (mes)"
             value={`RD$ ${moneyCompact(dash.kpis.montoMes)}`}
+            delta={pctDelta(dash.kpis.montoMes, dash.kpisPrev.monto)}
             record={
               dash.records.monto && dash.records.monto.periodo !== dash.periodo
                 ? `récord RD$ ${moneyCompact(dash.records.monto.valor)} · ${periodoLabel(dash.records.monto.periodo)}`
@@ -180,63 +216,9 @@ export default function OrgDashboard() {
           />
           <Tile label="ITBIS del mes" value={`RD$ ${moneyCompact(dash.kpis.itbisMes)}`} />
         </div>
-      )}
-
-      {/* Gráficos: distribución, tendencia y desgloses. */}
-      {dash && dash.total > 0 && (
-        <div className="chart-grid">
-          <div className="card">
-            <h2>Facturas por estado</h2>
-            <Donut
-              centerLabel="facturas"
-              data={[...dash.porEstado]
-                .sort((a, b) => b.n - a.n)
-                .map((e) => ({
-                  label: ESTADO_LABELS[e.estado] ?? e.estado,
-                  value: e.n,
-                  color: ESTADO_COLOR[e.estado] ?? 'var(--muted)',
-                }))}
-            />
-          </div>
-
-          <div className="card">
-            <h2>Monto reportado (12 meses)</h2>
-            <AreaChart
-              data={dash.tendencia.map((t) => ({
-                label: periodoLabel(t.periodo).slice(0, 3),
-                value: t.monto,
-              }))}
-              format={(v) => `RD$ ${moneyCompact(v)}`}
-            />
-          </div>
-
-          <div className="card">
-            <h2>Gasto por categoría (606)</h2>
-            <HBars
-              format={(v) => `RD$ ${moneyCompact(v)}`}
-              data={dash.categorias.slice(0, 8).map((c, i) => ({
-                label: `${c.codigo} · ${c.nombre}`,
-                value: c.monto,
-                color: SERIES[i % SERIES.length],
-              }))}
-            />
-          </div>
-
-          <div className="card">
-            <h2>Facturas por cliente</h2>
-            <HBars
-              data={dash.clientes.slice(0, 8).map((c, i) => ({
-                label: c.razonSocial,
-                value: c.n,
-                color: SERIES[i % SERIES.length],
-              }))}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Insights accionables (priorizados). */}
-      {insights.length > 0 && (
+      ),
+    insights: () =>
+      insights.length > 0 && (
         <div className="card">
           <h2>Qué atender</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
@@ -245,20 +227,17 @@ export default function OrgDashboard() {
             ))}
           </div>
         </div>
-      )}
-
-      {/* Clientes que necesitan atención + semáforo 606 por cliente. */}
-      {panel && panel.clientes.length > 0 && (
+      ),
+    clientes: () =>
+      panel &&
+      panel.clientes.length > 0 && (
         <div className="card">
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
             <h2 style={{ margin: 0 }}>Clientes</h2>
             <span className="muted" style={{ fontSize: 13 }}>
-              {clientesAtencion.length > 0
-                ? `${clientesAtencion.length} necesita(n) atención`
-                : 'todo al día ✓'}
+              {clientesAtencion.length > 0 ? `${clientesAtencion.length} necesita(n) atención` : 'todo al día ✓'}
             </span>
           </div>
-
           <div className="attn">
             {(clientesAtencion.length > 0 ? clientesAtencion : panel.clientes).map((c) => (
               <ClienteRow key={c.clienteId} c={c} orgId={orgId} dash={dash} />
@@ -268,76 +247,92 @@ export default function OrgDashboard() {
             <Link href={`/orgs/${orgId}/dgii`}>Ver panel de cierre completo →</Link>
           </div>
         </div>
-      )}
-
-      {/* Actividad reciente: subidas por día (14 días). */}
-      {dash && dash.actividad.some((a) => a.n > 0) && (
+      ),
+    estado: () =>
+      dash &&
+      dash.total > 0 && (
+        <div className="card">
+          <h2>Facturas por estado</h2>
+          <Donut
+            centerLabel="facturas"
+            data={[...dash.porEstado]
+              .sort((a, b) => b.n - a.n)
+              .map((e) => ({
+                label: ESTADO_LABELS[e.estado] ?? e.estado,
+                value: e.n,
+                color: ESTADO_COLOR[e.estado] ?? 'var(--muted)',
+              }))}
+          />
+        </div>
+      ),
+    tendencia: () =>
+      dash &&
+      dash.total > 0 && (
+        <div className="card">
+          <h2>Monto reportado (12 meses)</h2>
+          <AreaChart
+            data={dash.tendencia.map((t) => ({ label: periodoLabel(t.periodo).slice(0, 3), value: t.monto }))}
+            format={(v) => `RD$ ${moneyCompact(v)}`}
+          />
+        </div>
+      ),
+    categoria: () =>
+      dash &&
+      dash.categorias.length > 0 && (
+        <div className="card">
+          <h2>Gasto por categoría (606)</h2>
+          <HBars
+            format={(v) => `RD$ ${moneyCompact(v)}`}
+            data={dash.categorias.slice(0, 8).map((c, i) => ({
+              label: `${c.codigo} · ${c.nombre}`,
+              value: c.monto,
+              color: SERIES[i % SERIES.length],
+            }))}
+          />
+        </div>
+      ),
+    clienteChart: () =>
+      dash &&
+      dash.clientes.length > 0 && (
+        <div className="card">
+          <h2>Facturas por cliente</h2>
+          <HBars
+            data={dash.clientes.slice(0, 8).map((c, i) => ({
+              label: c.razonSocial,
+              value: c.n,
+              color: SERIES[i % SERIES.length],
+            }))}
+          />
+        </div>
+      ),
+    proveedores: () =>
+      resumen &&
+      resumen.topProveedores.length > 0 && (
+        <div className="card">
+          <h2>Top proveedores</h2>
+          <HBars
+            format={(v) => `RD$ ${moneyCompact(v)}`}
+            data={resumen.topProveedores.slice(0, 8).map((p, i) => ({
+              label: p.razonSocial,
+              value: p.total,
+              color: SERIES[i % SERIES.length],
+            }))}
+          />
+        </div>
+      ),
+    actividad: () =>
+      dash &&
+      dash.actividad.some((a) => a.n > 0) && (
         <div className="card">
           <h2>Actividad (últimos 14 días)</h2>
           <Sparkbars data={dash.actividad} />
         </div>
-      )}
-
-      {/* Analítica de gastos. */}
-      {resumen && resumen.cantidad > 0 && (
-        <div className="usage-grid">
-          <div className="card">
-            <h2>Total gastado (reportado)</h2>
-            <strong style={{ fontSize: 26 }}>RD$ {money(resumen.totalGastado)}</strong>
-            <p className="muted" style={{ margin: '4px 0 0' }}>
-              {resumen.cantidad} factura(s) · ITBIS RD$ {money(resumen.totalItbis)}
-            </p>
-          </div>
-
-          <div className="card">
-            <h2>Gasto por mes</h2>
-            {resumen.porMes.length === 0 ? (
-              <p className="muted">Sin datos aún.</p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
-                {resumen.porMes.map((m) => (
-                  <div key={m.periodo} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span className="muted" style={{ width: 64, fontSize: 13 }}>
-                      {periodoLabel(m.periodo)}
-                    </span>
-                    <div className="bar" style={{ flex: 1, margin: 0 }}>
-                      <div style={{ width: `${Math.round((m.total / maxMes) * 100)}%` }} />
-                    </div>
-                    <span style={{ width: 96, textAlign: 'right', fontSize: 13 }}>
-                      {money(m.total)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="card">
-            <h2>Top proveedores</h2>
-            {resumen.topProveedores.length === 0 ? (
-              <p className="muted">Sin datos aún.</p>
-            ) : (
-              <table style={{ marginTop: 4 }}>
-                <tbody>
-                  {resumen.topProveedores.map((p) => (
-                    <tr key={p.razonSocial}>
-                      <td>{p.razonSocial}</td>
-                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                        RD$ {money(p.total)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Uso del plan. */}
-      {usage && (
-        <>
-          <p style={{ marginTop: 8 }}>
+      ),
+    plan: () =>
+      usage && (
+        <div className="card">
+          <h2>Uso del plan</h2>
+          <p style={{ margin: '0 0 12px' }}>
             Plan <strong>{usage.plan?.nombre ?? 'sin plan'}</strong>{' '}
             <span className="badge">{usage.estadoSuscripcion ?? 'inactiva'}</span>
           </p>
@@ -346,13 +341,88 @@ export default function OrgDashboard() {
             <UsageCard title="Clientes" usage={usage.clientes} />
             <UsageCard title="Facturas este mes" usage={usage.facturasMes} />
           </div>
-        </>
+        </div>
+      ),
+  };
+
+  const visibles = cfg.order.filter((id) => !cfg.hidden.includes(id));
+  const ocultos = cfg.order.filter((id) => cfg.hidden.includes(id));
+
+  return (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <h1 style={{ margin: '8px 0 18px', flex: 1 }}>Resumen</h1>
+        {cfg.editing && (
+          <button className="secondary" onClick={cfg.reset} style={{ margin: 0 }}>
+            Restablecer
+          </button>
+        )}
+        <button
+          className={cfg.editing ? undefined : 'secondary'}
+          onClick={() => cfg.setEditing(!cfg.editing)}
+          style={{ margin: 0 }}
+        >
+          {cfg.editing ? 'Listo' : '⚙ Personalizar'}
+        </button>
+      </div>
+
+      {error && <div className="error">{error}</div>}
+
+      {cfg.editing && ocultos.length > 0 && (
+        <div className="card" style={{ padding: '12px 16px' }}>
+          <span className="muted">Ocultos — toca para mostrar:</span>
+          <div className="dash-hidden">
+            {ocultos.map((id) => (
+              <button key={id} className="dash-chip" onClick={() => cfg.toggle(id)}>
+                + {WIDGET.get(id)?.label ?? id}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
+
+      <div className="dash-grid">
+        {visibles.map((id) => {
+          const node = renderers[id]?.() || null;
+          if (!node && !cfg.editing) return null;
+          const w = WIDGET.get(id);
+          return (
+            <div key={id} className={w?.span === 2 ? 'span2' : undefined}>
+              {cfg.editing && (
+                <div className="wgt-bar">
+                  <span className="wgt-label">{w?.label ?? id}</span>
+                  <button className="wgt-btn" onClick={() => cfg.move(id, -1)} aria-label="Subir">
+                    ↑
+                  </button>
+                  <button className="wgt-btn" onClick={() => cfg.move(id, 1)} aria-label="Bajar">
+                    ↓
+                  </button>
+                  <button className="wgt-btn" onClick={() => cfg.toggle(id)} aria-label="Ocultar">
+                    Ocultar
+                  </button>
+                </div>
+              )}
+              <div className={cfg.editing ? 'wgt-edit' : undefined}>
+                {node ?? (
+                  <div className="card">
+                    <span className="muted">{w?.label} — sin datos aún</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </>
   );
 }
 
 // ── Lógica de atención / insights ──────────────────────────────────────────
+
+function pctDelta(cur: number, prev: number): number | null {
+  if (!prev) return null;
+  return Math.round(((cur - prev) / prev) * 100);
+}
 
 function necesitaAtencion(c: PanelClienteCierre): boolean {
   return (
@@ -381,11 +451,7 @@ interface Insight {
   href?: string;
 }
 
-function buildInsights(
-  panel: PanelCierre,
-  dash: DashboardData | null,
-  orgId: string,
-): Insight[] {
+function buildInsights(panel: PanelCierre, dash: DashboardData | null, orgId: string): Insight[] {
   const out: Insight[] = [];
   const dias = panel.diasRestantes;
 
@@ -404,7 +470,6 @@ function buildInsights(
       ),
     });
   }
-
   if (panel.sinAsignar > 0) {
     out.push({
       tono: 'warn',
@@ -417,7 +482,6 @@ function buildInsights(
       ),
     });
   }
-
   if (dash) {
     const hoy = new Date(`${dash.hoy}T00:00:00`).getTime();
     for (const c of panel.clientes) {
@@ -438,7 +502,6 @@ function buildInsights(
       }
     }
   }
-
   const dup = panel.clientes.reduce((s, c) => s + c.totales.duplicadas, 0);
   if (dup > 0) {
     out.push({
@@ -451,7 +514,6 @@ function buildInsights(
       ),
     });
   }
-
   if (dash?.records.subidas && dash.records.subidas.periodo !== dash.periodo) {
     const rec = dash.records.subidas;
     const faltan = rec.valor - dash.kpis.subidasMes;
@@ -468,7 +530,6 @@ function buildInsights(
       });
     }
   }
-
   return out.sort((a, b) => b.relevancia - a.relevancia).slice(0, 5);
 }
 
@@ -479,18 +540,27 @@ function Tile({
   value,
   record,
   accent,
+  delta,
 }: {
   label: string;
   value: string;
   record?: string;
   accent?: string;
+  delta?: number | null;
 }) {
   return (
     <div className="card tile">
       <span className="muted" style={{ fontSize: 13 }}>
         {label}
       </span>
-      <strong style={{ fontSize: 26, color: accent ?? 'inherit' }}>{value}</strong>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+        <strong style={{ fontSize: 26, color: accent ?? 'inherit' }}>{value}</strong>
+        {delta != null && delta !== 0 && (
+          <span style={{ fontSize: 13, fontWeight: 600, color: delta > 0 ? 'var(--ok)' : 'var(--danger)' }}>
+            {delta > 0 ? '▲' : '▼'} {Math.abs(delta)}%
+          </span>
+        )}
+      </div>
       {record && (
         <span className="muted" style={{ fontSize: 12 }}>
           {record}
@@ -502,11 +572,7 @@ function Tile({
 
 function InsightRow({ insight }: { insight: Insight }) {
   const color =
-    insight.tono === 'danger'
-      ? 'var(--danger)'
-      : insight.tono === 'warn'
-        ? 'var(--m-orange)'
-        : 'var(--brand)';
+    insight.tono === 'danger' ? 'var(--danger)' : insight.tono === 'warn' ? 'var(--m-orange)' : 'var(--brand)';
   const inner = (
     <div className="insight" style={{ borderLeft: `3px solid ${color}` }}>
       <span>{insight.texto}</span>
@@ -548,21 +614,13 @@ function ClienteRow({
       <span className="dot" style={{ background: SEMAFORO[c.semaforo] }} aria-hidden />
       <span className="attn-name">{c.razonSocial}</span>
       <span className="attn-chips">
-        {c.totales.enRevision > 0 && (
-          <span className="chip-num danger">{c.totales.enRevision} en revisión</span>
+        {c.totales.enRevision > 0 && <span className="chip-num danger">{c.totales.enRevision} en revisión</span>}
+        {c.totales.reportables > 0 && <span className="chip-num ok">{c.totales.reportables} listas</span>}
+        {c.totales.conAlertasDgii > 0 && <span className="chip-num danger">{c.totales.conAlertasDgii} alertas</span>}
+        {c.totales.enRevision === 0 && c.totales.conAlertasDgii === 0 && c.bloqueos.length === 0 && (
+          <span className="chip-num ok">al día</span>
         )}
-        {c.totales.reportables > 0 && (
-          <span className="chip-num ok">{c.totales.reportables} listas</span>
-        )}
-        {c.totales.conAlertasDgii > 0 && (
-          <span className="chip-num danger">{c.totales.conAlertasDgii} alertas</span>
-        )}
-        {c.totales.enRevision === 0 &&
-          c.totales.conAlertasDgii === 0 &&
-          c.bloqueos.length === 0 && <span className="chip-num ok">al día</span>}
-        {diasSin != null && diasSin >= 21 && (
-          <span className="chip-num warn">{diasSin}d sin subir</span>
-        )}
+        {diasSin != null && diasSin >= 21 && <span className="chip-num warn">{diasSin}d sin subir</span>}
       </span>
     </Link>
   );
@@ -593,19 +651,18 @@ function UsageCard({ title, usage }: { title: string; usage: LimitUsage | null }
   if (!usage) return null;
   const pct = usage.max > 0 ? Math.min(100, Math.round((usage.used / usage.max) * 100)) : 0;
   return (
-    <div className="card">
-      <h2>{title}</h2>
-      <strong style={{ fontSize: 24 }}>
-        {usage.used} <span className="muted">/ {usage.max}</span>
-      </strong>
+    <div>
+      <span className="muted" style={{ fontSize: 13 }}>
+        {title}
+      </span>
+      <div>
+        <strong style={{ fontSize: 22 }}>
+          {usage.used} <span className="muted">/ {usage.max}</span>
+        </strong>
+      </div>
       <div className="bar">
         <div className={usage.warning ? 'warn' : ''} style={{ width: `${pct}%` }} />
       </div>
-      {usage.warning && (
-        <p className="muted" style={{ color: 'var(--warning-text)' }}>
-          Cerca del límite del plan — considera mejorar de plan
-        </p>
-      )}
     </div>
   );
 }
@@ -639,7 +696,7 @@ function Stat({
     minWidth: 96,
     padding: '8px 12px',
     borderRadius: 8,
-    background: 'var(--surface-2, rgba(127,127,127,0.06))',
+    background: 'var(--bg-soft)',
   };
   return href ? (
     <Link href={href} style={{ ...style, textDecoration: 'none' }}>

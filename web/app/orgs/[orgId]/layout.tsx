@@ -109,9 +109,6 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
-        <div className="sidebar-foot">
-          <ThemeToggle />
-        </div>
       </aside>
 
       <div className="app-main">
@@ -126,6 +123,7 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
           <span className="org-name">{orgName || '…'}</span>
           <div style={{ flex: 1 }} />
           <NotificationsBell orgId={orgId} />
+          <ThemeToggle />
           <div className="user-menu" ref={menuRef}>
             <button className="user-chip" onClick={() => setMenuOpen((v) => !v)}>
               <span className="avatar">{me ? initials(me.nombre, me.email) : '··'}</span>

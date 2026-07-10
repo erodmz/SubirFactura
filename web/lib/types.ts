@@ -128,6 +128,7 @@ export interface DashboardData {
   hoy: string; // AAAA-MM-DD
   total: number;
   kpis: { subidasMes: number; reportablesMes: number; montoMes: number; itbisMes: number };
+  kpisPrev: { subidas: number; monto: number };
   records: {
     subidas: { valor: number; periodo: string } | null;
     monto: { valor: number; periodo: string } | null;
