@@ -22,13 +22,13 @@ export class LoginDto {
   email!: string;
 
   @IsString()
-  @IsNotEmpty()
+  @IsNotEmpty({ message: 'Ingresa tu contraseña' })
   password!: string;
 }
 
 export class RefreshDto {
   @IsString()
-  @IsNotEmpty()
+  @IsNotEmpty({ message: 'Falta el token de sesión' })
   refreshToken!: string;
 }
 

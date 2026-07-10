@@ -13,8 +13,13 @@ export default function RegisterPage() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setBusy(true);
     setError('');
+    // Validación propia en español (el mensaje nativo del navegador sale en
+    // el idioma del sistema, en inglés en las pruebas).
+    if (!form.nombre.trim()) return setError('Ingresa tu nombre completo');
+    if (!/.+@.+\..+/.test(form.email)) return setError('El correo electrónico no es válido');
+    if (form.password.length < 8) return setError('La contraseña debe tener al menos 8 caracteres');
+    setBusy(true);
     try {
       const { tokens } = await api<{ tokens: Tokens }>('/api/auth/register', {
         method: 'POST',
@@ -37,7 +42,7 @@ export default function RegisterPage() {
       <div className="card">
         <h1>Crear cuenta</h1>
         {error && <div className="error">{error}</div>}
-        <form onSubmit={submit}>
+        <form onSubmit={submit} noValidate>
           <label>Nombre completo</label>
           <input value={form.nombre} onChange={set('nombre')} required />
           <label>Correo electrónico</label>

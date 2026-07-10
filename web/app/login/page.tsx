@@ -33,8 +33,14 @@ export default function LoginPage() {
     }
   }
 
+  // Validación propia en español: el mensaje nativo del navegador sale en el
+  // idioma del sistema ("Please fill out this field" en las pruebas).
   function submit(e: React.FormEvent) {
     e.preventDefault();
+    setError('');
+    if (!email.trim()) return setError('Ingresa tu correo electrónico');
+    if (!/.+@.+\..+/.test(email)) return setError('El correo electrónico no es válido');
+    if (!password) return setError('Ingresa tu contraseña');
     doLogin(email, password);
   }
 
@@ -54,7 +60,7 @@ export default function LoginPage() {
         </p>
         <div className="card">
         {error && <div className="error">{error}</div>}
-        <form onSubmit={submit}>
+        <form onSubmit={submit} noValidate>
           <label>Correo electrónico</label>
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
           <label>Contraseña</label>
