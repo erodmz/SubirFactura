@@ -164,7 +164,7 @@ class _ClientInvoicesScreenState extends State<ClientInvoicesScreen> with Widget
     if (_businessFilter == null) {
       list = _allInvoices;
     } else {
-      list = [...(_byBusiness[_businessFilter] ?? const []), ..._unassigned]
+      list = <Invoice>[...(_byBusiness[_businessFilter] ?? const []), ..._unassigned]
           .newestFirst();
     }
     if (_estadoFilter != null) {
