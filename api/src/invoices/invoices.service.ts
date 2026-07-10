@@ -10,8 +10,11 @@ import type { Membership, Prisma } from '@facturard/shared/db';
 import {
   buildFiscalValidation,
   CATEGORIAS_606,
+  consultarRncLive,
   fechaToPeriodoFiscal,
   validateInvoiceFields,
+  type FiscalValidation,
+  type PadronEntry,
 } from '@facturard/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
@@ -669,13 +672,15 @@ export class InvoicesService {
           };
         } | null
       )?.ecf ?? undefined;
-    const validacionDgii = await this.runFiscalValidation(
+    const { validacion: validacionDgii, razonSocialOficial } = await this.runFiscalValidation(
       merged.ncf,
       merged.rncProveedor,
       razonSocial,
       priorEcf,
       merged.fecha ?? null,
     );
+    // La razón social legal de la DGII manda sobre lo capturado (nombre comercial).
+    const razonSocialFinal = razonSocialOficial ?? razonSocial;
 
     const updated = await this.prisma.forOrg(orgId).invoice.update({
       where: { id: invoiceId },
@@ -687,7 +692,7 @@ export class InvoicesService {
             : invoice.clientProfileId,
         ncf: merged.ncf,
         rncProveedor: merged.rncProveedor,
-        razonSocialProveedor: razonSocial,
+        razonSocialProveedor: razonSocialFinal,
         fecha: merged.fecha ? new Date(merged.fecha) : null,
         montoFacturado: merged.montoFacturado,
         itbis: merged.itbis,
@@ -765,7 +770,13 @@ export class InvoicesService {
     return updated;
   }
 
-  /** Coteja NCF/RNC contra estructura y padrón DGII (solo RNC de 9 dígitos). */
+  /**
+   * Coteja NCF/RNC contra la DGII: consulta EN VIVO el RNC (misma lógica que el
+   * worker) y cae al padrón local si no responde. Devuelve la validación y la
+   * razón social LEGAL del RNC, para usarla como valor canónico (el nombre
+   * impreso suele ser comercial/de sucursal y no coincide con el padrón).
+   * La verificación del comprobante (e-CF/serie B) se preserva del worker vía `ecf`.
+   */
   private async runFiscalValidation(
     ncf: string | null,
     rnc: string | null,
@@ -777,27 +788,49 @@ export class InvoicesService {
       vigenciaHasta?: string | null;
     } | null,
     fecha?: string | Date | null,
-  ) {
+  ): Promise<{ validacion: FiscalValidation; razonSocialOficial: string | null }> {
     const normalized = rnc ? rnc.replace(/[-\s]/g, '') : null;
     const isRnc = !!normalized && /^\d{9}$/.test(normalized);
-    const padronEntry = isRnc
-      ? await this.prisma.rncPadron.findUnique({ where: { rnc: normalized! } })
-      : null;
-    const padronLoaded = isRnc
-      ? padronEntry != null ||
-        (await this.prisma.rncPadron.findFirst({ select: { rnc: true } })) != null
-      : false;
-    return buildFiscalValidation({
+    const liveEnabled = process.env.DGII_LIVE_CONSULTA !== '0';
+    const timeout = Number(process.env.DGII_CONSULTA_TIMEOUT_MS ?? 5000);
+
+    let padronEntry: PadronEntry | null = null;
+    let padronConsultado = false;
+
+    // 1) En vivo contra la DGII (fuente primaria).
+    if (isRnc && liveEnabled) {
+      const live = await consultarRncLive(normalized!, timeout);
+      if (live) {
+        padronConsultado = true;
+        padronEntry = live.encontrado
+          ? { rnc: normalized!, razonSocial: live.razonSocial ?? '', estado: live.estado }
+          : null;
+      }
+    }
+    // 2) Respaldo: padrón local (si la DGII no respondió).
+    if (isRnc && !padronConsultado) {
+      const entry = await this.prisma.rncPadron.findUnique({ where: { rnc: normalized! } });
+      const anyPadron =
+        entry != null ||
+        (await this.prisma.rncPadron.findFirst({ select: { rnc: true } })) != null;
+      padronEntry = entry
+        ? { rnc: entry.rnc, razonSocial: entry.razonSocial, estado: entry.estado }
+        : null;
+      padronConsultado = anyPadron;
+    }
+
+    const razonSocialOficial = padronEntry?.razonSocial?.trim() || null;
+    const validacion = buildFiscalValidation({
       ncf,
       rnc,
-      razonSocial,
-      padronEntry: padronEntry
-        ? { rnc: padronEntry.rnc, razonSocial: padronEntry.razonSocial, estado: padronEntry.estado }
-        : null,
-      padronConsultado: padronLoaded,
+      // Validar contra el nombre legal (no el impreso) evita el falso "no coincide".
+      razonSocial: razonSocialOficial ?? razonSocial,
+      padronEntry,
+      padronConsultado,
       fecha,
       ecf,
     });
+    return { validacion, razonSocialOficial };
   }
 
   /** Re-encola el OCR (p.ej. tras un fallo). */

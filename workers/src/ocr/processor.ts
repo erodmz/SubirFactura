@@ -9,6 +9,9 @@ import {
   evaluateExtraction,
   fechaToPeriodoFiscal,
   validateTaxId,
+  consultarRncLive,
+  consultarNcfLive,
+  alertRupture,
   type EcfVerificacion,
   type FiscalValidation,
   type PadronEntry,
@@ -18,8 +21,6 @@ import { getImageBase64 } from '../storage';
 import { extractInvoice } from './extract';
 import { decodeEcfQr } from './qr';
 import { verifyEcfLive } from './ecf-live';
-import { consultarRncLive, consultarNcfLive } from './dgii-consulta';
-import { alertRupture } from '../alerts';
 
 export interface OcrJobData {
   invoiceId: string;

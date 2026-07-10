@@ -5,16 +5,18 @@
 //   - RNC:  consultarRncLive → .../consultas/rnc.aspx
 //   - NCF:  consultarNcfLive → .../consultas/ncf.aspx (e-CF, con código de seguridad)
 //
-// El parseo del HTML vive en @facturard/shared (consulta-web); aquí solo va la
+// El parseo del HTML vive en consulta-web (lógica pura); aquí solo va la
 // mecánica de red: bajar la página, tomar los campos ocultos (__VIEWSTATE, etc.)
 // y la cookie de sesión, y reenviar el POST simulando el botón de búsqueda.
+// Vive en `shared` para que lo usen tanto el worker (OCR) como el API (guardado
+// manual): ambos validan contra la DGII con la misma lógica.
 
 import {
   parseConsultaRnc,
   parseConsultaNcf,
   type ConsultaRncResult,
   type ConsultaNcfResult,
-} from '@facturard/shared';
+} from './consulta-web';
 import { alertRupture } from '../alerts';
 
 const BASE = 'https://dgii.gov.do/app/WebApps/ConsultasWeb2/ConsultasWeb/consultas';
