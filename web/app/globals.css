@@ -1529,21 +1529,45 @@ main.app-content {
 /* ── Dashboard configurable ──────────────────────────────────────────────── */
 .dash-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 16px;
   align-items: start;
 }
-.dash-grid > .span2 {
+.dash-grid > .size-1 {
+  grid-column: span 1;
+}
+.dash-grid > .size-2 {
   grid-column: span 2;
+}
+.dash-grid > .size-3 {
+  grid-column: span 3;
+}
+.dash-grid > .size-4 {
+  grid-column: span 4;
 }
 .dash-grid .card {
   margin-bottom: 0;
 }
-@media (max-width: 760px) {
+/* Tablet angosto: 2 columnas (los anchos ≥2 pasan a completo). */
+@media (max-width: 680px) {
+  .dash-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .dash-grid > .size-1 {
+    grid-column: span 1;
+  }
+  .dash-grid > .size-2,
+  .dash-grid > .size-3,
+  .dash-grid > .size-4 {
+    grid-column: span 2;
+  }
+}
+/* Móvil: una sola columna. */
+@media (max-width: 500px) {
   .dash-grid {
     grid-template-columns: 1fr;
   }
-  .dash-grid > .span2 {
+  .dash-grid > [class*='size-'] {
     grid-column: span 1;
   }
 }
@@ -1555,6 +1579,7 @@ main.app-content {
 .wgt-bar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
   padding: 6px 8px;
   margin-bottom: 8px;
@@ -1562,6 +1587,10 @@ main.app-content {
   border-radius: 8px;
   font-size: 12px;
   color: var(--muted);
+}
+.wgt-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 .wgt-bar .wgt-label {
   flex: 1;

@@ -48,19 +48,19 @@ const SEMAFORO: Record<CierreEstado['semaforo'], string> = {
   vacio: 'var(--muted)',
 };
 
-// Catálogo de widgets del dashboard (orden por defecto).
-const WIDGETS: { id: string; label: string; span: 1 | 2 }[] = [
-  { id: 'cierre', label: '606 del período', span: 2 },
-  { id: 'kpis', label: 'KPIs del mes', span: 2 },
-  { id: 'insights', label: 'Qué atender', span: 2 },
-  { id: 'clientes', label: 'Clientes por atender', span: 2 },
-  { id: 'estado', label: 'Facturas por estado', span: 1 },
-  { id: 'tendencia', label: 'Monto reportado (12 meses)', span: 1 },
-  { id: 'categoria', label: 'Gasto por categoría', span: 1 },
-  { id: 'clienteChart', label: 'Facturas por cliente', span: 1 },
-  { id: 'proveedores', label: 'Top proveedores', span: 1 },
-  { id: 'actividad', label: 'Actividad (14 días)', span: 2 },
-  { id: 'plan', label: 'Uso del plan', span: 2 },
+// Catálogo de widgets del dashboard (orden y ancho por defecto en columnas 1–4).
+const WIDGETS: { id: string; label: string; size: number }[] = [
+  { id: 'cierre', label: '606 del período', size: 4 },
+  { id: 'kpis', label: 'KPIs del mes', size: 4 },
+  { id: 'insights', label: 'Qué atender', size: 4 },
+  { id: 'clientes', label: 'Clientes por atender', size: 4 },
+  { id: 'estado', label: 'Facturas por estado', size: 2 },
+  { id: 'tendencia', label: 'Monto reportado (12 meses)', size: 2 },
+  { id: 'categoria', label: 'Gasto por categoría', size: 2 },
+  { id: 'clienteChart', label: 'Facturas por cliente', size: 2 },
+  { id: 'proveedores', label: 'Top proveedores', size: 2 },
+  { id: 'actividad', label: 'Actividad (14 días)', size: 4 },
+  { id: 'plan', label: 'Uso del plan', size: 4 },
 ];
 const DEFAULT_ORDER = WIDGETS.map((w) => w.id);
 const WIDGET = new Map(WIDGETS.map((w) => [w.id, w]));
@@ -69,42 +69,49 @@ function useDashConfig(orgId: string) {
   const key = `facturard-dash-${orgId}`;
   const [order, setOrder] = useState<string[]>(DEFAULT_ORDER);
   const [hidden, setHidden] = useState<string[]>([]);
+  const [sizes, setSizes] = useState<Record<string, number>>({});
   const [editing, setEditing] = useState(false);
 
   useEffect(() => {
     try {
       const raw = localStorage.getItem(key);
       if (raw) {
-        const c = JSON.parse(raw) as { order?: string[]; hidden?: string[] };
+        const c = JSON.parse(raw) as {
+          order?: string[];
+          hidden?: string[];
+          sizes?: Record<string, number>;
+        };
         const known = new Set(DEFAULT_ORDER);
         const ord = (c.order ?? []).filter((id) => known.has(id));
         for (const id of DEFAULT_ORDER) if (!ord.includes(id)) ord.push(id);
         setOrder(ord);
         setHidden((c.hidden ?? []).filter((id) => known.has(id)));
+        setSizes(c.sizes ?? {});
       }
     } catch {
       /* localStorage no disponible */
     }
   }, [key]);
 
-  function persist(ord: string[], hid: string[]) {
+  function persist(ord: string[], hid: string[], sz: Record<string, number>) {
     setOrder(ord);
     setHidden(hid);
+    setSizes(sz);
     try {
-      localStorage.setItem(key, JSON.stringify({ order: ord, hidden: hid }));
+      localStorage.setItem(key, JSON.stringify({ order: ord, hidden: hid, sizes: sz }));
     } catch {
       /* ignore */
     }
   }
   const toggle = (id: string) =>
-    persist(order, hidden.includes(id) ? hidden.filter((x) => x !== id) : [...hidden, id]);
+    persist(order, hidden.includes(id) ? hidden.filter((x) => x !== id) : [...hidden, id], sizes);
   const move = (id: string, dir: -1 | 1) => {
     const i = order.indexOf(id);
     const j = i + dir;
     if (i < 0 || j < 0 || j >= order.length) return;
     const ord = [...order];
     [ord[i], ord[j]] = [ord[j], ord[i]];
-    persist(ord, hidden);
+    persist(ord, hidden, sizes);
   };
   // Reordena por drag-and-drop: coloca `dragged` antes/después de `target`.
   const reorder = (dragged: string, target: string, after: boolean) => {
@@ -114,10 +121,16 @@ function useDashConfig(orgId: string) {
     if (ti < 0) return;
     if (after) ti += 1;
     ord.splice(ti, 0, dragged);
-    persist(ord, hidden);
+    persist(ord, hidden, sizes);
   };
-  const reset = () => persist(DEFAULT_ORDER, []);
-  return { order, hidden, editing, setEditing, toggle, move, reorder, reset };
+  // Ancho del widget (1–4 columnas). dir = -1 más angosto, +1 más ancho.
+  const sizeOf = (id: string) => sizes[id] ?? WIDGET.get(id)?.size ?? 2;
+  const resize = (id: string, dir: -1 | 1) => {
+    const next = Math.min(4, Math.max(1, sizeOf(id) + dir));
+    persist(order, hidden, { ...sizes, [id]: next });
+  };
+  const reset = () => persist(DEFAULT_ORDER, [], {});
+  return { order, hidden, sizes, editing, setEditing, toggle, move, reorder, sizeOf, resize, reset };
 }
 
 export default function OrgDashboard() {
@@ -399,7 +412,7 @@ export default function OrgDashboard() {
           if (!node && !cfg.editing) return null;
           const w = WIDGET.get(id);
           const cellClass = [
-            w?.span === 2 ? 'span2' : '',
+            `size-${cfg.sizeOf(id)}`,
             cfg.editing ? 'wgt-cell' : '',
             dragId === id ? 'dragging' : '',
             overId === id ? 'drag-over' : '',
@@ -452,9 +465,30 @@ export default function OrgDashboard() {
                     ⠿
                   </span>
                   <span className="wgt-label">{w?.label ?? id}</span>
-                  <span className="muted" style={{ fontWeight: 400, marginRight: 4 }}>
-                    arrastra o
+                  <button
+                    className="wgt-btn"
+                    onClick={() => cfg.resize(id, -1)}
+                    disabled={cfg.sizeOf(id) <= 1}
+                    aria-label="Más angosto"
+                    title="Más angosto"
+                  >
+                    ⇤
+                  </button>
+                  <span
+                    className="muted"
+                    style={{ fontVariantNumeric: 'tabular-nums', minWidth: 24, textAlign: 'center' }}
+                  >
+                    {cfg.sizeOf(id)}/4
                   </span>
+                  <button
+                    className="wgt-btn"
+                    onClick={() => cfg.resize(id, 1)}
+                    disabled={cfg.sizeOf(id) >= 4}
+                    aria-label="Más ancho"
+                    title="Más ancho"
+                  >
+                    ⇥
+                  </button>
                   <button className="wgt-btn" onClick={() => cfg.move(id, -1)} aria-label="Subir">
                     ↑
                   </button>
