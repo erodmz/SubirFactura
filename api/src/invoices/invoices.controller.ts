@@ -80,8 +80,10 @@ export class InvoicesController {
     @Param('orgId') orgId: string,
     @CurrentUser() user: AuthenticatedUser,
     @Req() req: { membership: Membership },
+    @Query('periodo') periodo?: string,
+    @Query('clientProfileId') clientProfileId?: string,
   ) {
-    return this.invoices.dashboard(orgId, user, req.membership);
+    return this.invoices.dashboard(orgId, user, req.membership, { periodo, clientProfileId });
   }
 
   @Get(':invoiceId')

@@ -370,14 +370,24 @@ export class InvoicesService {
    * actividad reciente y última subida por cliente (para detectar anomalías).
    * Respeta el alcance por rol. El semáforo por cliente lo da dgii/606/panel.
    */
-  async dashboard(orgId: string, user: AuthenticatedUser, membership: Membership) {
+  async dashboard(
+    orgId: string,
+    user: AuthenticatedUser,
+    membership: Membership,
+    opts: { periodo?: string; clientProfileId?: string } = {},
+  ) {
     const scope = await this.invoiceScope(user, membership);
+    const cliente = opts.clientProfileId || undefined;
     const where: Prisma.InvoiceWhereInput = {};
     if (scope) {
+      // Filtro por cliente (solo si está en el alcance del usuario).
+      const allowed = cliente && scope.ids.includes(cliente) ? [cliente] : scope.ids;
       where.OR = [
-        { clientProfileId: { in: scope.ids } },
-        ...(scope.incluyeSinAsignar ? [{ clientProfileId: null } as const] : []),
+        { clientProfileId: { in: allowed } },
+        ...(scope.incluyeSinAsignar && !cliente ? [{ clientProfileId: null } as const] : []),
       ];
+    } else if (cliente) {
+      where.clientProfileId = cliente; // org_admin filtrando por un cliente
     }
     const rows = await this.prisma.forOrg(orgId).invoice.findMany({
       where,
@@ -397,7 +407,8 @@ export class InvoicesService {
     const dia = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: 'America/Santo_Domingo' });
     const mesDe = (d: Date) => dia(d).slice(0, 7).replace('-', '');
     const now = new Date();
-    const periodo = mesDe(now);
+    // Período de las KPIs del mes: el pedido (si es válido) o el mes actual.
+    const periodo = opts.periodo && /^\d{6}$/.test(opts.periodo) ? opts.periodo : mesDe(now);
     const REPORTABLE = new Set(['validada', 'incluida_en_606', 'reportada']);
 
     const subidasPorMes = new Map<string, number>();

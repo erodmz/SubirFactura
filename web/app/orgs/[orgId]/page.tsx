@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '../../../lib/api';
 import { AreaChart, Donut, ESTADO_COLOR, HBars, SERIES } from '../../../components/Charts';
+import Dropdown, { type DropdownOption } from '../../../components/Dropdown';
 import {
   ESTADO_LABELS,
   type CierreEstado,
@@ -65,6 +66,21 @@ const WIDGETS: { id: string; label: string; size: number }[] = [
 const DEFAULT_ORDER = WIDGETS.map((w) => w.id);
 const WIDGET = new Map(WIDGETS.map((w) => [w.id, w]));
 
+// Configuración por defecto del dashboard (la que ve todo el mundo y a la que
+// vuelve "Restablecer"). sizes vacío = usa el ancho por defecto de cada widget.
+const DEFAULT_CONFIG: DashCfg = {
+  order: DEFAULT_ORDER,
+  hidden: [],
+  sizes: {},
+  heights: {},
+};
+const cloneDefault = (): DashCfg => ({
+  order: [...DEFAULT_CONFIG.order],
+  hidden: [...DEFAULT_CONFIG.hidden],
+  sizes: { ...DEFAULT_CONFIG.sizes },
+  heights: { ...DEFAULT_CONFIG.heights },
+});
+
 interface DashCfg {
   order: string[];
   hidden: string[];
@@ -74,10 +90,10 @@ interface DashCfg {
 
 function useDashConfig(orgId: string) {
   const key = `facturard-dash-${orgId}`;
-  const [order, setOrder] = useState<string[]>(DEFAULT_ORDER);
-  const [hidden, setHidden] = useState<string[]>([]);
-  const [sizes, setSizes] = useState<Record<string, number>>({});
-  const [heights, setHeights] = useState<Record<string, number>>({});
+  const [order, setOrder] = useState<string[]>(DEFAULT_CONFIG.order);
+  const [hidden, setHidden] = useState<string[]>(DEFAULT_CONFIG.hidden);
+  const [sizes, setSizes] = useState<Record<string, number>>(DEFAULT_CONFIG.sizes);
+  const [heights, setHeights] = useState<Record<string, number>>(DEFAULT_CONFIG.heights);
   const [editing, setEditing] = useState(false);
 
   useEffect(() => {
@@ -89,9 +105,9 @@ function useDashConfig(orgId: string) {
         const ord = (c.order ?? []).filter((id) => known.has(id));
         for (const id of DEFAULT_ORDER) if (!ord.includes(id)) ord.push(id);
         setOrder(ord);
-        setHidden((c.hidden ?? []).filter((id) => known.has(id)));
-        setSizes(c.sizes ?? {});
-        setHeights(c.heights ?? {});
+        setHidden((c.hidden ?? DEFAULT_CONFIG.hidden).filter((id) => known.has(id)));
+        setSizes(c.sizes ?? DEFAULT_CONFIG.sizes);
+        setHeights(c.heights ?? DEFAULT_CONFIG.heights);
       }
     } catch {
       /* localStorage no disponible */
@@ -140,16 +156,29 @@ function useDashConfig(orgId: string) {
       heights:
         h == null ? Object.fromEntries(Object.entries(heights).filter(([k]) => k !== id)) : { ...heights, [id]: h },
     });
-  const reset = () => persist({ order: DEFAULT_ORDER, hidden: [], sizes: {}, heights: {} });
+  const reset = () => persist(cloneDefault());
   return {
     order, hidden, sizes, heights, editing, setEditing,
     toggle, move, reorder, sizeOf, heightOf, resize, setBox, reset,
   };
 }
 
+// Últimos 12 períodos (AAAAMM) hasta el mes actual, para el filtro de período.
+function periodosRecientes(): string[] {
+  const now = new Date();
+  const out: string[] = [];
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    out.push(`${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`);
+  }
+  return out;
+}
+
 export default function OrgDashboard() {
   const { orgId } = useParams<{ orgId: string }>();
-  const periodo = periodoActual();
+  const [fPeriodo, setFPeriodo] = useState(periodoActual());
+  const [fCliente, setFCliente] = useState('');
+  const [clientes, setClientes] = useState<{ id: string; razonSocial: string }[]>([]);
   const [usage, setUsage] = useState<OrgUsage | null>(null);
   const [cierre, setCierre] = useState<CierreEstado | null>(null);
   const [resumen, setResumen] = useState<ResumenGastos | null>(null);
@@ -195,34 +224,52 @@ export default function OrgDashboard() {
     void startCols;
   }
 
+  // Lista de clientes para el filtro (una vez por org).
   useEffect(() => {
+    api<{ id: string; razonSocial: string }[]>(`/api/organizations/${orgId}/clients`)
+      .then(setClientes)
+      .catch(() => {});
+  }, [orgId]);
+
+  // Datos del dashboard, re-consultados al cambiar período o cliente.
+  useEffect(() => {
+    const cl = fCliente ? `&clientProfileId=${fCliente}` : '';
+    const clId = fCliente ? `&clientId=${fCliente}` : '';
     api<OrgUsage>(`/api/organizations/${orgId}/usage`)
       .then(setUsage)
       .catch((err) => setError(err instanceof Error ? err.message : 'Error'));
-    api<CierreEstado>(`/api/organizations/${orgId}/dgii/606/cierre?periodo=${periodo}`)
+    api<CierreEstado>(`/api/organizations/${orgId}/dgii/606/cierre?periodo=${fPeriodo}${clId}`)
       .then(setCierre)
       .catch(() => {});
-    api<ResumenGastos>(`/api/organizations/${orgId}/invoices/resumen?meses=6`)
+    api<ResumenGastos>(`/api/organizations/${orgId}/invoices/resumen?meses=6${cl}`)
       .then(setResumen)
       .catch(() => {});
-    api<DashboardData>(`/api/organizations/${orgId}/invoices/dashboard`)
+    api<DashboardData>(`/api/organizations/${orgId}/invoices/dashboard?periodo=${fPeriodo}${cl}`)
       .then(setDash)
       .catch(() => {});
-    api<PanelCierre>(`/api/organizations/${orgId}/dgii/606/panel?periodo=${periodo}`)
+    api<PanelCierre>(`/api/organizations/${orgId}/dgii/606/panel?periodo=${fPeriodo}`)
       .then(setPanel)
       .catch(() => {});
-  }, [orgId, periodo]);
+  }, [orgId, fPeriodo, fCliente]);
 
-  const invUrl = (estado: string) => `/orgs/${orgId}/invoices?estado=${estado}`;
+  const periodo = fPeriodo;
+  const clienteQ = fCliente ? `&clientId=${fCliente}` : '';
+  const invUrl = (estado: string) => `/orgs/${orgId}/invoices?estado=${estado}${clienteQ}`;
 
-  const clientesAtencion = useMemo(() => {
-    if (!panel) return [];
-    return panel.clientes.filter(necesitaAtencion).sort((a, b) => urgencia(b) - urgencia(a));
-  }, [panel]);
+  // Panel filtrado por el cliente seleccionado (el panel viene con todos).
+  const panelClientes = useMemo(
+    () => (panel ? (fCliente ? panel.clientes.filter((c) => c.clienteId === fCliente) : panel.clientes) : []),
+    [panel, fCliente],
+  );
+
+  const clientesAtencion = useMemo(
+    () => panelClientes.filter(necesitaAtencion).sort((a, b) => urgencia(b) - urgencia(a)),
+    [panelClientes],
+  );
 
   const insights = useMemo(
-    () => (panel ? buildInsights(panel, dash, orgId) : []),
-    [panel, dash, orgId],
+    () => (panel ? buildInsights({ ...panel, clientes: panelClientes }, dash, orgId, clienteQ) : []),
+    [panel, panelClientes, dash, orgId, clienteQ],
   );
 
   // ── Render de cada widget (null = sin datos → no se muestra) ──────────────
@@ -303,8 +350,7 @@ export default function OrgDashboard() {
         </div>
       ),
     clientes: () =>
-      panel &&
-      panel.clientes.length > 0 && (
+      panelClientes.length > 0 && (
         <div className="card">
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
             <h2 style={{ margin: 0 }}>Clientes</h2>
@@ -313,7 +359,7 @@ export default function OrgDashboard() {
             </span>
           </div>
           <div className="attn">
-            {(clientesAtencion.length > 0 ? clientesAtencion : panel.clientes).map((c) => (
+            {(clientesAtencion.length > 0 ? clientesAtencion : panelClientes).map((c) => (
               <ClienteRow key={c.clienteId} c={c} orgId={orgId} dash={dash} />
             ))}
           </div>
@@ -438,6 +484,32 @@ export default function OrgDashboard() {
         >
           {cfg.editing ? 'Listo' : '⚙ Personalizar'}
         </button>
+      </div>
+
+      {/* Filtros: período fiscal y cliente. */}
+      <div className="dash-filters">
+        <Dropdown
+          ariaLabel="Período fiscal"
+          icon={<span aria-hidden>📅</span>}
+          value={fPeriodo}
+          onChange={setFPeriodo}
+          options={periodosRecientes().map((p, i) => ({
+            value: p,
+            label: i === 0 ? `Este mes · ${periodoLabel(p)}` : periodoLabel(p),
+          }))}
+        />
+        <Dropdown
+          ariaLabel="Cliente"
+          icon={<span aria-hidden>🏢</span>}
+          value={fCliente}
+          onChange={setFCliente}
+          options={
+            [
+              { value: '', label: 'Todos los clientes' },
+              ...clientes.map((c) => ({ value: c.id, label: c.razonSocial })),
+            ] as DropdownOption[]
+          }
+        />
       </div>
 
       {error && <div className="error">{error}</div>}
@@ -601,33 +673,82 @@ interface Insight {
   href?: string;
 }
 
-function buildInsights(panel: PanelCierre, dash: DashboardData | null, orgId: string): Insight[] {
+function buildInsights(
+  panel: PanelCierre,
+  dash: DashboardData | null,
+  orgId: string,
+  clienteQ: string,
+): Insight[] {
   const out: Insight[] = [];
   const dias = panel.diasRestantes;
+  const inv = (estado?: string) =>
+    `/orgs/${orgId}/invoices${estado ? `?estado=${estado}` : '?'}${clienteQ}`;
+  const conteo = (estado: string) => dash?.porEstado.find((e) => e.estado === estado)?.n ?? 0;
 
-  const pendientesCierre = panel.clientes.filter((c) => c.totales.enRevision > 0);
-  if ((panel.vencido || dias <= 5) && pendientesCierre.length > 0) {
-    const k = pendientesCierre.reduce((s, c) => s + c.totales.enRevision, 0);
+  // Vencimiento del 606 del período.
+  if (panel.vencido || dias <= 5) {
     out.push({
-      tono: 'danger',
-      relevancia: 95,
+      tono: panel.vencido ? 'danger' : 'warn',
+      relevancia: 96,
       href: `/orgs/${orgId}/dgii`,
       texto: (
         <>
-          El 606 {panel.vencido ? 'venció' : `vence en ${dias} día(s)`} y hay <strong>{k}</strong>{' '}
-          factura(s) en revisión en {pendientesCierre.length} cliente(s).
+          El 606 {panel.vencido ? `venció hace ${Math.abs(dias)} día(s)` : `vence en ${dias} día(s)`}.
         </>
       ),
     });
   }
+  // Facturas en revisión: hay que corregir y validar.
+  const enRev = conteo('en_revision');
+  if (enRev > 0) {
+    out.push({
+      tono: 'danger',
+      relevancia: 90,
+      href: inv('en_revision'),
+      texto: (
+        <>
+          <strong>{enRev}</strong> factura(s) <strong>en revisión</strong> — corrígelas y valídalas.
+        </>
+      ),
+    });
+  }
+  // Alertas DGII (NCF/RNC/padrón): revisar antes de reportar.
+  const alertas = panel.clientes.reduce((s, c) => s + c.totales.conAlertasDgii, 0);
+  if (alertas > 0) {
+    out.push({
+      tono: 'danger',
+      relevancia: 86,
+      href: `/orgs/${orgId}/dgii`,
+      texto: (
+        <>
+          <strong>{alertas}</strong> factura(s) con <strong>alertas DGII</strong> — revísalas antes de reportar.
+        </>
+      ),
+    });
+  }
+  // Sin asignar: esperan clasificación.
   if (panel.sinAsignar > 0) {
     out.push({
       tono: 'warn',
       relevancia: 80,
-      href: `/orgs/${orgId}/invoices`,
+      href: inv(),
       texto: (
         <>
           <strong>{panel.sinAsignar}</strong> factura(s) sin asignar esperan clasificación.
+        </>
+      ),
+    });
+  }
+  // Extraídas: la IA ya las leyó, faltan validar.
+  const extr = conteo('extraida');
+  if (extr > 0) {
+    out.push({
+      tono: 'info',
+      relevancia: 70,
+      href: inv('extraida'),
+      texto: (
+        <>
+          <strong>{extr}</strong> leída(s) por la IA, <strong>listas para validar</strong>.
         </>
       ),
     });
@@ -680,7 +801,7 @@ function buildInsights(panel: PanelCierre, dash: DashboardData | null, orgId: st
       });
     }
   }
-  return out.sort((a, b) => b.relevancia - a.relevancia).slice(0, 5);
+  return out.sort((a, b) => b.relevancia - a.relevancia).slice(0, 6);
 }
 
 // ── Componentes de presentación ────────────────────────────────────────────

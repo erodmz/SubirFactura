@@ -1684,3 +1684,102 @@ main.app-content {
   height: 100%;
   overflow: auto;
 }
+
+/* ── Dropdown moderno (filtros) ──────────────────────────────────────────── */
+.dash-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 18px;
+}
+.dd {
+  position: relative;
+}
+.dd-btn {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+.dd-btn:hover {
+  border-color: var(--brand);
+  background: var(--card);
+}
+.dd-icon {
+  color: var(--muted);
+  display: inline-flex;
+}
+.dd-cur {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dd-chev {
+  color: var(--muted);
+  font-size: 11px;
+  transition: transform 0.15s ease;
+}
+.dd-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 100%;
+  max-width: 320px;
+  max-height: 340px;
+  overflow-y: auto;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 6px;
+  z-index: 20;
+  animation: popIn 0.12s ease both;
+}
+.dd-item {
+  margin: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+}
+.dd-item:hover {
+  background: var(--bg-soft);
+}
+.dd-item.active {
+  color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 10%, transparent);
+}
+.dd-item-label {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+.dd-item-hint {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 400;
+}
+.dd-check {
+  color: var(--brand);
+  font-weight: 700;
+}
