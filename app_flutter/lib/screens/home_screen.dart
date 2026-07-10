@@ -45,7 +45,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   List<Invoice> _invoices = [];
   String? _filtro;
   String? _error;
@@ -55,15 +55,23 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     UploadQueue.instance.addListener(_onQueueChanged);
     _load();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _poll?.cancel();
     UploadQueue.instance.removeListener(_onQueueChanged);
     super.dispose();
+  }
+
+  // Al volver la app al primer plano, refresca (pudieron subir/editar en la web).
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) _load();
   }
 
   void _onQueueChanged() {

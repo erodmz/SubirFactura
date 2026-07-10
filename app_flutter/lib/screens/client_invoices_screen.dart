@@ -39,7 +39,7 @@ class ClientInvoicesScreen extends StatefulWidget {
   State<ClientInvoicesScreen> createState() => _ClientInvoicesScreenState();
 }
 
-class _ClientInvoicesScreenState extends State<ClientInvoicesScreen> {
+class _ClientInvoicesScreenState extends State<ClientInvoicesScreen> with WidgetsBindingObserver {
   final Map<String, List<Invoice>> _byBusiness = {};
   final Map<String, String> _bizNameByInvoice = {};
   // Mis subidas del share aún SIN asignar (el worker las clasifica por RNC).
@@ -64,16 +64,23 @@ class _ClientInvoicesScreenState extends State<ClientInvoicesScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     UploadQueue.instance.addListener(_onQueueChanged);
     _load();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _poll?.cancel();
     _searchCtrl.dispose();
     UploadQueue.instance.removeListener(_onQueueChanged);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) _load();
   }
 
   void _onQueueChanged() {

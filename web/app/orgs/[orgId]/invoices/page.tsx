@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useSearchParams } from 'next/navigation';
 import { api } from '../../../../lib/api';
+import { useAutoRefresh } from '../../../../lib/useAutoRefresh';
 import DataTable from '../../../../components/DataTable';
 import Dropdown from '../../../../components/Dropdown';
 import ImageLightbox from '../../../../components/ImageLightbox';
@@ -225,20 +226,36 @@ export default function InvoicesPage() {
       .catch(() => {});
   }, [orgId]);
 
-  const load = useCallback(() => {
-    setLoading(true);
-    const params = new URLSearchParams();
-    if (estado) params.set('estado', estado);
-    if (clientId) params.set('clientProfileId', clientId);
-    if (/^\d{6}$/.test(periodo)) params.set('periodoFiscal', periodo);
-    const q = params.toString() ? `?${params}` : '';
-    api<Invoice[]>(`/api/organizations/${orgId}/invoices${q}`)
-      .then(setInvoices)
-      .catch((e) => setError(e instanceof Error ? e.message : 'Error'))
-      .finally(() => setLoading(false));
-  }, [orgId, estado, clientId, periodo]);
+  const load = useCallback(
+    (silent = false) => {
+      if (!silent) setLoading(true);
+      const params = new URLSearchParams();
+      if (estado) params.set('estado', estado);
+      if (clientId) params.set('clientProfileId', clientId);
+      if (/^\d{6}$/.test(periodo)) params.set('periodoFiscal', periodo);
+      const q = params.toString() ? `?${params}` : '';
+      api<Invoice[]>(`/api/organizations/${orgId}/invoices${q}`)
+        .then(setInvoices)
+        .catch((e) => setError(e instanceof Error ? e.message : 'Error'))
+        .finally(() => {
+          if (!silent) setLoading(false);
+        });
+    },
+    [orgId, estado, clientId, periodo],
+  );
 
-  useEffect(load, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  // Sincroniza con el backend: re-consulta al volver a la pestaña y cada 20 s
+  // (silencioso, sin parpadeo). Se pausa mientras haya un modal abierto para no
+  // interrumpir la edición.
+  useAutoRefresh(
+    useCallback(() => {
+      if (!expanded) load(true);
+    }, [expanded, load]),
+  );
 
   // Proveedores distintos presentes en las facturas cargadas (para el filtro).
   const proveedores = Array.from(

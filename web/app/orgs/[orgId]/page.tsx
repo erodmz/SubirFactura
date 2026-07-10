@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '../../../lib/api';
+import { useAutoRefresh } from '../../../lib/useAutoRefresh';
 import { AreaChart, Donut, ESTADO_COLOR, HBars, SERIES } from '../../../components/Charts';
 import Dropdown, { type DropdownOption } from '../../../components/Dropdown';
 import {
@@ -232,7 +233,7 @@ export default function OrgDashboard() {
   }, [orgId]);
 
   // Datos del dashboard, re-consultados al cambiar período o cliente.
-  useEffect(() => {
+  const refetch = useCallback(() => {
     const cl = fCliente ? `&clientProfileId=${fCliente}` : '';
     const clId = fCliente ? `&clientId=${fCliente}` : '';
     api<OrgUsage>(`/api/organizations/${orgId}/usage`)
@@ -251,6 +252,13 @@ export default function OrgDashboard() {
       .then(setPanel)
       .catch(() => {});
   }, [orgId, fPeriodo, fCliente]);
+
+  useEffect(() => {
+    refetch();
+  }, [refetch]);
+
+  // Auto-sincroniza al volver a la pestaña y con polling suave.
+  useAutoRefresh(refetch);
 
   const periodo = fPeriodo;
   const clienteQ = fCliente ? `&clientId=${fCliente}` : '';

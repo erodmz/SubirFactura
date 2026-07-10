@@ -45,7 +45,7 @@ class ClientHomeScreen extends StatefulWidget {
   State<ClientHomeScreen> createState() => _ClientHomeScreenState();
 }
 
-class _ClientHomeScreenState extends State<ClientHomeScreen> {
+class _ClientHomeScreenState extends State<ClientHomeScreen> with WidgetsBindingObserver {
   List<Invoice> _invoices = [];
   final _searchCtrl = TextEditingController();
   String? _estadoFilter; // null = todos
@@ -59,16 +59,23 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     UploadQueue.instance.addListener(_onQueueChanged);
     _load();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _poll?.cancel();
     _searchCtrl.dispose();
     UploadQueue.instance.removeListener(_onQueueChanged);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) _load();
   }
 
   /// Facturas visibles según estado + búsqueda (filtro en cliente).
