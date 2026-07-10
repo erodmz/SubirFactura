@@ -15,6 +15,7 @@ import {
   type ConsultaRncResult,
   type ConsultaNcfResult,
 } from '@facturard/shared';
+import { alertRupture } from '../alerts';
 
 const BASE = 'https://dgii.gov.do/app/WebApps/ConsultasWeb2/ConsultasWeb/consultas';
 const RNC_URL = `${BASE}/rnc.aspx`;
@@ -28,24 +29,26 @@ function hiddenField(html: string, name: string): string {
   return m?.[1] ?? '';
 }
 
+// ok:true → llegó respuesta 2xx (aunque el dato no exista). ok:false → NO llegó
+// (timeout/red/HTTP): es transitorio y esperado; el caller cae al padrón sin alertar.
+type WebFormResult =
+  | { ok: true; html: string }
+  | { ok: false; reason: 'timeout' | 'http' | 'error'; detail?: string };
+
 /**
  * Ejecuta un postback de WebForms: GET para tomar VIEWSTATE + cookie, luego POST
- * con los campos. Un solo `timeoutMs` cubre ambas peticiones. Devuelve el HTML de
- * la respuesta, o null ante timeout/red/HTTP no-2xx.
+ * con los campos. Un solo `timeoutMs` cubre ambas peticiones. Nunca lanza.
  */
 async function postWebForm(
   url: string,
   fields: Record<string, string>,
   timeoutMs: number,
-): Promise<string | null> {
+): Promise<WebFormResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const get = await fetch(url, {
-      signal: controller.signal,
-      headers: { 'User-Agent': UA },
-    });
-    if (!get.ok) return null;
+    const get = await fetch(url, { signal: controller.signal, headers: { 'User-Agent': UA } });
+    if (!get.ok) return { ok: false, reason: 'http', detail: `GET ${get.status}` };
     const cookie = (get.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
     const page = await get.text();
 
@@ -68,21 +71,26 @@ async function postWebForm(
       },
       body,
     });
-    if (!post.ok) return null;
-    return await post.text();
-  } catch {
-    return null; // timeout, red, DNS, abort…
+    if (!post.ok) return { ok: false, reason: 'http', detail: `POST ${post.status}` };
+    return { ok: true, html: await post.text() };
+  } catch (err) {
+    const aborted = (err as { name?: string }).name === 'AbortError';
+    return { ok: false, reason: aborted ? 'timeout' : 'error', detail: (err as Error).message };
   } finally {
     clearTimeout(timer);
   }
 }
 
-/** Consulta el RNC/cédula en el registro de la DGII. null si no respondió. */
+/**
+ * Consulta el RNC/cédula en el registro de la DGII. Devuelve null cuando NO se
+ * pudo consultar (para que el caller use el padrón). Si la DGII respondió pero el
+ * HTML no tiene la estructura esperada (scraper roto), además emite una alerta.
+ */
 export async function consultarRncLive(
   rnc: string,
   timeoutMs: number,
 ): Promise<ConsultaRncResult | null> {
-  const html = await postWebForm(
+  const res = await postWebForm(
     RNC_URL,
     {
       'ctl00$cphMain$txtRNCCedula': rnc,
@@ -91,7 +99,29 @@ export async function consultarRncLive(
     },
     timeoutMs,
   );
-  return html ? parseConsultaRnc(html, rnc) : null;
+  if (!res.ok) return null; // transitorio (timeout/red/HTTP): sin alerta, cae al padrón
+  try {
+    const parsed = parseConsultaRnc(res.html, rnc);
+    if (!parsed.paginaOk) {
+      await alertRupture({
+        key: 'dgii.rnc.estructura',
+        title: 'Scraper RNC de la DGII: estructura desconocida',
+        message: 'La página de consulta de RNC respondió pero sin la tabla esperada. ¿Cambió el HTML de la DGII?',
+        context: { rnc, url: RNC_URL },
+      });
+      return null; // no confiable → cae al padrón
+    }
+    return parsed;
+  } catch (err) {
+    await alertRupture({
+      key: 'dgii.rnc.parse',
+      title: 'Scraper RNC de la DGII falló al parsear',
+      message: 'Excepción al interpretar la respuesta de la consulta de RNC.',
+      error: err,
+      context: { rnc, url: RNC_URL },
+    });
+    return null;
+  }
 }
 
 export interface ConsultaNcfInput {
@@ -107,7 +137,7 @@ export async function consultarNcfLive(
   input: ConsultaNcfInput,
   timeoutMs: number,
 ): Promise<ConsultaNcfResult | null> {
-  const html = await postWebForm(
+  const res = await postWebForm(
     NCF_URL,
     {
       'ctl00$cphMain$txtRNC': input.rncEmisor,
@@ -118,5 +148,27 @@ export async function consultarNcfLive(
     },
     timeoutMs,
   );
-  return html ? parseConsultaNcf(html) : null;
+  if (!res.ok) return null;
+  try {
+    const parsed = parseConsultaNcf(res.html);
+    if (!parsed.paginaOk) {
+      await alertRupture({
+        key: 'dgii.ncf.estructura',
+        title: 'Scraper NCF de la DGII: estructura desconocida',
+        message: 'La página de consulta de NCF respondió pero sin el formulario esperado. ¿Cambió el HTML de la DGII?',
+        context: { ncf: input.ncf, url: NCF_URL },
+      });
+      return null;
+    }
+    return parsed;
+  } catch (err) {
+    await alertRupture({
+      key: 'dgii.ncf.parse',
+      title: 'Scraper NCF de la DGII falló al parsear',
+      message: 'Excepción al interpretar la respuesta de la consulta de NCF.',
+      error: err,
+      context: { ncf: input.ncf, url: NCF_URL },
+    });
+    return null;
+  }
 }

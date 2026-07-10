@@ -54,6 +54,12 @@ function parseMonto(raw: string | null): number | null {
 // ───────────────────────── RNC (rnc.aspx) ─────────────────────────
 
 export interface ConsultaRncResult {
+  /**
+   * Se reconoció la estructura esperada de la página (tabla de datos). false =
+   * la DGII cambió el HTML o devolvió algo inesperado → el scraper está roto,
+   * NO que el RNC no exista. Distinguirlo evita falsas alarmas.
+   */
+  paginaOk: boolean;
   /** El RNC/cédula figura en el registro de la DGII (tiene razón social). */
   encontrado: boolean;
   rnc: string;
@@ -97,6 +103,7 @@ export function parseConsultaRnc(html: string, rnc: string): ConsultaRncResult {
   const estado = get('estado');
   const fe = get('facturador electronico');
   return {
+    paginaOk: rows.length > 0,
     encontrado: razonSocial != null,
     rnc,
     razonSocial,
@@ -110,6 +117,11 @@ export function parseConsultaRnc(html: string, rnc: string): ConsultaRncResult {
 // ───────────────────────── NCF (ncf.aspx) ─────────────────────────
 
 export interface ConsultaNcfResult {
+  /**
+   * Se reconoció la página de consulta de NCF (el formulario esperado). false =
+   * la DGII cambió el HTML → scraper roto, no "comprobante no hallado".
+   */
+  paginaOk: boolean;
   /** La DGII devolvió una ficha para el comprobante consultado. */
   encontrado: boolean;
   /** Estado del comprobante (p. ej. "Aceptado", "Vigente"). */
@@ -138,7 +150,10 @@ const NCF_VALIDO = /(acept|vigente|v[aá]lid)/i;
 export function parseConsultaNcf(html: string): ConsultaNcfResult {
   // Panel de comprobante fiscal electrónico (e-CF, serie E).
   const estado = spanText(html, 'lblEstadoFe');
+  // El formulario (campo NCF o el label de estado) confirma que es la página correcta.
+  const paginaOk = /id="cphMain_(txtNCF|lblEstadoFe)"/i.test(html);
   return {
+    paginaOk,
     encontrado: estado != null,
     estado,
     aceptado: estado != null && NCF_VALIDO.test(estado),

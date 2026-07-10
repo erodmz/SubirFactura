@@ -40,6 +40,7 @@ const NCF_VACIO = `<div id="cphMain_PResultadoFE"><span id="cphMain_lblEstadoFe"
 describe('parseConsultaRnc', () => {
   it('extrae razón social, estado y facturador de un RNC activo', () => {
     const r = parseConsultaRnc(RNC_ENCONTRADO, '132695399');
+    expect(r.paginaOk).toBe(true);
     expect(r.encontrado).toBe(true);
     expect(r.razonSocial).toBe('CEIDI CENTRO DE IMAGENES DIAGNOSTICAS SRL');
     expect(r.nombreComercial).toBe('CEIDI CENTRO DE IMAGENES DIAGNOSTICAS');
@@ -48,8 +49,9 @@ describe('parseConsultaRnc', () => {
     expect(r.facturadorElectronico).toBe(false);
   });
 
-  it('marca no encontrado cuando las celdas vienen vacías', () => {
+  it('marca no encontrado (pero página OK) cuando las celdas vienen vacías', () => {
     const r = parseConsultaRnc(RNC_NO_ENCONTRADO, '000000000');
+    expect(r.paginaOk).toBe(true); // la estructura existe: es un "no existe" legítimo
     expect(r.encontrado).toBe(false);
     expect(r.razonSocial).toBeNull();
     expect(r.activo).toBe(false);
@@ -62,14 +64,17 @@ describe('parseConsultaRnc', () => {
     expect(r.estado).toBe('SUSPENDIDO');
   });
 
-  it('degrada a no encontrado si falta la tabla', () => {
-    expect(parseConsultaRnc('<html>error</html>', '1').encontrado).toBe(false);
+  it('marca paginaOk=false si falta la tabla (scraper roto, no "no existe")', () => {
+    const r = parseConsultaRnc('<html>error 500</html>', '1');
+    expect(r.paginaOk).toBe(false);
+    expect(r.encontrado).toBe(false);
   });
 });
 
 describe('parseConsultaNcf', () => {
   it('extrae estado y montos de un e-CF aceptado', () => {
     const r = parseConsultaNcf(NCF_ACEPTADO);
+    expect(r.paginaOk).toBe(true);
     expect(r.encontrado).toBe(true);
     expect(r.estado).toBe('Aceptado');
     expect(r.aceptado).toBe(true);
@@ -80,9 +85,16 @@ describe('parseConsultaNcf', () => {
     expect(r.fechaEmision).toBe('2026-07-04');
   });
 
-  it('marca no encontrado cuando el estado viene vacío', () => {
+  it('no encontrado pero página OK cuando el estado viene vacío', () => {
     const r = parseConsultaNcf(NCF_VACIO);
+    expect(r.paginaOk).toBe(true);
     expect(r.encontrado).toBe(false);
     expect(r.aceptado).toBe(false);
+  });
+
+  it('paginaOk=false si no está el formulario (scraper roto)', () => {
+    const r = parseConsultaNcf('<html>mantenimiento</html>');
+    expect(r.paginaOk).toBe(false);
+    expect(r.encontrado).toBe(false);
   });
 });

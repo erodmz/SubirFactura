@@ -10,6 +10,7 @@ import {
   fechaToPeriodoFiscal,
   validateTaxId,
   type EcfVerificacion,
+  type FiscalValidation,
   type PadronEntry,
 } from '@facturard/shared';
 import { prisma, Prisma } from '@facturard/shared/db';
@@ -18,6 +19,7 @@ import { extractInvoice } from './extract';
 import { decodeEcfQr } from './qr';
 import { verifyEcfLive } from './ecf-live';
 import { consultarRncLive, consultarNcfLive } from './dgii-consulta';
+import { alertRupture } from '../alerts';
 
 export interface OcrJobData {
   invoiceId: string;
@@ -44,61 +46,80 @@ interface FiscalValidationArgs {
  * (ConsultasWeb2). Si no responde a tiempo, respaldo con el padrón local. Para
  * e-CF (serie E con código de seguridad) valida además el NCF en vivo.
  */
-async function runFiscalValidation(args: FiscalValidationArgs) {
+async function runFiscalValidation(args: FiscalValidationArgs): Promise<FiscalValidation> {
   const { ncf, rnc, razonSocial } = args;
-  const normalized = rnc ? rnc.replace(/[-\s]/g, '') : null;
-  const isRnc = !!normalized && /^\d{9}$/.test(normalized);
-  const liveEnabled = process.env.DGII_LIVE_CONSULTA !== '0';
-  const timeout = Number(process.env.DGII_CONSULTA_TIMEOUT_MS ?? 5000);
+  try {
+    const normalized = rnc ? rnc.replace(/[-\s]/g, '') : null;
+    const isRnc = !!normalized && /^\d{9}$/.test(normalized);
+    const liveEnabled = process.env.DGII_LIVE_CONSULTA !== '0';
+    const timeout = Number(process.env.DGII_CONSULTA_TIMEOUT_MS ?? 5000);
 
-  // ── RNC: primero en vivo contra la DGII; si no responde, padrón local ──
-  let padronEntry: PadronEntry | null = null;
-  let padronConsultado = false;
-  let fuenteRnc: 'dgii' | 'padron' | 'ninguna' = 'ninguna';
+    // ── RNC: primero en vivo contra la DGII; si no responde, padrón local ──
+    let padronEntry: PadronEntry | null = null;
+    let padronConsultado = false;
+    let fuenteRnc: 'dgii' | 'padron' | 'ninguna' = 'ninguna';
 
-  if (isRnc && liveEnabled) {
-    const live = await consultarRncLive(normalized!, timeout);
-    if (live) {
-      fuenteRnc = 'dgii';
-      padronConsultado = true;
-      padronEntry = live.encontrado
-        ? { rnc: normalized!, razonSocial: live.razonSocial ?? '', estado: live.estado }
-        : null;
+    if (isRnc && liveEnabled) {
+      const live = await consultarRncLive(normalized!, timeout);
+      if (live) {
+        fuenteRnc = 'dgii';
+        padronConsultado = true;
+        padronEntry = live.encontrado
+          ? { rnc: normalized!, razonSocial: live.razonSocial ?? '', estado: live.estado }
+          : null;
+      }
     }
-  }
-  if (isRnc && fuenteRnc === 'ninguna') {
-    const entry = await prisma.rncPadron.findUnique({ where: { rnc: normalized! } });
-    const anyPadron =
-      entry != null || (await prisma.rncPadron.findFirst({ select: { rnc: true } })) != null;
-    padronEntry = entry
-      ? { rnc: entry.rnc, razonSocial: entry.razonSocial, estado: entry.estado }
-      : null;
-    padronConsultado = anyPadron;
-    fuenteRnc = anyPadron ? 'padron' : 'ninguna';
-  }
+    if (isRnc && fuenteRnc === 'ninguna') {
+      const entry = await prisma.rncPadron.findUnique({ where: { rnc: normalized! } });
+      const anyPadron =
+        entry != null || (await prisma.rncPadron.findFirst({ select: { rnc: true } })) != null;
+      padronEntry = entry
+        ? { rnc: entry.rnc, razonSocial: entry.razonSocial, estado: entry.estado }
+        : null;
+      padronConsultado = anyPadron;
+      fuenteRnc = anyPadron ? 'padron' : 'ninguna';
+    }
 
-  // ── NCF (e-CF): validez en vivo. Solo serie E (tiene código de seguridad). ──
-  let ecf = args.ecf;
-  if (liveEnabled && ncf && isRnc && args.codigoSeguridad) {
-    const ncfLive = await consultarNcfLive(
-      {
-        rncEmisor: normalized!,
-        ncf,
-        rncComprador: args.rncComprador,
-        codigoSeguridad: args.codigoSeguridad,
-      },
-      timeout,
+    // ── NCF (e-CF): validez en vivo. Solo serie E (tiene código de seguridad). ──
+    let ecf = args.ecf;
+    if (liveEnabled && ncf && isRnc && args.codigoSeguridad) {
+      const ncfLive = await consultarNcfLive(
+        {
+          rncEmisor: normalized!,
+          ncf,
+          rncComprador: args.rncComprador,
+          codigoSeguridad: args.codigoSeguridad,
+        },
+        timeout,
+      );
+      if (ncfLive?.encontrado) ecf = { aceptado: ncfLive.aceptado, estado: ncfLive.estado };
+    }
+
+    console.log(
+      `[dgii] validación ${ncf ?? 's/ncf'}: RNC vía ${fuenteRnc}` +
+        (padronEntry ? ` (${padronEntry.estado ?? '?'})` : padronConsultado ? ' (no hallado)' : '') +
+        (ecf ? `, e-CF ${ecf.estado ?? '?'}` : ''),
     );
-    if (ncfLive?.encontrado) ecf = { aceptado: ncfLive.aceptado, estado: ncfLive.estado };
+
+    return buildFiscalValidation({ ncf, rnc, razonSocial, padronEntry, padronConsultado, ecf });
+  } catch (err) {
+    // La validación NUNCA debe tumbar el procesamiento: la factura sigue su
+    // curso (su estado lo decide la confianza del OCR) y se marca "no validada".
+    await alertRupture({
+      key: 'dgii.validacion',
+      title: 'Validación DGII cayó — la factura siguió sin validar',
+      message: 'runFiscalValidation lanzó una excepción; se devolvió una validación segura.',
+      error: err,
+      context: { ncf, rnc },
+    });
+    return {
+      ncf: { ok: false },
+      rnc: { ok: false },
+      padron: { consultado: false, existe: false, activo: false, razonSocialCoincide: false },
+      ok: false,
+      alertas: ['No se pudo validar automáticamente contra la DGII (se reintentará luego)'],
+    };
   }
-
-  console.log(
-    `[dgii] validación ${ncf ?? 's/ncf'}: RNC vía ${fuenteRnc}` +
-      (padronEntry ? ` (${padronEntry.estado ?? '?'})` : padronConsultado ? ' (no hallado)' : '') +
-      (ecf ? `, e-CF ${ecf.estado ?? '?'}` : ''),
-  );
-
-  return buildFiscalValidation({ ncf, rnc, razonSocial, padronEntry, padronConsultado, ecf });
 }
 
 export async function processOcrJob(job: Job<OcrJobData>) {
@@ -285,6 +306,16 @@ export async function handleOcrFailure(job: Job<OcrJobData> | undefined, error: 
     `[ocr] intento ${job.attemptsMade}/${maxAttempts} falló para factura ${job.data.invoiceId}: ${error.message}`,
   );
   if (job.attemptsMade < maxAttempts) return;
+
+  // Una factura que agota sus reintentos es una ruptura a vigilar (¿Claude caído?
+  // ¿MinIO? ¿imagen corrupta?). Alerta con cooldown; la factura no se pierde.
+  await alertRupture({
+    key: 'ocr.failure',
+    title: 'OCR falló tras todos los reintentos — factura a revisión manual',
+    message: `La factura ${job.data.invoiceId} cayó a captura manual tras ${maxAttempts} intentos.`,
+    error,
+    context: { invoiceId: job.data.invoiceId, organizationId: job.data.organizationId },
+  });
 
   try {
     await prisma.invoice.update({
