@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '../../../lib/api';
@@ -65,55 +65,61 @@ const WIDGETS: { id: string; label: string; size: number }[] = [
 const DEFAULT_ORDER = WIDGETS.map((w) => w.id);
 const WIDGET = new Map(WIDGETS.map((w) => [w.id, w]));
 
+interface DashCfg {
+  order: string[];
+  hidden: string[];
+  sizes: Record<string, number>;
+  heights: Record<string, number>;
+}
+
 function useDashConfig(orgId: string) {
   const key = `facturard-dash-${orgId}`;
   const [order, setOrder] = useState<string[]>(DEFAULT_ORDER);
   const [hidden, setHidden] = useState<string[]>([]);
   const [sizes, setSizes] = useState<Record<string, number>>({});
+  const [heights, setHeights] = useState<Record<string, number>>({});
   const [editing, setEditing] = useState(false);
 
   useEffect(() => {
     try {
       const raw = localStorage.getItem(key);
       if (raw) {
-        const c = JSON.parse(raw) as {
-          order?: string[];
-          hidden?: string[];
-          sizes?: Record<string, number>;
-        };
+        const c = JSON.parse(raw) as Partial<DashCfg>;
         const known = new Set(DEFAULT_ORDER);
         const ord = (c.order ?? []).filter((id) => known.has(id));
         for (const id of DEFAULT_ORDER) if (!ord.includes(id)) ord.push(id);
         setOrder(ord);
         setHidden((c.hidden ?? []).filter((id) => known.has(id)));
         setSizes(c.sizes ?? {});
+        setHeights(c.heights ?? {});
       }
     } catch {
       /* localStorage no disponible */
     }
   }, [key]);
 
-  function persist(ord: string[], hid: string[], sz: Record<string, number>) {
-    setOrder(ord);
-    setHidden(hid);
-    setSizes(sz);
+  function persist(patch: Partial<DashCfg>) {
+    const next: DashCfg = { order, hidden, sizes, heights, ...patch };
+    setOrder(next.order);
+    setHidden(next.hidden);
+    setSizes(next.sizes);
+    setHeights(next.heights);
     try {
-      localStorage.setItem(key, JSON.stringify({ order: ord, hidden: hid, sizes: sz }));
+      localStorage.setItem(key, JSON.stringify(next));
     } catch {
       /* ignore */
     }
   }
   const toggle = (id: string) =>
-    persist(order, hidden.includes(id) ? hidden.filter((x) => x !== id) : [...hidden, id], sizes);
+    persist({ hidden: hidden.includes(id) ? hidden.filter((x) => x !== id) : [...hidden, id] });
   const move = (id: string, dir: -1 | 1) => {
     const i = order.indexOf(id);
     const j = i + dir;
     if (i < 0 || j < 0 || j >= order.length) return;
     const ord = [...order];
     [ord[i], ord[j]] = [ord[j], ord[i]];
-    persist(ord, hidden, sizes);
+    persist({ order: ord });
   };
-  // Reordena por drag-and-drop: coloca `dragged` antes/después de `target`.
   const reorder = (dragged: string, target: string, after: boolean) => {
     if (dragged === target) return;
     const ord = order.filter((id) => id !== dragged);
@@ -121,16 +127,24 @@ function useDashConfig(orgId: string) {
     if (ti < 0) return;
     if (after) ti += 1;
     ord.splice(ti, 0, dragged);
-    persist(ord, hidden, sizes);
+    persist({ order: ord });
   };
-  // Ancho del widget (1–4 columnas). dir = -1 más angosto, +1 más ancho.
   const sizeOf = (id: string) => sizes[id] ?? WIDGET.get(id)?.size ?? 2;
-  const resize = (id: string, dir: -1 | 1) => {
-    const next = Math.min(4, Math.max(1, sizeOf(id) + dir));
-    persist(order, hidden, { ...sizes, [id]: next });
+  const heightOf = (id: string) => heights[id];
+  const resize = (id: string, dir: -1 | 1) =>
+    persist({ sizes: { ...sizes, [id]: Math.min(4, Math.max(1, sizeOf(id) + dir)) } });
+  // Redimensiona ancho (columnas) y alto (px) a la vez (drag del mouse).
+  const setBox = (id: string, cols: number, h: number | null) =>
+    persist({
+      sizes: { ...sizes, [id]: cols },
+      heights:
+        h == null ? Object.fromEntries(Object.entries(heights).filter(([k]) => k !== id)) : { ...heights, [id]: h },
+    });
+  const reset = () => persist({ order: DEFAULT_ORDER, hidden: [], sizes: {}, heights: {} });
+  return {
+    order, hidden, sizes, heights, editing, setEditing,
+    toggle, move, reorder, sizeOf, heightOf, resize, setBox, reset,
   };
-  const reset = () => persist(DEFAULT_ORDER, [], {});
-  return { order, hidden, sizes, editing, setEditing, toggle, move, reorder, sizeOf, resize, reset };
 }
 
 export default function OrgDashboard() {
@@ -145,6 +159,41 @@ export default function OrgDashboard() {
   const cfg = useDashConfig(orgId);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+
+  // Redimensiona un widget arrastrando su esquina (ancho en columnas + alto en px).
+  function startResize(e: React.PointerEvent, id: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    const grid = gridRef.current;
+    const cell = (e.currentTarget as HTMLElement).closest('.wgt-cell') as HTMLElement | null;
+    if (!grid || !cell) return;
+    const gap = 16;
+    const unit = (grid.clientWidth - 3 * gap) / 4 + gap; // ancho de 1 columna + gap
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startCols = cfg.sizeOf(id);
+    const startW = cell.offsetWidth;
+    const startH = cfg.heightOf(id) ?? cell.offsetHeight;
+    let raf = 0;
+    const onMove = (ev: PointerEvent) => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const cols = Math.min(4, Math.max(1, Math.round((startW + (ev.clientX - startX) + gap) / unit)));
+        const h = Math.min(1000, Math.max(150, startH + (ev.clientY - startY)));
+        cfg.setBox(id, cols, h);
+      });
+    };
+    const onUp = () => {
+      if (raf) cancelAnimationFrame(raf);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    void startCols;
+  }
 
   useEffect(() => {
     api<OrgUsage>(`/api/organizations/${orgId}/usage`)
@@ -406,11 +455,12 @@ export default function OrgDashboard() {
         </div>
       )}
 
-      <div className="dash-grid">
+      <div className="dash-grid" ref={gridRef}>
         {visibles.map((id) => {
           const node = renderers[id]?.() || null;
           if (!node && !cfg.editing) return null;
           const w = WIDGET.get(id);
+          const h = cfg.heightOf(id);
           const cellClass = [
             `size-${cfg.sizeOf(id)}`,
             cfg.editing ? 'wgt-cell' : '',
@@ -423,15 +473,6 @@ export default function OrgDashboard() {
             <div
               key={id}
               className={cellClass || undefined}
-              draggable={cfg.editing}
-              onDragStart={
-                cfg.editing
-                  ? (e) => {
-                      setDragId(id);
-                      e.dataTransfer.effectAllowed = 'move';
-                    }
-                  : undefined
-              }
               onDragOver={
                 cfg.editing
                   ? (e) => {
@@ -457,38 +498,39 @@ export default function OrgDashboard() {
                     }
                   : undefined
               }
-              onDragEnd={cfg.editing ? () => { setDragId(null); setOverId(null); } : undefined}
             >
               {cfg.editing && (
                 <div className="wgt-bar">
-                  <span className="wgt-grip" aria-hidden>
+                  <span
+                    className="wgt-grip"
+                    title="Arrastra para reordenar"
+                    draggable
+                    onDragStart={(e) => {
+                      setDragId(id);
+                      e.dataTransfer.effectAllowed = 'move';
+                    }}
+                    onDragEnd={() => {
+                      setDragId(null);
+                      setOverId(null);
+                    }}
+                  >
                     ⠿
                   </span>
                   <span className="wgt-label">{w?.label ?? id}</span>
-                  <button
-                    className="wgt-btn"
-                    onClick={() => cfg.resize(id, -1)}
-                    disabled={cfg.sizeOf(id) <= 1}
-                    aria-label="Más angosto"
-                    title="Más angosto"
-                  >
+                  <button className="wgt-btn" onClick={() => cfg.resize(id, -1)} disabled={cfg.sizeOf(id) <= 1} aria-label="Más angosto" title="Más angosto">
                     ⇤
                   </button>
-                  <span
-                    className="muted"
-                    style={{ fontVariantNumeric: 'tabular-nums', minWidth: 24, textAlign: 'center' }}
-                  >
+                  <span className="muted" style={{ fontVariantNumeric: 'tabular-nums', minWidth: 24, textAlign: 'center' }}>
                     {cfg.sizeOf(id)}/4
                   </span>
-                  <button
-                    className="wgt-btn"
-                    onClick={() => cfg.resize(id, 1)}
-                    disabled={cfg.sizeOf(id) >= 4}
-                    aria-label="Más ancho"
-                    title="Más ancho"
-                  >
+                  <button className="wgt-btn" onClick={() => cfg.resize(id, 1)} disabled={cfg.sizeOf(id) >= 4} aria-label="Más ancho" title="Más ancho">
                     ⇥
                   </button>
+                  {h != null && (
+                    <button className="wgt-btn" onClick={() => cfg.setBox(id, cfg.sizeOf(id), null)} title="Altura automática">
+                      alto auto
+                    </button>
+                  )}
                   <button className="wgt-btn" onClick={() => cfg.move(id, -1)} aria-label="Subir">
                     ↑
                   </button>
@@ -500,13 +542,23 @@ export default function OrgDashboard() {
                   </button>
                 </div>
               )}
-              <div className={cfg.editing ? 'wgt-edit' : undefined}>
+              <div
+                className={[cfg.editing ? 'wgt-edit' : '', h != null ? 'wgt-fixed' : ''].filter(Boolean).join(' ') || undefined}
+                style={h != null ? { height: h } : undefined}
+              >
                 {node ?? (
                   <div className="card">
                     <span className="muted">{w?.label} — sin datos aún</span>
                   </div>
                 )}
               </div>
+              {cfg.editing && (
+                <span
+                  className="wgt-resize"
+                  title="Arrastra para redimensionar"
+                  onPointerDown={(e) => startResize(e, id)}
+                />
+              )}
             </div>
           );
         })}
