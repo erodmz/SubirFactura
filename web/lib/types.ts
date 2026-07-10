@@ -126,12 +126,17 @@ export interface Preview606 {
 export interface DashboardData {
   periodo: string;
   hoy: string; // AAAA-MM-DD
+  total: number;
   kpis: { subidasMes: number; reportablesMes: number; montoMes: number; itbisMes: number };
   records: {
     subidas: { valor: number; periodo: string } | null;
     monto: { valor: number; periodo: string } | null;
   };
   actividad: { dia: string; n: number }[];
+  tendencia: { periodo: string; subidas: number; monto: number }[];
+  porEstado: { estado: string; n: number }[];
+  categorias: { codigo: string; nombre: string; n: number; monto: number }[];
+  clientes: { id: string; razonSocial: string; n: number; monto: number }[];
   ultimaSubidaPorCliente: Record<string, string>;
 }
 

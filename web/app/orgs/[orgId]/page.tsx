@@ -4,14 +4,16 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '../../../lib/api';
-import type {
-  CierreEstado,
-  DashboardData,
-  LimitUsage,
-  OrgUsage,
-  PanelCierre,
-  PanelClienteCierre,
-  ResumenGastos,
+import { AreaChart, Donut, ESTADO_COLOR, HBars, SERIES } from '../../../components/Charts';
+import {
+  ESTADO_LABELS,
+  type CierreEstado,
+  type DashboardData,
+  type LimitUsage,
+  type OrgUsage,
+  type PanelCierre,
+  type PanelClienteCierre,
+  type ResumenGastos,
 } from '../../../lib/types';
 
 function periodoActual(): string {
@@ -177,6 +179,59 @@ export default function OrgDashboard() {
             }
           />
           <Tile label="ITBIS del mes" value={`RD$ ${moneyCompact(dash.kpis.itbisMes)}`} />
+        </div>
+      )}
+
+      {/* Gráficos: distribución, tendencia y desgloses. */}
+      {dash && dash.total > 0 && (
+        <div className="chart-grid">
+          <div className="card">
+            <h2>Facturas por estado</h2>
+            <Donut
+              centerLabel="facturas"
+              data={[...dash.porEstado]
+                .sort((a, b) => b.n - a.n)
+                .map((e) => ({
+                  label: ESTADO_LABELS[e.estado] ?? e.estado,
+                  value: e.n,
+                  color: ESTADO_COLOR[e.estado] ?? 'var(--muted)',
+                }))}
+            />
+          </div>
+
+          <div className="card">
+            <h2>Monto reportado (12 meses)</h2>
+            <AreaChart
+              data={dash.tendencia.map((t) => ({
+                label: periodoLabel(t.periodo).slice(0, 3),
+                value: t.monto,
+              }))}
+              format={(v) => `RD$ ${moneyCompact(v)}`}
+            />
+          </div>
+
+          <div className="card">
+            <h2>Gasto por categoría (606)</h2>
+            <HBars
+              format={(v) => `RD$ ${moneyCompact(v)}`}
+              data={dash.categorias.slice(0, 8).map((c, i) => ({
+                label: `${c.codigo} · ${c.nombre}`,
+                value: c.monto,
+                color: SERIES[i % SERIES.length],
+              }))}
+            />
+          </div>
+
+          <div className="card">
+            <h2>Facturas por cliente</h2>
+            <HBars
+              data={dash.clientes.slice(0, 8).map((c, i) => ({
+                label: c.razonSocial,
+                value: c.n,
+                color: SERIES[i % SERIES.length],
+              }))}
+            />
+          </div>
         </div>
       )}
 

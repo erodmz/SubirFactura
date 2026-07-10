@@ -388,6 +388,7 @@ export class InvoicesService {
         itbis: true,
         periodoFiscal: true,
         clientProfileId: true,
+        categoria606: true,
       },
       take: 20000,
     });
@@ -403,6 +404,9 @@ export class InvoicesService {
     const montoPorPeriodo = new Map<string, number>();
     const subidasPorDia = new Map<string, number>();
     const ultimaPorCliente = new Map<string, string>();
+    const porEstado = new Map<string, number>();
+    const porCategoria = new Map<string, { n: number; monto: number }>();
+    const porCliente = new Map<string, { n: number; monto: number }>();
     let subidasMes = 0;
     let reportablesMes = 0;
     let montoMes = 0;
@@ -411,15 +415,21 @@ export class InvoicesService {
     for (const r of rows) {
       const m = mesDe(r.createdAt);
       const d = dia(r.createdAt);
+      const monto = r.montoFacturado ? r.montoFacturado.toNumber() : 0;
+      const itbis = r.itbis ? r.itbis.toNumber() : 0;
       subidasPorMes.set(m, (subidasPorMes.get(m) ?? 0) + 1);
       subidasPorDia.set(d, (subidasPorDia.get(d) ?? 0) + 1);
+      porEstado.set(r.estado, (porEstado.get(r.estado) ?? 0) + 1);
+      const cat = r.categoria606 ?? 'sin';
+      const pc = porCategoria.get(cat) ?? { n: 0, monto: 0 };
+      porCategoria.set(cat, { n: pc.n + 1, monto: pc.monto + monto });
       if (r.clientProfileId) {
         const prev = ultimaPorCliente.get(r.clientProfileId);
         if (!prev || d > prev) ultimaPorCliente.set(r.clientProfileId, d);
+        const cl = porCliente.get(r.clientProfileId) ?? { n: 0, monto: 0 };
+        porCliente.set(r.clientProfileId, { n: cl.n + 1, monto: cl.monto + monto });
       }
       if (m === periodo) subidasMes++;
-      const monto = r.montoFacturado ? r.montoFacturado.toNumber() : 0;
-      const itbis = r.itbis ? r.itbis.toNumber() : 0;
       if (r.periodoFiscal && REPORTABLE.has(r.estado)) {
         montoPorPeriodo.set(r.periodoFiscal, (montoPorPeriodo.get(r.periodoFiscal) ?? 0) + monto);
         if (r.periodoFiscal === periodo) {
@@ -439,15 +449,62 @@ export class InvoicesService {
       actividad.push({ dia: key, n: subidasPorDia.get(key) ?? 0 });
     }
 
+    // Tendencia de los últimos 12 meses (subidas por mes + monto reportado).
+    const tendencia: { periodo: string; subidas: number; monto: number }[] = [];
+    const y0 = Number(periodo.slice(0, 4));
+    const m0 = Number(periodo.slice(4, 6));
+    for (let i = 11; i >= 0; i--) {
+      let mm = m0 - i;
+      let yy = y0;
+      while (mm <= 0) {
+        mm += 12;
+        yy -= 1;
+      }
+      const key = `${yy}${String(mm).padStart(2, '0')}`;
+      tendencia.push({
+        periodo: key,
+        subidas: subidasPorMes.get(key) ?? 0,
+        monto: montoPorPeriodo.get(key) ?? 0,
+      });
+    }
+
+    // Nombres para categoría y cliente.
+    const nombreCat = new Map<string, string>(CATEGORIAS_606.map((c) => [c.codigo, c.nombre]));
+    const categorias = [...porCategoria.entries()]
+      .map(([codigo, v]) => ({
+        codigo,
+        nombre: codigo === 'sin' ? 'Sin categoría' : nombreCat.get(codigo) ?? codigo,
+        ...v,
+      }))
+      .sort((a, b) => b.n - a.n);
+
+    const clienteIds = [...porCliente.keys()];
+    const perfiles =
+      clienteIds.length > 0
+        ? await this.prisma.forOrg(orgId).clientProfile.findMany({
+            where: { id: { in: clienteIds } },
+            select: { id: true, razonSocial: true },
+          })
+        : [];
+    const nombreCliente = new Map(perfiles.map((p) => [p.id, p.razonSocial]));
+    const clientes = [...porCliente.entries()]
+      .map(([id, v]) => ({ id, razonSocial: nombreCliente.get(id) ?? '—', ...v }))
+      .sort((a, b) => b.n - a.n);
+
     return {
       periodo,
       hoy: dia(now),
+      total: rows.length,
       kpis: { subidasMes, reportablesMes, montoMes, itbisMes },
       records: {
         subidas: topMes ? { valor: topMes[1], periodo: topMes[0] } : null,
         monto: topMonto ? { valor: topMonto[1], periodo: topMonto[0] } : null,
       },
       actividad,
+      tendencia,
+      porEstado: [...porEstado.entries()].map(([estado, n]) => ({ estado, n })),
+      categorias,
+      clientes,
       ultimaSubidaPorCliente: Object.fromEntries(ultimaPorCliente),
     };
   }
