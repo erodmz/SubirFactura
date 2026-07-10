@@ -354,6 +354,19 @@ class Invoice {
   final bool validacionDgiiOk;
 }
 
+/// Orden estándar de la app: la última cargada arriba (por fecha de creación).
+/// Desempate por `id` para que el orden sea estable entre recargas.
+extension InvoiceOrdering on List<Invoice> {
+  List<Invoice> newestFirst() {
+    final copy = [...this];
+    copy.sort((a, b) {
+      final byDate = b.createdAt.compareTo(a.createdAt);
+      return byDate != 0 ? byDate : b.id.compareTo(a.id);
+    });
+    return copy;
+  }
+}
+
 const estadoLabels = <String, String>{
   'subida': 'Subida',
   'procesando': 'Procesando',

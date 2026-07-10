@@ -99,7 +99,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           .get('/api/organizations/${widget.membership.orgId}/invoices$query') as List;
       if (!mounted) return;
       setState(() {
-        _invoices = data.map((e) => Invoice.fromJson(e as Map<String, dynamic>)).toList();
+        _invoices = data
+            .map((e) => Invoice.fromJson(e as Map<String, dynamic>))
+            .toList()
+            .newestFirst();
         _loading = false;
         _error = null;
       });

@@ -119,7 +119,10 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> with WidgetsBinding
       ) as List;
       if (!mounted) return;
       setState(() {
-        _invoices = data.map((e) => Invoice.fromJson(e as Map<String, dynamic>)).toList();
+        _invoices = data
+            .map((e) => Invoice.fromJson(e as Map<String, dynamic>))
+            .toList()
+            .newestFirst();
         _loading = false;
         _error = null;
       });

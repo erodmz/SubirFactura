@@ -150,8 +150,7 @@ class _ClientInvoicesScreenState extends State<ClientInvoicesScreen> with Widget
       list.addAll(_byBusiness[b.id] ?? const []);
     }
     list.addAll(_unassigned);
-    list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    return list;
+    return list.newestFirst();
   }
 
   int _countFor(String? businessId) => businessId == null
@@ -166,7 +165,7 @@ class _ClientInvoicesScreenState extends State<ClientInvoicesScreen> with Widget
       list = _allInvoices;
     } else {
       list = [...(_byBusiness[_businessFilter] ?? const []), ..._unassigned]
-        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          .newestFirst();
     }
     if (_estadoFilter != null) {
       list = list.where((i) => i.estado == _estadoFilter).toList();
