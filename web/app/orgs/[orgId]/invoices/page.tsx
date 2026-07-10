@@ -106,6 +106,58 @@ function fechaCorta(fecha: string | null): string {
   return fecha ? fecha.slice(0, 10) : '';
 }
 
+/** Badge de estado con color (mismo criterio que el donut del dashboard). */
+function EstadoBadge({ estado }: { estado: string }) {
+  const color = ESTADO_COLOR[estado] ?? 'var(--muted)';
+  return (
+    <span
+      className="badge"
+      style={{
+        color,
+        background: `color-mix(in srgb, ${color} 15%, transparent)`,
+        borderColor: `color-mix(in srgb, ${color} 35%, transparent)`,
+      }}
+    >
+      {ESTADO_LABELS[estado] ?? estado}
+    </span>
+  );
+}
+
+const SORT_OPTS = [
+  { value: 'fecha-desc', label: 'Fecha (reciente primero)' },
+  { value: 'fecha-asc', label: 'Fecha (antigua primero)' },
+  { value: 'monto-desc', label: 'Monto (mayor primero)' },
+  { value: 'monto-asc', label: 'Monto (menor primero)' },
+  { value: 'proveedor', label: 'Proveedor (A–Z)' },
+  { value: 'cliente', label: 'Cliente (A–Z)' },
+  { value: 'estado', label: 'Estado' },
+];
+
+function sortInvoices(list: Invoice[], by: string): Invoice[] {
+  const arr = [...list];
+  const num = (v: string | number | null | undefined) => Number(v) || 0;
+  const str = (v: string | null | undefined) => (v ?? '').toLowerCase();
+  arr.sort((a, b) => {
+    switch (by) {
+      case 'fecha-asc':
+        return fechaCorta(a.fecha).localeCompare(fechaCorta(b.fecha));
+      case 'monto-desc':
+        return num(b.montoFacturado) - num(a.montoFacturado);
+      case 'monto-asc':
+        return num(a.montoFacturado) - num(b.montoFacturado);
+      case 'proveedor':
+        return str(a.razonSocialProveedor).localeCompare(str(b.razonSocialProveedor), 'es');
+      case 'cliente':
+        return str(a.clientProfile?.razonSocial).localeCompare(str(b.clientProfile?.razonSocial), 'es');
+      case 'estado':
+        return str(a.estado).localeCompare(str(b.estado));
+      default: // fecha-desc
+        return fechaCorta(b.fecha).localeCompare(fechaCorta(a.fecha));
+    }
+  });
+  return arr;
+}
+
 /** Vista de tarjetas de facturas (alternativa a la tabla). */
 function InvoiceCards({
   invoices,
@@ -181,6 +233,7 @@ export default function InvoicesPage() {
   const [periodo, setPeriodo] = useState(searchParams.get('periodo') ?? '');
   const [proveedor, setProveedor] = useState('');
   const [busqueda, setBusqueda] = useState('');
+  const [sortBy, setSortBy] = useState('fecha-desc');
   const [view, setView] = useState<'table' | 'cards'>('table');
   useEffect(() => {
     try {
@@ -358,7 +411,23 @@ export default function InvoicesPage() {
               </button>
             )}
           </div>
-          <div className="view-toggle" style={{ marginLeft: 'auto' }} role="group" aria-label="Vista">
+          {view === 'cards' && (
+            <div style={{ marginLeft: 'auto' }}>
+              <Dropdown
+                ariaLabel="Ordenar"
+                icon={<span aria-hidden>↕</span>}
+                value={sortBy}
+                onChange={setSortBy}
+                options={SORT_OPTS}
+              />
+            </div>
+          )}
+          <div
+            className="view-toggle"
+            style={{ marginLeft: view === 'cards' ? 0 : 'auto' }}
+            role="group"
+            aria-label="Vista"
+          >
             <button
               className={view === 'table' ? 'active' : ''}
               onClick={() => setViewPersist('table')}
@@ -385,7 +454,7 @@ export default function InvoicesPage() {
         ) : view === 'cards' ? (
           <InvoiceCards
             invoices={invoices}
-            visibles={visibles}
+            visibles={sortInvoices(visibles, sortBy)}
             totalMonto={totalMonto}
             onOpen={setExpanded}
           />
@@ -435,7 +504,7 @@ export default function InvoicesPage() {
                 key: 'estado',
                 header: 'Estado',
                 value: (inv) => ESTADO_LABELS[inv.estado] ?? inv.estado,
-                render: (inv) => <span className="badge">{ESTADO_LABELS[inv.estado] ?? inv.estado}</span>,
+                render: (inv) => <EstadoBadge estado={inv.estado} />,
               },
               {
                 key: 'accion',
