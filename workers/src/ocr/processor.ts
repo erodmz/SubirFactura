@@ -10,12 +10,14 @@ import {
   fechaToPeriodoFiscal,
   validateTaxId,
   type EcfVerificacion,
+  type PadronEntry,
 } from '@facturard/shared';
 import { prisma, Prisma } from '@facturard/shared/db';
 import { getImageBase64 } from '../storage';
 import { extractInvoice } from './extract';
 import { decodeEcfQr } from './qr';
 import { verifyEcfLive } from './ecf-live';
+import { consultarRncLive, consultarNcfLive } from './dgii-consulta';
 
 export interface OcrJobData {
   invoiceId: string;
@@ -25,31 +27,78 @@ export interface OcrJobData {
 const FINAL_STATES = new Set(['validada', 'incluida_en_606', 'reportada', 'duplicada']);
 const CATEGORIA_CODES = new Set<string>(CATEGORIAS_606.map((c) => c.codigo));
 
-/** Coteja NCF/RNC contra estructura y padrón DGII (solo RNC de 9 dígitos). */
-async function runFiscalValidation(
-  ncf: string | null,
-  rnc: string | null,
-  razonSocial: string | null,
-  ecf?: EcfVerificacion | null,
-) {
+interface FiscalValidationArgs {
+  ncf: string | null;
+  rnc: string | null;
+  razonSocial: string | null;
+  /** RNC del comprador (para la consulta de e-CF). */
+  rncComprador?: string | null;
+  /** Código de seguridad del e-CF (del QR); requerido por la consulta de NCF. */
+  codigoSeguridad?: string | null;
+  /** Verificación e-CF ya obtenida por el QR (ecf.dgii.gov.do), como respaldo. */
+  ecf?: Pick<EcfVerificacion, 'aceptado' | 'estado'> | null;
+}
+
+/**
+ * Coteja NCF/RNC contra la DGII. Fuente primaria: consulta EN VIVO de la DGII
+ * (ConsultasWeb2). Si no responde a tiempo, respaldo con el padrón local. Para
+ * e-CF (serie E con código de seguridad) valida además el NCF en vivo.
+ */
+async function runFiscalValidation(args: FiscalValidationArgs) {
+  const { ncf, rnc, razonSocial } = args;
   const normalized = rnc ? rnc.replace(/[-\s]/g, '') : null;
   const isRnc = !!normalized && /^\d{9}$/.test(normalized);
-  const padronEntry = isRnc
-    ? await prisma.rncPadron.findUnique({ where: { rnc: normalized! } })
-    : null;
-  const padronLoaded = isRnc
-    ? padronEntry != null || (await prisma.rncPadron.findFirst({ select: { rnc: true } })) != null
-    : false;
-  return buildFiscalValidation({
-    ncf,
-    rnc,
-    razonSocial,
-    padronEntry: padronEntry
-      ? { rnc: padronEntry.rnc, razonSocial: padronEntry.razonSocial, estado: padronEntry.estado }
-      : null,
-    padronConsultado: padronLoaded,
-    ecf,
-  });
+  const liveEnabled = process.env.DGII_LIVE_CONSULTA !== '0';
+  const timeout = Number(process.env.DGII_CONSULTA_TIMEOUT_MS ?? 5000);
+
+  // ── RNC: primero en vivo contra la DGII; si no responde, padrón local ──
+  let padronEntry: PadronEntry | null = null;
+  let padronConsultado = false;
+  let fuenteRnc: 'dgii' | 'padron' | 'ninguna' = 'ninguna';
+
+  if (isRnc && liveEnabled) {
+    const live = await consultarRncLive(normalized!, timeout);
+    if (live) {
+      fuenteRnc = 'dgii';
+      padronConsultado = true;
+      padronEntry = live.encontrado
+        ? { rnc: normalized!, razonSocial: live.razonSocial ?? '', estado: live.estado }
+        : null;
+    }
+  }
+  if (isRnc && fuenteRnc === 'ninguna') {
+    const entry = await prisma.rncPadron.findUnique({ where: { rnc: normalized! } });
+    const anyPadron =
+      entry != null || (await prisma.rncPadron.findFirst({ select: { rnc: true } })) != null;
+    padronEntry = entry
+      ? { rnc: entry.rnc, razonSocial: entry.razonSocial, estado: entry.estado }
+      : null;
+    padronConsultado = anyPadron;
+    fuenteRnc = anyPadron ? 'padron' : 'ninguna';
+  }
+
+  // ── NCF (e-CF): validez en vivo. Solo serie E (tiene código de seguridad). ──
+  let ecf = args.ecf;
+  if (liveEnabled && ncf && isRnc && args.codigoSeguridad) {
+    const ncfLive = await consultarNcfLive(
+      {
+        rncEmisor: normalized!,
+        ncf,
+        rncComprador: args.rncComprador,
+        codigoSeguridad: args.codigoSeguridad,
+      },
+      timeout,
+    );
+    if (ncfLive?.encontrado) ecf = { aceptado: ncfLive.aceptado, estado: ncfLive.estado };
+  }
+
+  console.log(
+    `[dgii] validación ${ncf ?? 's/ncf'}: RNC vía ${fuenteRnc}` +
+      (padronEntry ? ` (${padronEntry.estado ?? '?'})` : padronConsultado ? ' (no hallado)' : '') +
+      (ecf ? `, e-CF ${ecf.estado ?? '?'}` : ''),
+  );
+
+  return buildFiscalValidation({ ncf, rnc, razonSocial, padronEntry, padronConsultado, ecf });
 }
 
 export async function processOcrJob(job: Job<OcrJobData>) {
@@ -140,12 +189,14 @@ export async function processOcrJob(job: Job<OcrJobData>) {
 
   const ncfFinal = extraction.ncf.valor?.trim().toUpperCase() ?? null;
   const rncFinal = rnc?.normalized ?? extraction.rnc_proveedor.valor ?? null;
-  const validacionDgii = await runFiscalValidation(
-    ncfFinal,
-    rncFinal,
-    extraction.razon_social.valor ?? null,
-    ecfVerif,
-  );
+  const validacionDgii = await runFiscalValidation({
+    ncf: ncfFinal,
+    rnc: rncFinal,
+    razonSocial: extraction.razon_social.valor ?? null,
+    rncComprador: qr?.rncComprador ?? extraction.rnc_comprador.valor ?? null,
+    codigoSeguridad: qr?.codigoSeguridad ?? null,
+    ecf: ecfVerif,
+  });
 
   // Normaliza los campos 606 sugeridos por la IA (solo valores válidos).
   const formaPago = /^[1-7]$/.test(extraction.forma_pago.valor ?? '')
