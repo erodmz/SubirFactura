@@ -5,10 +5,25 @@ import { createPortal } from 'react-dom';
 import { useParams, useSearchParams } from 'next/navigation';
 import { api } from '../../../../lib/api';
 import DataTable from '../../../../components/DataTable';
+import Dropdown from '../../../../components/Dropdown';
 import ImageLightbox from '../../../../components/ImageLightbox';
 import InvoiceTimeline from '../../../../components/InvoiceTimeline';
+import { ESTADO_COLOR } from '../../../../components/Charts';
 import { TrashIcon } from '../../../../components/icons';
 import { CATEGORIAS_606, ESTADO_LABELS, type Invoice } from '../../../../lib/types';
+
+const MESES_ABR = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+function periodoLabel(p: string): string {
+  return `${MESES_ABR[Number(p.slice(4, 6)) - 1] ?? p.slice(4, 6)} ${p.slice(0, 4)}`;
+}
+// Últimos 18 períodos (AAAAMM), el más reciente primero.
+function periodosRecientes(): string[] {
+  const now = new Date();
+  return Array.from({ length: 18 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
+}
 
 // Filtro de estado ordenado por relevancia para el contador. Omite "subida"
 // (transitorio, dura un instante). "Procesando" queda al final por si algo se atasca.
@@ -90,6 +105,70 @@ function fechaCorta(fecha: string | null): string {
   return fecha ? fecha.slice(0, 10) : '';
 }
 
+/** Vista de tarjetas de facturas (alternativa a la tabla). */
+function InvoiceCards({
+  invoices,
+  visibles,
+  totalMonto,
+  onOpen,
+}: {
+  invoices: Invoice[];
+  visibles: Invoice[];
+  totalMonto: number;
+  onOpen: (id: string) => void;
+}) {
+  if (visibles.length === 0) {
+    return (
+      <p className="muted">
+        {invoices.length === 0
+          ? 'No hay facturas con estos filtros'
+          : 'Ninguna factura coincide con la búsqueda'}
+      </p>
+    );
+  }
+  return (
+    <>
+      <div className="inv-cards">
+        {visibles.map((inv) => (
+          <InvoiceCard key={inv.id} inv={inv} onOpen={() => onOpen(inv.id)} />
+        ))}
+      </div>
+      <div className="inv-cards-foot muted">
+        <span>{visibles.length} factura(s)</span>
+        <span style={{ fontWeight: 600, color: 'var(--text)' }}>RD$ {money(totalMonto)}</span>
+      </div>
+    </>
+  );
+}
+
+function InvoiceCard({ inv, onOpen }: { inv: Invoice; onOpen: () => void }) {
+  const color = ESTADO_COLOR[inv.estado] ?? 'var(--muted)';
+  return (
+    <button type="button" className="inv-card" onClick={onOpen} style={{ borderTopColor: color }}>
+      <div className="inv-card-head">
+        <strong className="inv-card-prov">{inv.razonSocialProveedor ?? '—'}</strong>
+        <span
+          className="inv-card-estado"
+          style={{ color, background: `color-mix(in srgb, ${color} 15%, transparent)` }}
+        >
+          {ESTADO_LABELS[inv.estado] ?? inv.estado}
+        </span>
+      </div>
+      <div className="inv-card-meta">
+        {inv.ncf ?? 'sin NCF'} · {fechaCorta(inv.fecha) || 's/f'}
+      </div>
+      <div className="inv-card-foot">
+        <span className="inv-card-monto">RD$ {money(inv.montoFacturado)}</span>
+        <span className="inv-card-cli">
+          {inv.clientProfile?.razonSocial ?? (
+            <span style={{ color: 'var(--warning-text)' }}>Sin asignar</span>
+          )}
+        </span>
+      </div>
+    </button>
+  );
+}
+
 export default function InvoicesPage() {
   const { orgId } = useParams<{ orgId: string }>();
   const searchParams = useSearchParams();
@@ -99,7 +178,25 @@ export default function InvoicesPage() {
   const [clientId, setClientId] = useState<string>(searchParams.get('clientId') ?? '');
   const [estado, setEstado] = useState<string>(searchParams.get('estado') ?? 'en_revision');
   const [periodo, setPeriodo] = useState(searchParams.get('periodo') ?? '');
+  const [proveedor, setProveedor] = useState('');
   const [busqueda, setBusqueda] = useState('');
+  const [view, setView] = useState<'table' | 'cards'>('table');
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem('facturard-inv-view');
+      if (v === 'cards' || v === 'table') setView(v);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  function setViewPersist(v: 'table' | 'cards') {
+    setView(v);
+    try {
+      localStorage.setItem('facturard-inv-view', v);
+    } catch {
+      /* ignore */
+    }
+  }
   // ?open=<id> abre esa factura directo (enlaces de "omitidas" del 606).
   const [expanded, setExpanded] = useState<string | null>(searchParams.get('open'));
   const [error, setError] = useState('');
@@ -143,13 +240,20 @@ export default function InvoicesPage() {
 
   useEffect(load, [load]);
 
+  // Proveedores distintos presentes en las facturas cargadas (para el filtro).
+  const proveedores = Array.from(
+    new Set(invoices.map((i) => i.razonSocialProveedor).filter((n): n is string => !!n)),
+  ).sort((a, b) => a.localeCompare(b));
+
   const term = busqueda.trim().toLowerCase();
-  const visibles = term
-    ? invoices.filter((i) =>
-        [i.razonSocialProveedor, i.ncf, i.clientProfile?.razonSocial]
-          .some((f) => (f ?? '').toLowerCase().includes(term)),
-      )
-    : invoices;
+  let visibles = invoices;
+  if (proveedor) visibles = visibles.filter((i) => (i.razonSocialProveedor ?? '') === proveedor);
+  if (term)
+    visibles = visibles.filter((i) =>
+      [i.razonSocialProveedor, i.ncf, i.clientProfile?.razonSocial].some((f) =>
+        (f ?? '').toLowerCase().includes(term),
+      ),
+    );
 
   // Total al pie: lo que el contador quiere ver de un vistazo del período.
   const totalMonto = visibles.reduce((acc, i) => acc + (Number(i.montoFacturado) || 0), 0);
@@ -173,48 +277,87 @@ export default function InvoicesPage() {
       {error && <div className="error">{error}</div>}
 
       <div className="card">
-        <div className="row">
-          <div>
-            <label>Cliente</label>
-            <select value={clientId} onChange={(e) => setClientId(e.target.value)}>
-              <option value="">Todos los clientes</option>
-              {clientes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.razonSocial}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              Estado <StatusLegend />
-            </label>
-            <select value={estado} onChange={(e) => setEstado(e.target.value)}>
-              <option value="">Todos los estados</option>
-              {FILTRO_ESTADOS.map((s) => (
-                <option key={s} value={s}>
-                  {ESTADO_LABELS[s]}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label>Período fiscal (AAAAMM)</label>
-            <input
-              value={periodo}
-              onChange={(e) => setPeriodo(e.target.value.trim())}
-              placeholder="Todos"
-              maxLength={6}
-              inputMode="numeric"
+        <div className="inv-filters">
+          <Dropdown
+            ariaLabel="Cliente"
+            icon={<span aria-hidden>🏢</span>}
+            value={clientId}
+            onChange={setClientId}
+            options={[
+              { value: '', label: 'Todos los clientes' },
+              ...clientes.map((c) => ({ value: c.id, label: c.razonSocial })),
+            ]}
+          />
+          <div className="inv-estado">
+            <Dropdown
+              ariaLabel="Estado"
+              icon={<span aria-hidden>🏷️</span>}
+              value={estado}
+              onChange={setEstado}
+              options={[
+                { value: '', label: 'Todos los estados' },
+                ...FILTRO_ESTADOS.map((s) => ({ value: s, label: ESTADO_LABELS[s] })),
+              ]}
             />
+            <StatusLegend />
           </div>
-          <div>
-            <label>Buscar (proveedor o NCF)</label>
+          <Dropdown
+            ariaLabel="Período"
+            icon={<span aria-hidden>📅</span>}
+            value={periodo}
+            onChange={setPeriodo}
+            options={[
+              { value: '', label: 'Todos los períodos' },
+              ...(periodo && !periodosRecientes().includes(periodo)
+                ? [{ value: periodo, label: periodoLabel(periodo) }]
+                : []),
+              ...periodosRecientes().map((p, i) => ({
+                value: p,
+                label: i === 0 ? `Este mes · ${periodoLabel(p)}` : periodoLabel(p),
+              })),
+            ]}
+          />
+          <Dropdown
+            ariaLabel="Proveedor"
+            icon={<span aria-hidden>🚚</span>}
+            value={proveedor}
+            onChange={setProveedor}
+            options={[
+              { value: '', label: 'Todos los proveedores' },
+              ...proveedores.map((p) => ({ value: p, label: p })),
+            ]}
+          />
+          <div className="select-search" style={{ maxWidth: 260 }}>
+            <span aria-hidden>🔍</span>
             <input
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Ej. Ferretería o B0100…"
+              placeholder="Buscar proveedor o NCF…"
+              aria-label="Buscar"
             />
+            {busqueda && (
+              <button type="button" className="select-clear" onClick={() => setBusqueda('')} aria-label="Limpiar">
+                ✕
+              </button>
+            )}
+          </div>
+          <div className="view-toggle" style={{ marginLeft: 'auto' }} role="group" aria-label="Vista">
+            <button
+              className={view === 'table' ? 'active' : ''}
+              onClick={() => setViewPersist('table')}
+              aria-label="Vista de tabla"
+              title="Tabla"
+            >
+              ☰
+            </button>
+            <button
+              className={view === 'cards' ? 'active' : ''}
+              onClick={() => setViewPersist('cards')}
+              aria-label="Vista de tarjetas"
+              title="Tarjetas"
+            >
+              ▦
+            </button>
           </div>
         </div>
       </div>
@@ -222,6 +365,13 @@ export default function InvoicesPage() {
       <div className="card">
         {loading ? (
           <p className="muted">Cargando…</p>
+        ) : view === 'cards' ? (
+          <InvoiceCards
+            invoices={invoices}
+            visibles={visibles}
+            totalMonto={totalMonto}
+            onOpen={setExpanded}
+          />
         ) : (
           <DataTable
             rows={visibles}
