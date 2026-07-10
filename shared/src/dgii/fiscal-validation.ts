@@ -18,11 +18,13 @@ export interface FiscalValidation {
     razonSocialCoincide: boolean;
     razonSocialOficial?: string;
   };
-  /** Verificación en vivo del e-CF contra ecf.dgii.gov.do (Fase 4), si se hizo. */
+  /** Verificación en vivo del comprobante contra la DGII (e-CF o serie B), si se hizo. */
   ecf?: {
     verificado: boolean;
     aceptado: boolean;
     estado: string | null;
+    /** 'E' = e-CF; 'B' = comprobante tradicional. Determina el texto de la alerta. */
+    serie?: 'E' | 'B' | null;
   };
   /** No hay alertas: todo coincide y es válido. */
   ok: boolean;
@@ -38,9 +40,10 @@ export interface FiscalValidationInput {
   padronEntry: PadronEntry | null;
   /** ¿Se consultó el padrón? (false si no hay padrón cargado en el sistema) */
   padronConsultado?: boolean;
-  /** Verificación en vivo del e-CF (Fase 4). Basta con estado/aceptado (el objeto
-   *  completo de la consulta o el ya guardado en validacionDgii sirven). */
-  ecf?: Pick<EcfVerificacion, 'aceptado' | 'estado'> | null;
+  /** Verificación en vivo del comprobante (e-CF serie E o NCF serie B). Basta con
+   *  estado/aceptado (el objeto completo de la consulta o el ya guardado en
+   *  validacionDgii sirven); `serie` ajusta el texto de la alerta. */
+  ecf?: (Pick<EcfVerificacion, 'aceptado' | 'estado'> & { serie?: 'E' | 'B' | null }) | null;
 }
 
 export function buildFiscalValidation(input: FiscalValidationInput): FiscalValidation {
@@ -79,13 +82,19 @@ export function buildFiscalValidation(input: FiscalValidationInput): FiscalValid
   let ecf: FiscalValidation['ecf'];
   if (input.ecf !== undefined) {
     const verificado = input.ecf != null;
+    const serie = input.ecf?.serie ?? null;
     ecf = {
       verificado,
       aceptado: input.ecf?.aceptado ?? false,
       estado: input.ecf?.estado ?? null,
+      ...(serie ? { serie } : {}),
     };
     if (verificado && !ecf.aceptado) {
-      alertas.push(`La DGII no reporta este e-CF como Aceptado (estado: ${ecf.estado ?? 'desconocido'})`);
+      alertas.push(
+        serie === 'B'
+          ? 'La DGII no reconoce este NCF (serie B) para el RNC del proveedor'
+          : `La DGII no reporta este e-CF como Aceptado (estado: ${ecf.estado ?? 'desconocido'})`,
+      );
     }
   }
 

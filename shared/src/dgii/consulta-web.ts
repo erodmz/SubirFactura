@@ -122,12 +122,25 @@ export interface ConsultaNcfResult {
    * la DGII cambió el HTML → scraper roto, no "comprobante no hallado".
    */
   paginaOk: boolean;
+  /**
+   * Serie del comprobante que la DGII reportó: 'E' = e-CF (comprobante fiscal
+   * electrónico, panel con estado Aceptado/Rechazado), 'B' = comprobante
+   * tradicional/preimpreso (panel con "El NCF digitado es válido" + vigencia).
+   * null si no se reconoció ninguno de los dos paneles.
+   */
+  serie: 'E' | 'B' | null;
   /** La DGII devolvió una ficha para el comprobante consultado. */
   encontrado: boolean;
-  /** Estado del comprobante (p. ej. "Aceptado", "Vigente"). */
+  /** Estado del comprobante (e-CF: "Aceptado"…; serie B: "VIGENTE"/"VENCIDO"). */
   estado: string | null;
-  /** true si el estado indica que el comprobante es válido. */
+  /** true si la DGII lo da por válido (e-CF Aceptado; serie B "NCF válido"). */
   aceptado: boolean;
+  /** Razón social del emisor tal cual la reporta la DGII (serie B). */
+  razonSocial: string | null;
+  /** Tipo de comprobante (serie B: "FACTURA DE CRÉDITO FISCAL"…). */
+  tipoComprobante: string | null;
+  /** Fecha "Válido hasta" de la autorización del NCF (serie B). */
+  vigenciaHasta: string | null;
   rncEmisor: string | null;
   rncComprador: string | null;
   ncf: string | null;
@@ -147,21 +160,75 @@ function spanText(html: string, id: string): string | null {
 /** Estados que la DGII considera comprobante válido. */
 const NCF_VALIDO = /(acept|vigente|v[aá]lid)/i;
 
+/**
+ * Parsea la respuesta de la consulta de NCF. La MISMA página (ncf.aspx) atiende
+ * dos series con paneles distintos:
+ *   - serie E (e-CF): panel con <span id="cphMain_lblEstadoFe"> = "Aceptado"…
+ *   - serie B (tradicional): panel con lblRazonSocial/lblEstado (VIGENTE/VENCIDO)
+ *     y un feedback lblInformacion = "El NCF digitado es válido." Sin panel y con
+ *     feedback negativo = el NCF no corresponde a ese RNC.
+ */
 export function parseConsultaNcf(html: string): ConsultaNcfResult {
-  // Panel de comprobante fiscal electrónico (e-CF, serie E).
-  const estado = spanText(html, 'lblEstadoFe');
-  // El formulario (campo NCF o el label de estado) confirma que es la página correcta.
+  // El campo NCF (o el label de estado e-CF) confirma que es la página correcta.
   const paginaOk = /id="cphMain_(txtNCF|lblEstadoFe)"/i.test(html);
-  return {
+
+  const base = {
     paginaOk,
-    encontrado: estado != null,
-    estado,
-    aceptado: estado != null && NCF_VALIDO.test(estado),
-    rncEmisor: spanText(html, 'lblrncemisor'),
     rncComprador: spanText(html, 'lblrnccomprador'),
-    ncf: spanText(html, 'lblencf'),
     montoTotal: parseMonto(spanText(html, 'lblMontoTotal')),
     totalItbis: parseMonto(spanText(html, 'lblTotalItbis')),
     fechaEmision: spanText(html, 'lblFechaEmision'),
+  };
+
+  // ── Serie E (e-CF) ──
+  const estadoFe = spanText(html, 'lblEstadoFe');
+  if (estadoFe != null) {
+    return {
+      ...base,
+      serie: 'E',
+      encontrado: true,
+      estado: estadoFe,
+      aceptado: NCF_VALIDO.test(estadoFe),
+      razonSocial: spanText(html, 'lblRazonSocial'),
+      tipoComprobante: spanText(html, 'lblTipoComprobante'),
+      vigenciaHasta: null,
+      rncEmisor: spanText(html, 'lblrncemisor'),
+      ncf: spanText(html, 'lblencf'),
+    };
+  }
+
+  // ── Serie B (comprobante tradicional) ──
+  const informacion = spanText(html, 'lblInformacion');
+  if (informacion != null) {
+    const razonSocial = spanText(html, 'lblRazonSocial');
+    const encontrado = razonSocial != null; // el panel de datos solo aparece si es válido
+    // "El NCF digitado es válido." (positivo) vs "...no es correcto o no corresponde".
+    const valido = /\bes\s+v[aá]lido/i.test(informacion) && !/\bno\s+es\b/i.test(informacion);
+    return {
+      ...base,
+      serie: 'B',
+      encontrado,
+      estado: spanText(html, 'lblEstado'),
+      aceptado: encontrado && valido,
+      razonSocial,
+      tipoComprobante: spanText(html, 'lblTipoComprobante'),
+      vigenciaHasta: spanText(html, 'lblVigencia'),
+      rncEmisor: spanText(html, 'lblRncCedula'),
+      ncf: spanText(html, 'lblNCF'),
+    };
+  }
+
+  // Página válida pero sin resultado (formulario en blanco / sin coincidencia).
+  return {
+    ...base,
+    serie: null,
+    encontrado: false,
+    estado: null,
+    aceptado: false,
+    razonSocial: null,
+    tipoComprobante: null,
+    vigenciaHasta: null,
+    rncEmisor: spanText(html, 'lblrncemisor'),
+    ncf: spanText(html, 'lblencf'),
   };
 }

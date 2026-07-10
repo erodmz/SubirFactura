@@ -35,10 +35,10 @@ interface FiscalValidationArgs {
   razonSocial: string | null;
   /** RNC del comprador (para la consulta de e-CF). */
   rncComprador?: string | null;
-  /** Código de seguridad del e-CF (del QR); requerido por la consulta de NCF. */
+  /** Código de seguridad del e-CF (del QR); requerido por la consulta de e-CF (serie E). */
   codigoSeguridad?: string | null;
   /** Verificación e-CF ya obtenida por el QR (ecf.dgii.gov.do), como respaldo. */
-  ecf?: Pick<EcfVerificacion, 'aceptado' | 'estado'> | null;
+  ecf?: (Pick<EcfVerificacion, 'aceptado' | 'estado'> & { serie?: 'E' | 'B' | null }) | null;
 }
 
 /**
@@ -80,19 +80,23 @@ async function runFiscalValidation(args: FiscalValidationArgs): Promise<FiscalVa
       fuenteRnc = anyPadron ? 'padron' : 'ninguna';
     }
 
-    // ── NCF (e-CF): validez en vivo. Solo serie E (tiene código de seguridad). ──
+    // ── NCF: validez en vivo. Serie E (e-CF, con código de seguridad) y serie B
+    //    (comprobante tradicional, NCF que empieza por "B"; no lleva código). ──
     let ecf = args.ecf;
-    if (liveEnabled && ncf && isRnc && args.codigoSeguridad) {
+    const esSerieB = !!ncf && /^B/i.test(ncf);
+    if (liveEnabled && ncf && isRnc && (args.codigoSeguridad || esSerieB)) {
       const ncfLive = await consultarNcfLive(
         {
           rncEmisor: normalized!,
           ncf,
           rncComprador: args.rncComprador,
-          codigoSeguridad: args.codigoSeguridad,
+          codigoSeguridad: args.codigoSeguridad ?? null,
         },
         timeout,
       );
-      if (ncfLive?.encontrado) ecf = { aceptado: ncfLive.aceptado, estado: ncfLive.estado };
+      if (ncfLive?.encontrado) {
+        ecf = { aceptado: ncfLive.aceptado, estado: ncfLive.estado, serie: ncfLive.serie };
+      }
     }
 
     console.log(

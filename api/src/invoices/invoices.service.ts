@@ -659,8 +659,11 @@ export class InvoicesService {
     const razonSocial = dto.razonSocialProveedor ?? invoice.razonSocialProveedor;
     // Preserva la verificación e-CF en vivo que hizo el worker (si la hubo).
     const priorEcf =
-      (invoice.validacionDgii as { ecf?: { aceptado: boolean; estado: string | null } } | null)
-        ?.ecf ?? undefined;
+      (
+        invoice.validacionDgii as {
+          ecf?: { aceptado: boolean; estado: string | null; serie?: 'E' | 'B' | null };
+        } | null
+      )?.ecf ?? undefined;
     const validacionDgii = await this.runFiscalValidation(
       merged.ncf,
       merged.rncProveedor,
@@ -761,7 +764,7 @@ export class InvoicesService {
     ncf: string | null,
     rnc: string | null,
     razonSocial: string | null,
-    ecf?: { aceptado: boolean; estado: string | null } | null,
+    ecf?: { aceptado: boolean; estado: string | null; serie?: 'E' | 'B' | null } | null,
   ) {
     const normalized = rnc ? rnc.replace(/[-\s]/g, '') : null;
     const isRnc = !!normalized && /^\d{9}$/.test(normalized);

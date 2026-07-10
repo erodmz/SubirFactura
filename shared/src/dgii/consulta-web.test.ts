@@ -37,6 +37,27 @@ const NCF_ACEPTADO = `
 
 const NCF_VACIO = `<div id="cphMain_PResultadoFE"><span id="cphMain_lblEstadoFe"></span></div>`;
 
+// Serie B (comprobante tradicional): la MISMA ncf.aspx responde con otro panel
+// (cphMain_pResultado) y un feedback lblInformacion. Fragmentos reales de la DGII.
+const NCF_SERIE_B_VALIDO = `
+<input type="text" id="cphMain_txtNCF" name="ctl00$cphMain$txtNCF" />
+<div id="cphMain_pResultado">
+  <table class="table table-striped detailview"><tbody>
+    <tr><th>RNC / C&#233;dula</th><td><span id="cphMain_lblRncCedula">101068744</span></td></tr>
+    <tr><th>Nombre / Raz&#243;n Social</th><td><span id="cphMain_lblRazonSocial">TOTALENERGIES MARKETING DOMINICANA SA</span></td></tr>
+    <tr><th>Tipo de comprobante</th><td><span id="cphMain_lblTipoComprobante">FACTURA DE CR&#201;DITO FISCAL</span></td></tr>
+    <tr><th>NCF</th><td><span id="cphMain_lblNCF">B0100000005</span></td></tr>
+    <tr><th>Estado</th><td><span id="cphMain_lblEstado">VENCIDO</span></td></tr>
+    <tr><th>V&#225;lido hasta</th><td><span id="cphMain_lblVigencia">31/12/2019</span></td></tr>
+  </tbody></table>
+  <span id="cphMain_lblInformacion" class="label label-info">El NCF digitado es v&#225;lido.</span>
+</div>`;
+
+// Serie B sin coincidencia: no aparece el panel de datos, solo el feedback negativo.
+const NCF_SERIE_B_NO_CORRESPONDE = `
+<input type="text" id="cphMain_txtNCF" name="ctl00$cphMain$txtNCF" />
+<span id="cphMain_lblInformacion" class="label label-danger">El N&#250;mero de Comprobante Fiscal ingresado no es correcto o no corresponde a este RNC</span>`;
+
 describe('parseConsultaRnc', () => {
   it('extrae razón social, estado y facturador de un RNC activo', () => {
     const r = parseConsultaRnc(RNC_ENCONTRADO, '132695399');
@@ -75,6 +96,7 @@ describe('parseConsultaNcf', () => {
   it('extrae estado y montos de un e-CF aceptado', () => {
     const r = parseConsultaNcf(NCF_ACEPTADO);
     expect(r.paginaOk).toBe(true);
+    expect(r.serie).toBe('E');
     expect(r.encontrado).toBe(true);
     expect(r.estado).toBe('Aceptado');
     expect(r.aceptado).toBe(true);
@@ -83,6 +105,29 @@ describe('parseConsultaNcf', () => {
     expect(r.montoTotal).toBe(3479.5);
     expect(r.totalItbis).toBe(0);
     expect(r.fechaEmision).toBe('2026-07-04');
+  });
+
+  it('valida un NCF de serie B (comprobante tradicional) con su vigencia', () => {
+    const r = parseConsultaNcf(NCF_SERIE_B_VALIDO);
+    expect(r.paginaOk).toBe(true);
+    expect(r.serie).toBe('B');
+    expect(r.encontrado).toBe(true);
+    expect(r.aceptado).toBe(true); // "El NCF digitado es válido."
+    expect(r.estado).toBe('VENCIDO'); // autorización vencida, pero NCF válido
+    expect(r.razonSocial).toBe('TOTALENERGIES MARKETING DOMINICANA SA');
+    expect(r.tipoComprobante).toBe('FACTURA DE CRÉDITO FISCAL');
+    expect(r.ncf).toBe('B0100000005');
+    expect(r.rncEmisor).toBe('101068744');
+    expect(r.vigenciaHasta).toBe('31/12/2019');
+  });
+
+  it('serie B: NCF que no corresponde al RNC → encontrado/aceptado false, página OK', () => {
+    const r = parseConsultaNcf(NCF_SERIE_B_NO_CORRESPONDE);
+    expect(r.paginaOk).toBe(true);
+    expect(r.serie).toBe('B');
+    expect(r.encontrado).toBe(false);
+    expect(r.aceptado).toBe(false);
+    expect(r.razonSocial).toBeNull();
   });
 
   it('no encontrado pero página OK cuando el estado viene vacío', () => {

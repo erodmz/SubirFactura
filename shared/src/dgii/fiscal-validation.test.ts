@@ -55,6 +55,44 @@ describe('buildFiscalValidation', () => {
     expect(v.alertas.some((a) => a.includes('no coincide con el padrón'))).toBe(true);
   });
 
+  it('e-CF verificado y no aceptado → alerta con texto de e-CF', () => {
+    const v = buildFiscalValidation({
+      ncf: 'E310005582846',
+      rnc: RNC_OK,
+      razonSocial: 'Algo SRL',
+      padronEntry: { rnc: RNC_OK, razonSocial: 'ALGO SRL', estado: 'ACTIVO' },
+      ecf: { aceptado: false, estado: 'Rechazado', serie: 'E' },
+    });
+    expect(v.ecf?.serie).toBe('E');
+    expect(v.alertas.some((a) => a.includes('e-CF') && a.includes('Aceptado'))).toBe(true);
+  });
+
+  it('serie B no reconocida por la DGII → alerta con texto de serie B', () => {
+    const v = buildFiscalValidation({
+      ncf: 'B0100000005',
+      rnc: RNC_OK,
+      razonSocial: 'Algo SRL',
+      padronEntry: { rnc: RNC_OK, razonSocial: 'ALGO SRL', estado: 'ACTIVO' },
+      ecf: { aceptado: false, estado: null, serie: 'B' },
+    });
+    expect(v.ecf?.serie).toBe('B');
+    expect(v.alertas.some((a) => a.includes('serie B'))).toBe(true);
+    expect(v.alertas.some((a) => a.includes('e-CF'))).toBe(false);
+  });
+
+  it('serie B válida (aceptada) → sin alerta de comprobante', () => {
+    const v = buildFiscalValidation({
+      ncf: 'B0100000005',
+      rnc: RNC_OK,
+      razonSocial: 'Algo SRL',
+      padronEntry: { rnc: RNC_OK, razonSocial: 'ALGO SRL', estado: 'ACTIVO' },
+      ecf: { aceptado: true, estado: 'VIGENTE', serie: 'B' },
+    });
+    expect(v.ecf?.verificado).toBe(true);
+    expect(v.ecf?.aceptado).toBe(true);
+    expect(v.alertas.some((a) => a.includes('serie B') || a.includes('e-CF'))).toBe(false);
+  });
+
   it('no consulta padrón para cédulas (padronConsultado falso)', () => {
     const v = buildFiscalValidation({
       ncf: 'B1100000001',

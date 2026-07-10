@@ -1029,7 +1029,9 @@ function ReviewPanel({
             )}
             {invoice.validacionDgii?.ecf?.verificado && invoice.validacionDgii.ecf.aceptado && (
               <p style={{ color: 'var(--ok)', fontSize: 14, margin: 0 }}>
-                ✓ e-CF verificado en vivo con la DGII (Aceptado)
+                {invoice.validacionDgii.ecf.serie === 'B'
+                  ? '✓ NCF verificado en vivo con la DGII (válido)'
+                  : '✓ e-CF verificado en vivo con la DGII (Aceptado)'}
               </p>
             )}
           </div>
