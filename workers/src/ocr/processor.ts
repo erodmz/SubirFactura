@@ -48,12 +48,24 @@ interface FiscalValidationArgs {
     | null;
 }
 
+interface FiscalValidationResult {
+  validacion: FiscalValidation;
+  /**
+   * Razón social LEGAL del proveedor según la DGII/padrón (null si no se confirmó
+   * el RNC). Es la fuente autoritativa: el nombre impreso en el recibo suele ser
+   * un nombre comercial/de sucursal y el OCR puede leerlo mal, así que preferimos
+   * este sobre lo que extrajo la IA.
+   */
+  razonSocialOficial: string | null;
+}
+
 /**
  * Coteja NCF/RNC contra la DGII. Fuente primaria: consulta EN VIVO de la DGII
  * (ConsultasWeb2). Si no responde a tiempo, respaldo con el padrón local. Para
- * e-CF (serie E con código de seguridad) valida además el NCF en vivo.
+ * e-CF (serie E con código de seguridad) valida además el NCF en vivo. Devuelve
+ * también la razón social oficial del RNC para usarla como valor canónico.
  */
-async function runFiscalValidation(args: FiscalValidationArgs): Promise<FiscalValidation> {
+async function runFiscalValidation(args: FiscalValidationArgs): Promise<FiscalValidationResult> {
   const { ncf, rnc, razonSocial } = args;
   try {
     const normalized = rnc ? rnc.replace(/[-\s]/g, '') : null;
@@ -117,15 +129,20 @@ async function runFiscalValidation(args: FiscalValidationArgs): Promise<FiscalVa
         (ecf ? `, e-CF ${ecf.estado ?? '?'}` : ''),
     );
 
-    return buildFiscalValidation({
+    // Nombre legal según la DGII/padrón: es el valor canónico. Validamos contra
+    // él (no contra lo que leyó el OCR) para no marcar un falso "no coincide"
+    // cuando el recibo trae un nombre comercial (p. ej. una estación).
+    const razonSocialOficial = padronEntry?.razonSocial?.trim() || null;
+    const validacion = buildFiscalValidation({
       ncf,
       rnc,
-      razonSocial,
+      razonSocial: razonSocialOficial ?? razonSocial,
       padronEntry,
       padronConsultado,
       fecha: args.fecha ?? null,
       ecf,
     });
+    return { validacion, razonSocialOficial };
   } catch (err) {
     // La validación NUNCA debe tumbar el procesamiento: la factura sigue su
     // curso (su estado lo decide la confianza del OCR) y se marca "no validada".
@@ -137,11 +154,14 @@ async function runFiscalValidation(args: FiscalValidationArgs): Promise<FiscalVa
       context: { ncf, rnc },
     });
     return {
-      ncf: { ok: false },
-      rnc: { ok: false },
-      padron: { consultado: false, existe: false, activo: false, razonSocialCoincide: false },
-      ok: false,
-      alertas: ['No se pudo validar automáticamente contra la DGII (se reintentará luego)'],
+      validacion: {
+        ncf: { ok: false },
+        rnc: { ok: false },
+        padron: { consultado: false, existe: false, activo: false, razonSocialCoincide: false },
+        ok: false,
+        alertas: ['No se pudo validar automáticamente contra la DGII (se reintentará luego)'],
+      },
+      razonSocialOficial: null,
     };
   }
 }
@@ -234,7 +254,7 @@ export async function processOcrJob(job: Job<OcrJobData>) {
 
   const ncfFinal = extraction.ncf.valor?.trim().toUpperCase() ?? null;
   const rncFinal = rnc?.normalized ?? extraction.rnc_proveedor.valor ?? null;
-  const validacionDgii = await runFiscalValidation({
+  const { validacion: validacionDgii, razonSocialOficial } = await runFiscalValidation({
     ncf: ncfFinal,
     rnc: rncFinal,
     razonSocial: extraction.razon_social.valor ?? null,
@@ -243,6 +263,10 @@ export async function processOcrJob(job: Job<OcrJobData>) {
     fecha,
     ecf: ecfVerif,
   });
+  // La razón social legal de la DGII manda sobre lo que leyó el OCR (nombres
+  // comerciales, sucursales, lecturas erróneas). El texto del recibo queda
+  // preservado en confianzaPorCampo.extraction para auditoría.
+  const razonSocialFinal = razonSocialOficial ?? extraction.razon_social.valor;
 
   // Normaliza los campos 606 sugeridos por la IA (solo valores válidos).
   const formaPago = /^[1-7]$/.test(extraction.forma_pago.valor ?? '')
@@ -262,7 +286,7 @@ export async function processOcrJob(job: Job<OcrJobData>) {
         clientProfileId,
         ncf: ncfFinal,
         rncProveedor: rncFinal,
-        razonSocialProveedor: extraction.razon_social.valor,
+        razonSocialProveedor: razonSocialFinal,
         fecha: fecha && fechaToPeriodoFiscal(fecha) ? new Date(fecha) : null,
         montoFacturado: extraction.monto_facturado.valor,
         itbis: extraction.itbis.valor,
