@@ -1604,3 +1604,24 @@ main.app-content {
   color: var(--brand);
   background: var(--bg-soft);
 }
+
+/* Drag-and-drop de widgets */
+.wgt-cell {
+  cursor: grab;
+}
+.wgt-cell.dragging {
+  opacity: 0.4;
+  cursor: grabbing;
+}
+.wgt-cell.drag-over {
+  outline: 2px solid var(--brand);
+  outline-offset: 3px;
+  border-radius: 14px;
+}
+.wgt-grip {
+  cursor: grab;
+  color: var(--muted);
+  font-size: 15px;
+  letter-spacing: -2px;
+  user-select: none;
+}

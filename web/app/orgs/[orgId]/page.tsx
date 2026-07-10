@@ -106,8 +106,18 @@ function useDashConfig(orgId: string) {
     [ord[i], ord[j]] = [ord[j], ord[i]];
     persist(ord, hidden);
   };
+  // Reordena por drag-and-drop: coloca `dragged` antes/después de `target`.
+  const reorder = (dragged: string, target: string, after: boolean) => {
+    if (dragged === target) return;
+    const ord = order.filter((id) => id !== dragged);
+    let ti = ord.indexOf(target);
+    if (ti < 0) return;
+    if (after) ti += 1;
+    ord.splice(ti, 0, dragged);
+    persist(ord, hidden);
+  };
   const reset = () => persist(DEFAULT_ORDER, []);
-  return { order, hidden, editing, setEditing, toggle, move, reset };
+  return { order, hidden, editing, setEditing, toggle, move, reorder, reset };
 }
 
 export default function OrgDashboard() {
@@ -120,6 +130,8 @@ export default function OrgDashboard() {
   const [panel, setPanel] = useState<PanelCierre | null>(null);
   const [error, setError] = useState('');
   const cfg = useDashConfig(orgId);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
 
   useEffect(() => {
     api<OrgUsage>(`/api/organizations/${orgId}/usage`)
@@ -386,11 +398,63 @@ export default function OrgDashboard() {
           const node = renderers[id]?.() || null;
           if (!node && !cfg.editing) return null;
           const w = WIDGET.get(id);
+          const cellClass = [
+            w?.span === 2 ? 'span2' : '',
+            cfg.editing ? 'wgt-cell' : '',
+            dragId === id ? 'dragging' : '',
+            overId === id ? 'drag-over' : '',
+          ]
+            .filter(Boolean)
+            .join(' ');
           return (
-            <div key={id} className={w?.span === 2 ? 'span2' : undefined}>
+            <div
+              key={id}
+              className={cellClass || undefined}
+              draggable={cfg.editing}
+              onDragStart={
+                cfg.editing
+                  ? (e) => {
+                      setDragId(id);
+                      e.dataTransfer.effectAllowed = 'move';
+                    }
+                  : undefined
+              }
+              onDragOver={
+                cfg.editing
+                  ? (e) => {
+                      if (dragId && dragId !== id) {
+                        e.preventDefault();
+                        if (overId !== id) setOverId(id);
+                      }
+                    }
+                  : undefined
+              }
+              onDragLeave={cfg.editing ? () => setOverId((o) => (o === id ? null : o)) : undefined}
+              onDrop={
+                cfg.editing
+                  ? (e) => {
+                      e.preventDefault();
+                      if (dragId) {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const after = e.clientY > rect.top + rect.height / 2;
+                        cfg.reorder(dragId, id, after);
+                      }
+                      setDragId(null);
+                      setOverId(null);
+                    }
+                  : undefined
+              }
+              onDragEnd={cfg.editing ? () => { setDragId(null); setOverId(null); } : undefined}
+            >
               {cfg.editing && (
                 <div className="wgt-bar">
+                  <span className="wgt-grip" aria-hidden>
+                    ⠿
+                  </span>
                   <span className="wgt-label">{w?.label ?? id}</span>
+                  <span className="muted" style={{ fontWeight: 400, marginRight: 4 }}>
+                    arrastra o
+                  </span>
                   <button className="wgt-btn" onClick={() => cfg.move(id, -1)} aria-label="Subir">
                     ↑
                   </button>
