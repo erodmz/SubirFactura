@@ -498,7 +498,11 @@ export default function InvoicesPage() {
                 align: 'right',
                 value: (inv) => Number(inv.montoFacturado) || 0,
                 csv: (inv) => (inv.montoFacturado == null ? '' : Number(inv.montoFacturado)),
-                render: (inv) => money(inv.montoFacturado),
+                render: (inv) => (
+                  <strong style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                    {money(inv.montoFacturado)}
+                  </strong>
+                ),
               },
               {
                 key: 'estado',
@@ -511,9 +515,16 @@ export default function InvoicesPage() {
                 header: '',
                 align: 'right',
                 render: (inv) => (
-                  <a style={{ cursor: 'pointer' }} onClick={() => setExpanded(inv.id)}>
+                  <button
+                    className="btn-revisar"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setExpanded(inv.id);
+                    }}
+                  >
                     Revisar
-                  </a>
+                    <span aria-hidden>→</span>
+                  </button>
                 ),
               },
             ]}
@@ -530,6 +541,7 @@ export default function InvoicesPage() {
                 </tfoot>
               ) : undefined
             }
+            onRowClick={(inv) => setExpanded(inv.id)}
           />
         )}
       </div>

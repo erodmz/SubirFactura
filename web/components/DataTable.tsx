@@ -25,6 +25,8 @@ interface Props<T> {
   exportFileName?: string;
   /** Fila de totales opcional (pie de tabla). */
   footer?: React.ReactNode;
+  /** Si se define, la fila es clicable (abre detalle, etc.). */
+  onRowClick?: (row: T) => void;
 }
 
 function toCsv<T>(columns: Column<T>[], rows: T[]): string {
@@ -49,6 +51,7 @@ export default function DataTable<T>({
   emptyText = 'Sin resultados',
   exportFileName,
   footer,
+  onRowClick,
 }: Props<T>) {
   const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(initialSort ?? null);
   const [page, setPage] = useState(0);
@@ -132,7 +135,11 @@ export default function DataTable<T>({
           </thead>
           <tbody>
             {visible.map((row) => (
-              <tr key={getKey(row)}>
+              <tr
+                key={getKey(row)}
+                className={onRowClick ? 'row-click' : undefined}
+                onClick={onRowClick ? () => onRowClick(row) : undefined}
+              >
                 {columns.map((c) => (
                   <td key={c.key} style={{ textAlign: c.align ?? 'left' }}>
                     {c.render ? c.render(row) : c.value ? c.value(row) : null}

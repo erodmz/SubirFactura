@@ -2009,3 +2009,44 @@ main.app-content {
   padding-top: 12px;
   border-top: 1px solid var(--border);
 }
+
+/* ── Tabla: fila clicable + botón "Revisar" ──────────────────────────────── */
+tbody tr.row-click {
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+tbody tr.row-click:hover td {
+  background: color-mix(in srgb, var(--brand) 7%, transparent);
+}
+tbody tr.row-click:active td {
+  background: color-mix(in srgb, var(--brand) 12%, transparent);
+}
+.btn-revisar {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--brand) 14%, transparent);
+  color: var(--brand);
+  border: 1px solid color-mix(in srgb, var(--brand) 30%, transparent);
+  box-shadow: none;
+  transition: background 0.13s ease, color 0.13s ease, box-shadow 0.13s ease,
+    border-color 0.13s ease;
+}
+.btn-revisar:hover {
+  background: var(--brand);
+  color: var(--on-brand);
+  border-color: var(--brand);
+  box-shadow: 0 3px 12px color-mix(in srgb, var(--brand) 40%, transparent);
+}
+.btn-revisar span {
+  transition: transform 0.12s ease;
+}
+.btn-revisar:hover span {
+  transform: translateX(3px);
+}
