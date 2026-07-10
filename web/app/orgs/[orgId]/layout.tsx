@@ -18,6 +18,10 @@ const NAV = [
   { key: '/settings', label: 'Configuración', icon: '⚙️' },
 ];
 
+// El cliente (dueño de negocio) solo ve SU espacio: el resto del panel es del
+// contador y le respondía "no tienes permiso" (hallazgo F-04).
+const NAV_CLIENTE = [{ key: '/mi-negocio', label: 'Mis facturas', icon: '📄' }];
+
 function initials(name: string | null, email: string): string {
   if (name) {
     const parts = name.trim().split(/\s+/);
@@ -70,6 +74,8 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
   }
 
   const base = `/orgs/${orgId}`;
+  const rol = me?.memberships.find((m) => m.organization.id === orgId)?.rol;
+  const navItems = rol === 'cliente' ? NAV_CLIENTE : NAV;
 
   return (
     <div className="app-shell">
@@ -91,7 +97,7 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
           </Link>
         </div>
         <nav className="side-nav">
-          {NAV.map((item) => {
+          {navItems.map((item) => {
             const href = base + item.key;
             const active = item.key === '' ? pathname === base : pathname.startsWith(href);
             return (

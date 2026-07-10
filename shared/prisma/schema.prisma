@@ -92,6 +92,9 @@ model Invitation {
   organizationId String         @map("organization_id")
   email          String
   rol            MembershipRole
+  // Para rol `cliente`: negocio al que queda vinculado al aceptar (se crea el
+  // client_member automáticamente; antes era un 2.º paso oculto en "Gestionar").
+  clientProfileId String?       @map("client_profile_id")
   tokenHash      String         @unique @map("token_hash")
   invitedById    String         @map("invited_by_id")
   expiresAt      DateTime       @map("expires_at")
@@ -99,6 +102,7 @@ model Invitation {
   createdAt      DateTime       @default(now()) @map("created_at")
   organization   Organization   @relation(fields: [organizationId], references: [id])
   invitedBy      User           @relation(fields: [invitedById], references: [id])
+  clientProfile  ClientProfile? @relation(fields: [clientProfileId], references: [id])
 
   @@index([organizationId, email])
   @@map("invitations")
@@ -164,6 +168,7 @@ model ClientProfile {
   assignments    Assignment[]
   members        ClientMember[]
   invoices       Invoice[]
+  invitations    Invitation[]
 
   @@unique([organizationId, rncOCedula])
   @@map("client_profiles")

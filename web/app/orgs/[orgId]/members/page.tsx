@@ -13,12 +13,16 @@ interface InviteResult {
 export default function MembersPage() {
   const { orgId } = useParams<{ orgId: string }>();
   const [members, setMembers] = useState<Member[]>([]);
-  const [invite, setInvite] = useState({ email: '', rol: 'contador' });
+  const [invite, setInvite] = useState({ email: '', rol: 'contador', clientProfileId: '' });
+  const [clientes, setClientes] = useState<{ id: string; razonSocial: string }[]>([]);
   const [inviteResult, setInviteResult] = useState<InviteResult | null>(null);
   const [error, setError] = useState('');
 
   const load = useCallback(() => {
     api<Member[]>(`/api/organizations/${orgId}/members`).then(setMembers).catch(() => {});
+    api<{ id: string; razonSocial: string }[]>(`/api/organizations/${orgId}/clients`)
+      .then(setClientes)
+      .catch(() => {});
   }, [orgId]);
 
   useEffect(load, [load]);
@@ -30,10 +34,17 @@ export default function MembersPage() {
     try {
       const result = await api<InviteResult>(`/api/organizations/${orgId}/invitations`, {
         method: 'POST',
-        body: invite,
+        body: {
+          email: invite.email,
+          rol: invite.rol,
+          // El negocio vinculado solo aplica al rol cliente
+          ...(invite.rol === 'cliente' && invite.clientProfileId
+            ? { clientProfileId: invite.clientProfileId }
+            : {}),
+        },
       });
       setInviteResult(result);
-      setInvite({ email: '', rol: 'contador' });
+      setInvite({ email: '', rol: 'contador', clientProfileId: '' });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error inesperado');
     }
@@ -118,10 +129,32 @@ export default function MembersPage() {
                 <option value="cliente">Cliente</option>
               </select>
             </div>
+            {invite.rol === 'cliente' && (
+              <div>
+                <label>Negocio del cliente</label>
+                <select
+                  value={invite.clientProfileId}
+                  onChange={(e) => setInvite((i) => ({ ...i, clientProfileId: e.target.value }))}
+                >
+                  <option value="">— Vincular después —</option>
+                  {clientes.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.razonSocial}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div style={{ flex: '0 0 auto' }}>
               <button>Generar invitación</button>
             </div>
           </div>
+          {invite.rol === 'cliente' && !invite.clientProfileId && (
+            <p className="muted" style={{ fontSize: 13, marginTop: 6 }}>
+              Sin negocio vinculado, el cliente no verá facturas hasta que lo agregues en
+              Clientes → Gestionar.
+            </p>
+          )}
         </form>
         {inviteResult && (
           <div className="notice">
