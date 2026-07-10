@@ -114,10 +114,48 @@ describe('buildFiscalValidation', () => {
       razonSocial: 'Algo SRL',
       padronEntry: { rnc: RNC_OK, razonSocial: 'ALGO SRL', estado: 'ACTIVO' },
       fecha: '2019-03-10',
+      hoy: new Date('2019-06-01'), // evaluada en su época: dentro de plazo
       ecf: { aceptado: true, estado: 'VENCIDO', serie: 'B', vigenciaHasta: '31/12/2019' },
     });
     expect(v.ok).toBe(true);
     expect(v.alertas.some((a) => a.includes('VENCIDA'))).toBe(false);
+  });
+
+  it('fecha futura → alerta de DD/MM invertido (el bug real de 09/07 leído como sept)', () => {
+    const v = buildFiscalValidation({
+      ncf: 'B0100000001',
+      rnc: RNC_OK,
+      razonSocial: 'Algo SRL',
+      padronEntry: { rnc: RNC_OK, razonSocial: 'ALGO SRL', estado: 'ACTIVO' },
+      fecha: '2026-09-07', // el OCR leyó 09/07/2026 como MM/DD
+      hoy: new Date('2026-07-10'),
+    });
+    expect(v.ok).toBe(false);
+    expect(v.alertas.some((a) => a.includes('futuro') && a.includes('DD/MM'))).toBe(true);
+  });
+
+  it('fecha de hoy o de ayer → sin alerta de plausibilidad', () => {
+    const v = buildFiscalValidation({
+      ncf: 'B0100000001',
+      rnc: RNC_OK,
+      razonSocial: 'Algo SRL',
+      padronEntry: { rnc: RNC_OK, razonSocial: 'ALGO SRL', estado: 'ACTIVO' },
+      fecha: '2026-07-09',
+      hoy: new Date('2026-07-10'),
+    });
+    expect(v.ok).toBe(true);
+  });
+
+  it('fecha con más de 12 meses → aviso de factura vieja', () => {
+    const v = buildFiscalValidation({
+      ncf: 'B0100000001',
+      rnc: RNC_OK,
+      razonSocial: 'Algo SRL',
+      padronEntry: { rnc: RNC_OK, razonSocial: 'ALGO SRL', estado: 'ACTIVO' },
+      fecha: '2024-05-01',
+      hoy: new Date('2026-07-10'),
+    });
+    expect(v.alertas.some((a) => a.includes('12 meses'))).toBe(true);
   });
 
   it('serie B VENCIDA sin fecha de factura → avisa para que se verifique', () => {

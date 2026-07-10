@@ -43,8 +43,11 @@ export interface FiscalValidationInput {
   /** ¿Se consultó el padrón? (false si no hay padrón cargado en el sistema) */
   padronConsultado?: boolean;
   /** Fecha de la factura (ISO o Date). Se usa para avisar si un NCF serie B con
-   *  autorización vencida se usó en una factura posterior a esa vigencia. */
+   *  autorización vencida se usó en una factura posterior a esa vigencia, y para
+   *  detectar fechas implausibles (futuras = típico DD/MM invertido, o muy viejas). */
   fecha?: string | Date | null;
+  /** "Hoy" para las verificaciones de plausibilidad de fecha (inyectable en tests). */
+  hoy?: Date;
   /** Verificación en vivo del comprobante (e-CF serie E o NCF serie B). Basta con
    *  estado/aceptado (el objeto completo de la consulta o el ya guardado en
    *  validacionDgii sirven); `serie` ajusta el texto de la alerta y `vigenciaHasta`
@@ -102,6 +105,23 @@ export function buildFiscalValidation(input: FiscalValidationInput): FiscalValid
       if (!padronRes.razonSocialCoincide && padronRes.razonSocialOficial) {
         alertas.push(`La razón social no coincide con el padrón (oficial: ${padronRes.razonSocialOficial})`);
       }
+    }
+  }
+
+  // Plausibilidad de la fecha. Una fecha FUTURA es el síntoma clásico de una
+  // fecha DD/MM leída como MM/DD por el OCR (09/07 → septiembre estando en
+  // julio); una muy vieja suele ser un año mal leído. Ambas van al 606 del
+  // período equivocado, así que se avisa ANTES de reportar.
+  const fechaDt = toDate(input.fecha);
+  if (fechaDt) {
+    const hoy = input.hoy ?? new Date();
+    const DIA = 24 * 60 * 60 * 1000;
+    if (fechaDt.getTime() > hoy.getTime() + DIA) {
+      alertas.push(
+        'La fecha de la factura está en el futuro — revisa si el día y el mes vienen invertidos (en RD el formato impreso es DD/MM)',
+      );
+    } else if (fechaDt.getTime() < hoy.getTime() - 366 * DIA) {
+      alertas.push('La factura tiene más de 12 meses — verifica la fecha antes de incluirla en el 606');
     }
   }
 
