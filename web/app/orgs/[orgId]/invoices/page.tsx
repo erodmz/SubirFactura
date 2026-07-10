@@ -9,6 +9,7 @@ import DataTable from '../../../../components/DataTable';
 import Dropdown from '../../../../components/Dropdown';
 import ImageLightbox from '../../../../components/ImageLightbox';
 import InvoiceTimeline from '../../../../components/InvoiceTimeline';
+import UploadInvoicesModal from '../../../../components/UploadInvoicesModal';
 import { ESTADO_COLOR } from '../../../../components/Charts';
 import { TrashIcon } from '../../../../components/icons';
 import { CATEGORIAS_606, ESTADO_LABELS, type Invoice } from '../../../../lib/types';
@@ -263,6 +264,7 @@ export default function InvoicesPage() {
   }
   // ?open=<id> abre esa factura directo (enlaces de "omitidas" del 606).
   const [expanded, setExpanded] = useState<string | null>(searchParams.get('open'));
+  const [showUpload, setShowUpload] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   // El modal se renderiza por portal a <body>; esperar a montar (evita SSR).
@@ -455,8 +457,22 @@ export default function InvoicesPage() {
               ▦
             </button>
           </div>
+          <button onClick={() => setShowUpload(true)} style={{ flexShrink: 0 }}>
+            ⬆ Subir facturas
+          </button>
         </div>
       </div>
+
+      {showUpload && (
+        <UploadInvoicesModal
+          orgId={orgId}
+          clientes={clientes}
+          onClose={() => setShowUpload(false)}
+          onUploaded={(subidas) => {
+            if (subidas > 0) load();
+          }}
+        />
+      )}
 
       <div className="card">
         {loading ? (
