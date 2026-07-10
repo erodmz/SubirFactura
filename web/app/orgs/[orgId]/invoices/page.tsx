@@ -1120,12 +1120,11 @@ function ReviewPanel({
                     display: 'block',
                     marginTop: 6,
                     fontSize: 13,
-                    color: 'var(--warning-text)',
+                    color: 'var(--muted)',
                   }}
                 >
-                  ⚠︎ Esto fue lo que leímos de tu factura como nombre del proveedor:{' '}
-                  <strong>«{nombreImpreso}»</strong>. Se está usando el nombre legal registrado en
-                  la DGII. Si prefieres el impreso, edítalo aquí.
+                  ℹ El nombre en tu foto (<strong>«{nombreImpreso}»</strong>) no coincide con el
+                  registrado en la DGII. Dejamos el oficial; cámbialo si prefieres el de la foto.
                 </small>
               )}
           </div>
