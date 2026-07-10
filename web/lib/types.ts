@@ -82,7 +82,11 @@ export interface Invoice {
   confianzaPorCampo?: {
     evaluation?: { camposBajaConfianza?: string[]; erroresValidacion?: string[] };
     /** Extracción cruda del OCR; usamos el nombre impreso para contrastarlo con el legal. */
-    extraction?: { razon_social?: { valor?: string | null } };
+    extraction?: { razon_social?: { valor?: string | null }; rnc_comprador?: { valor?: string | null } };
+    /** Correcciones determinísticas aplicadas tras el OCR (trazabilidad). */
+    ajustes?: string[];
+    /** Cliente cuyo RNC casi coincide con el comprador leído (sugerencia, no auto-asignación). */
+    sugerenciaCliente?: { id: string; razonSocial: string; rnc: string };
     error?: string;
   } | null;
   validacionDgii?: {

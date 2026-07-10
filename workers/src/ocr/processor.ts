@@ -6,8 +6,10 @@ import {
   buildFiscalValidation,
   CATEGORIAS_606,
   DEFAULT_CONFIDENCE_THRESHOLD,
+  editDistanceAtMost1,
   evaluateExtraction,
   fechaToPeriodoFiscal,
+  sanitizeExtraction,
   validateTaxId,
   consultarRncLive,
   consultarNcfLive,
@@ -206,6 +208,14 @@ export async function processOcrJob(job: Job<OcrJobData>) {
     console.log(`[ocr] factura ${invoiceId}: QR e-CF leído (${qr.ncf ?? 'sin NCF'})`);
   }
 
+  // Post-proceso determinístico (§5.4): corrige el cero de relleno del NCF y
+  // degrada la confianza de RNC que no pasan el dígito verificador — lo que un
+  // validador puede comprobar, no se le cree al modelo.
+  const ajustes = sanitizeExtraction(extraction);
+  if (ajustes.length > 0) {
+    console.log(`[ocr] factura ${invoiceId}: ajustes → ${ajustes.join(' · ')}`);
+  }
+
   // Verificación en vivo del e-CF contra la DGII (Fase 4), detrás de un flag.
   // undefined = no se intentó; null = se intentó y falló; objeto = verificado.
   let ecfVerif: EcfVerificacion | null | undefined;
@@ -224,22 +234,40 @@ export async function processOcrJob(job: Job<OcrJobData>) {
   // el QR no se pudo leer, usamos el que extrajo la IA (con confianza alta). Si
   // no coincide con ningún cliente, queda "sin asignar" para resolver a mano.
   let clientProfileId = invoice.clientProfileId;
+  let sugerenciaCliente: { id: string; razonSocial: string; rnc: string } | null = null;
   if (!clientProfileId) {
-    const rncComprador =
-      qr?.rncComprador ??
-      (extraction.rnc_comprador.valor && extraction.rnc_comprador.confianza >= 0.8
-        ? extraction.rnc_comprador.valor
-        : null);
-    if (rncComprador) {
-      const normalizado = rncComprador.replace(/[-\s]/g, '');
+    const rncLeido =
+      (qr?.rncComprador ?? extraction.rnc_comprador.valor)?.replace(/[-\s]/g, '') || null;
+    const confiable = !!qr?.rncComprador || extraction.rnc_comprador.confianza >= 0.8;
+
+    if (rncLeido && confiable) {
       const match = await prisma.clientProfile.findFirst({
-        where: { organizationId, rncOCedula: normalizado },
+        where: { organizationId, rncOCedula: rncLeido },
         select: { id: true },
       });
       if (match) {
         clientProfileId = match.id;
         const via = qr?.rncComprador ? 'QR' : 'IA';
-        console.log(`[ocr] factura ${invoiceId}: empresa asignada por RNC comprador ${normalizado} (${via})`);
+        console.log(`[ocr] factura ${invoiceId}: empresa asignada por RNC comprador ${rncLeido} (${via})`);
+      }
+    }
+
+    // Sin match exacto: el OCR pierde/duplica un dígito con frecuencia. Si el
+    // RNC leído está a UNA edición de exactamente un cliente de la org, se
+    // SUGIERE en revisión (nunca se auto-asigna una adivinanza).
+    if (!clientProfileId && rncLeido) {
+      const clientes = await prisma.clientProfile.findMany({
+        where: { organizationId },
+        select: { id: true, razonSocial: true, rncOCedula: true },
+        take: 500,
+      });
+      const candidatos = clientes.filter((c) => editDistanceAtMost1(rncLeido, c.rncOCedula));
+      if (candidatos.length === 1) {
+        const c = candidatos[0]!;
+        sugerenciaCliente = { id: c.id, razonSocial: c.razonSocial, rnc: c.rncOCedula };
+        console.log(
+          `[ocr] factura ${invoiceId}: RNC comprador ${rncLeido} casi coincide con "${c.razonSocial}" (${c.rncOCedula}) — sugerido en revisión`,
+        );
       }
     }
   }
@@ -301,7 +329,13 @@ export async function processOcrJob(job: Job<OcrJobData>) {
         formaPago,
         tipoBienServicio,
         ncfModificado,
-        confianzaPorCampo: { extraction, evaluation, qr } as object,
+        confianzaPorCampo: {
+          extraction,
+          evaluation,
+          qr,
+          ...(ajustes.length > 0 ? { ajustes } : {}),
+          ...(sugerenciaCliente ? { sugerenciaCliente } : {}),
+        } as object,
         validacionDgii: validacionDgii as object,
         estado: evaluation.estado,
       },

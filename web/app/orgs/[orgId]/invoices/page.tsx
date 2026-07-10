@@ -649,6 +649,9 @@ function ReviewPanel({
   const str = (v: number | string | null | undefined) => (v == null ? '' : v.toString());
   // Nombre tal cual lo leyó el OCR del recibo (suele ser comercial/de sucursal).
   const nombreImpreso = (invoice.confianzaPorCampo?.extraction?.razon_social?.valor ?? '').trim();
+  // Cliente cuyo RNC casi coincide con el comprador leído (el worker lo sugiere
+  // cuando el OCR perdió/duplicó un dígito; nunca se auto-asigna una adivinanza).
+  const sugerenciaCliente = invoice.confianzaPorCampo?.sugerenciaCliente ?? null;
   // Total impreso: si la empresa NO exige validación aritmética, lo autocompletamos
   // con la suma; si la exige, se deja vacío para que el contador lo digite y cuadre.
   const sumaInicial =
@@ -1087,6 +1090,35 @@ function ReviewPanel({
               ...clientes.map((c) => ({ value: c.id, label: c.razonSocial })),
             ],
             true,
+          )}
+          {!form.clientProfileId && sugerenciaCliente && (
+            <div className="full" style={{ marginTop: -6 }}>
+              <small style={{ display: 'block', fontSize: 13, color: 'var(--muted)' }}>
+                ℹ El RNC del comprador leído en la foto (
+                {invoice.confianzaPorCampo?.extraction?.rnc_comprador?.valor ?? '—'}) casi
+                coincide con <strong>{sugerenciaCliente.razonSocial}</strong> (
+                {sugerenciaCliente.rnc}).{' '}
+                <button
+                  type="button"
+                  className="linklike"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    color: 'var(--brand)',
+                    cursor: 'pointer',
+                    font: 'inherit',
+                    textDecoration: 'underline',
+                  }}
+                  onClick={() => {
+                    setDirty(true);
+                    setForm((f) => ({ ...f, clientProfileId: sugerenciaCliente.id }));
+                  }}
+                >
+                  Asignar a este cliente
+                </button>
+              </small>
+            </div>
           )}
 
           <div>

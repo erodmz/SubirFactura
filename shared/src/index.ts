@@ -1,6 +1,7 @@
 export * from './constants';
 export * from './types';
 export * from './ocr/evaluate';
+export * from './ocr/normalize';
 export * from './dgii/formato606';
 export * from './dgii/padron';
 export * from './dgii/fiscal-validation';
