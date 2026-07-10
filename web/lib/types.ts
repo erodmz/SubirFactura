@@ -81,6 +81,8 @@ export interface Invoice {
   clientProfile?: { id: string; razonSocial: string };
   confianzaPorCampo?: {
     evaluation?: { camposBajaConfianza?: string[]; erroresValidacion?: string[] };
+    /** Extracción cruda del OCR; usamos el nombre impreso para contrastarlo con el legal. */
+    extraction?: { razon_social?: { valor?: string | null } };
     error?: string;
   } | null;
   validacionDgii?: {

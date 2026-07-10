@@ -101,6 +101,16 @@ function dudosos(inv: Invoice): Set<string> {
   return new Set(inv.confianzaPorCampo?.evaluation?.camposBajaConfianza ?? []);
 }
 
+/** Normaliza un nombre para comparar (sin acentos, mayúsculas ni espacios extra). */
+function normNombre(s: string): string {
+  return s
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toUpperCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 /** La fecha llega como ISO completo; el formato fiscal usa solo AAAA-MM-DD. */
 function fechaCorta(fecha: string | null): string {
   return fecha ? fecha.slice(0, 10) : '';
@@ -637,6 +647,8 @@ function ReviewPanel({
 }) {
   const marcados = dudosos(invoice);
   const str = (v: number | string | null | undefined) => (v == null ? '' : v.toString());
+  // Nombre tal cual lo leyó el OCR del recibo (suele ser comercial/de sucursal).
+  const nombreImpreso = (invoice.confianzaPorCampo?.extraction?.razon_social?.valor ?? '').trim();
   // Total impreso: si la empresa NO exige validación aritmética, lo autocompletamos
   // con la suma; si la exige, se deja vacío para que el contador lo digite y cuadre.
   const sumaInicial =
@@ -1101,6 +1113,20 @@ function ReviewPanel({
           <div className="full">
             <label>Razón social del proveedor</label>
             <input value={form.razonSocialProveedor} onChange={set('razonSocialProveedor')} />
+            {nombreImpreso &&
+              normNombre(nombreImpreso) !== normNombre(form.razonSocialProveedor) && (
+                <small
+                  style={{
+                    display: 'block',
+                    marginTop: 6,
+                    fontSize: 13,
+                    color: 'var(--warning-text)',
+                  }}
+                >
+                  ⚠︎ Impreso en la factura: <strong>«{nombreImpreso}»</strong>. Se está usando el
+                  nombre legal registrado en la DGII. Si prefieres el impreso, edítalo aquí.
+                </small>
+              )}
           </div>
 
           {selectField('Tipo de bienes/servicios (606)', 'categoria606', [
