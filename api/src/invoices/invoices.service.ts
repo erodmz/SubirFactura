@@ -661,7 +661,12 @@ export class InvoicesService {
     const priorEcf =
       (
         invoice.validacionDgii as {
-          ecf?: { aceptado: boolean; estado: string | null; serie?: 'E' | 'B' | null };
+          ecf?: {
+            aceptado: boolean;
+            estado: string | null;
+            serie?: 'E' | 'B' | null;
+            vigenciaHasta?: string | null;
+          };
         } | null
       )?.ecf ?? undefined;
     const validacionDgii = await this.runFiscalValidation(
@@ -669,6 +674,7 @@ export class InvoicesService {
       merged.rncProveedor,
       razonSocial,
       priorEcf,
+      merged.fecha ?? null,
     );
 
     const updated = await this.prisma.forOrg(orgId).invoice.update({
@@ -764,7 +770,13 @@ export class InvoicesService {
     ncf: string | null,
     rnc: string | null,
     razonSocial: string | null,
-    ecf?: { aceptado: boolean; estado: string | null; serie?: 'E' | 'B' | null } | null,
+    ecf?: {
+      aceptado: boolean;
+      estado: string | null;
+      serie?: 'E' | 'B' | null;
+      vigenciaHasta?: string | null;
+    } | null,
+    fecha?: string | Date | null,
   ) {
     const normalized = rnc ? rnc.replace(/[-\s]/g, '') : null;
     const isRnc = !!normalized && /^\d{9}$/.test(normalized);
@@ -783,6 +795,7 @@ export class InvoicesService {
         ? { rnc: padronEntry.rnc, razonSocial: padronEntry.razonSocial, estado: padronEntry.estado }
         : null,
       padronConsultado: padronLoaded,
+      fecha,
       ecf,
     });
   }

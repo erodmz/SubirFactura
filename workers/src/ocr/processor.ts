@@ -37,8 +37,15 @@ interface FiscalValidationArgs {
   rncComprador?: string | null;
   /** Código de seguridad del e-CF (del QR); requerido por la consulta de e-CF (serie E). */
   codigoSeguridad?: string | null;
+  /** Fecha de la factura (ISO); para avisar de NCF serie B con autorización vencida. */
+  fecha?: string | null;
   /** Verificación e-CF ya obtenida por el QR (ecf.dgii.gov.do), como respaldo. */
-  ecf?: (Pick<EcfVerificacion, 'aceptado' | 'estado'> & { serie?: 'E' | 'B' | null }) | null;
+  ecf?:
+    | (Pick<EcfVerificacion, 'aceptado' | 'estado'> & {
+        serie?: 'E' | 'B' | null;
+        vigenciaHasta?: string | null;
+      })
+    | null;
 }
 
 /**
@@ -95,7 +102,12 @@ async function runFiscalValidation(args: FiscalValidationArgs): Promise<FiscalVa
         timeout,
       );
       if (ncfLive?.encontrado) {
-        ecf = { aceptado: ncfLive.aceptado, estado: ncfLive.estado, serie: ncfLive.serie };
+        ecf = {
+          aceptado: ncfLive.aceptado,
+          estado: ncfLive.estado,
+          serie: ncfLive.serie,
+          vigenciaHasta: ncfLive.vigenciaHasta,
+        };
       }
     }
 
@@ -105,7 +117,15 @@ async function runFiscalValidation(args: FiscalValidationArgs): Promise<FiscalVa
         (ecf ? `, e-CF ${ecf.estado ?? '?'}` : ''),
     );
 
-    return buildFiscalValidation({ ncf, rnc, razonSocial, padronEntry, padronConsultado, ecf });
+    return buildFiscalValidation({
+      ncf,
+      rnc,
+      razonSocial,
+      padronEntry,
+      padronConsultado,
+      fecha: args.fecha ?? null,
+      ecf,
+    });
   } catch (err) {
     // La validación NUNCA debe tumbar el procesamiento: la factura sigue su
     // curso (su estado lo decide la confianza del OCR) y se marca "no validada".
@@ -220,6 +240,7 @@ export async function processOcrJob(job: Job<OcrJobData>) {
     razonSocial: extraction.razon_social.valor ?? null,
     rncComprador: qr?.rncComprador ?? extraction.rnc_comprador.valor ?? null,
     codigoSeguridad: qr?.codigoSeguridad ?? null,
+    fecha,
     ecf: ecfVerif,
   });
 

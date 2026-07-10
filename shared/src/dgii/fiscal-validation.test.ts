@@ -93,6 +93,45 @@ describe('buildFiscalValidation', () => {
     expect(v.alertas.some((a) => a.includes('serie B') || a.includes('e-CF'))).toBe(false);
   });
 
+  it('serie B VENCIDA con factura posterior a la vigencia → alerta explícita', () => {
+    const v = buildFiscalValidation({
+      ncf: 'B0100000005',
+      rnc: RNC_OK,
+      razonSocial: 'Algo SRL',
+      padronEntry: { rnc: RNC_OK, razonSocial: 'ALGO SRL', estado: 'ACTIVO' },
+      fecha: '2026-07-04',
+      ecf: { aceptado: true, estado: 'VENCIDO', serie: 'B', vigenciaHasta: '31/12/2019' },
+    });
+    expect(v.ok).toBe(false);
+    expect(v.ecf?.vigenciaHasta).toBe('31/12/2019');
+    expect(v.alertas.some((a) => a.includes('VENCIDA') && a.includes('posterior'))).toBe(true);
+  });
+
+  it('serie B VENCIDA pero factura anterior a la vigencia → sin alerta (factura legítima)', () => {
+    const v = buildFiscalValidation({
+      ncf: 'B0100000005',
+      rnc: RNC_OK,
+      razonSocial: 'Algo SRL',
+      padronEntry: { rnc: RNC_OK, razonSocial: 'ALGO SRL', estado: 'ACTIVO' },
+      fecha: '2019-03-10',
+      ecf: { aceptado: true, estado: 'VENCIDO', serie: 'B', vigenciaHasta: '31/12/2019' },
+    });
+    expect(v.ok).toBe(true);
+    expect(v.alertas.some((a) => a.includes('VENCIDA'))).toBe(false);
+  });
+
+  it('serie B VENCIDA sin fecha de factura → avisa para que se verifique', () => {
+    const v = buildFiscalValidation({
+      ncf: 'B0100000005',
+      rnc: RNC_OK,
+      razonSocial: 'Algo SRL',
+      padronEntry: { rnc: RNC_OK, razonSocial: 'ALGO SRL', estado: 'ACTIVO' },
+      fecha: null,
+      ecf: { aceptado: true, estado: 'VENCIDO', serie: 'B', vigenciaHasta: '31/12/2019' },
+    });
+    expect(v.alertas.some((a) => a.includes('VENCIDA') && a.includes('verifica'))).toBe(true);
+  });
+
   it('no consulta padrón para cédulas (padronConsultado falso)', () => {
     const v = buildFiscalValidation({
       ncf: 'B1100000001',

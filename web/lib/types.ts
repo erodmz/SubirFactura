@@ -100,6 +100,7 @@ export interface Invoice {
       aceptado: boolean;
       estado: string | null;
       serie?: 'E' | 'B' | null;
+      vigenciaHasta?: string | null;
     };
   } | null;
 }
