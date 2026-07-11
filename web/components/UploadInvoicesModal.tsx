@@ -9,7 +9,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { apiUpload } from '../lib/api';
 
-const ACCEPTED = ['image/jpeg', 'image/png', 'image/webp'];
+const ACCEPTED = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
 const MAX_SIZE = 10 * 1024 * 1024; // el API rechaza más de 10 MB
 
 type FileState = 'pendiente' | 'subiendo' | 'ok' | 'error';
@@ -50,9 +50,9 @@ export default function UploadInvoicesModal({
     const nuevos: UploadItem[] = [];
     for (const file of Array.from(files)) {
       if (!ACCEPTED.includes(file.type)) {
-        nuevos.push({ file, estado: 'error', mensaje: 'Solo imágenes JPG, PNG o WebP' });
+        nuevos.push({ file, estado: 'error', mensaje: 'Solo imágenes JPG, PNG, WebP o PDF' });
       } else if (file.size > MAX_SIZE) {
-        nuevos.push({ file, estado: 'error', mensaje: 'Más de 10 MB — comprime la foto' });
+        nuevos.push({ file, estado: 'error', mensaje: 'Más de 10 MB — comprime el archivo' });
       } else {
         nuevos.push({ file, estado: 'pendiente' });
       }
@@ -175,9 +175,9 @@ export default function UploadInvoicesModal({
             marginBottom: 14,
           }}
         >
-          <strong>Arrastra las fotos aquí</strong>
+          <strong>Arrastra las facturas aquí</strong>
           <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>
-            o haz clic para elegirlas (JPG, PNG o WebP · máx. 10 MB c/u)
+            o haz clic para elegirlas (JPG, PNG, WebP o PDF · máx. 10 MB c/u)
           </div>
           <input
             ref={inputRef}

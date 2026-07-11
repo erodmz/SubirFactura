@@ -22,6 +22,7 @@ import { OcrQueueService } from '../queue/ocr-queue.service';
 import { AuditService } from '../audit/audit.service';
 import { PlanLimitsService } from '../plans/plan-limits.service';
 import { ListInvoicesQueryDto, ReviewInvoiceDto } from './dto/invoices.dto';
+import { rasterizePdf } from './pdf';
 import type { AuthenticatedUser } from '../common/decorators/current-user.decorator';
 
 const ALLOWED_MIME = new Map([
@@ -49,15 +50,18 @@ export class InvoicesService {
     user: AuthenticatedUser,
     membership: Membership,
     clientProfileId: string | undefined,
-    files: { buffer: Buffer; mimetype: string; size: number }[],
+    rawFiles: { buffer: Buffer; mimetype: string; size: number }[],
   ) {
+    // Un PDF entra como UNA factura: se rasteriza a imágenes de página aquí y se
+    // trata igual que un comprobante largo fotografiado por partes.
+    const files = await this.expandPdfs(rawFiles);
     const [primaryFile, ...restFiles] = files;
     if (!primaryFile) {
       throw new BadRequestException('No se recibió ninguna imagen');
     }
     for (const f of files) {
       if (!ALLOWED_MIME.has(f.mimetype)) {
-        throw new BadRequestException('Formato no soportado: se aceptan JPEG, PNG o WebP');
+        throw new BadRequestException('Formato no soportado: se aceptan JPEG, PNG, WebP o PDF');
       }
     }
 
@@ -137,6 +141,35 @@ export class InvoicesService {
         ? 'Estás cerca del límite de facturas mensuales de tu plan'
         : undefined,
     };
+  }
+
+  /**
+   * Reemplaza cada PDF de la lista por sus páginas rasterizadas (JPEG),
+   * conservando el orden. Las imágenes pasan sin tocar. Si un PDF no se puede
+   * convertir, se responde con un error claro en vez de romper la subida.
+   */
+  private async expandPdfs(
+    files: { buffer: Buffer; mimetype: string; size: number }[],
+  ): Promise<{ buffer: Buffer; mimetype: string; size: number }[]> {
+    const out: { buffer: Buffer; mimetype: string; size: number }[] = [];
+    for (const f of files) {
+      if (f.mimetype !== 'application/pdf') {
+        out.push(f);
+        continue;
+      }
+      let pages: Buffer[];
+      try {
+        pages = await rasterizePdf(f.buffer);
+      } catch {
+        throw new BadRequestException(
+          'No pudimos leer el PDF. Verifica que no esté dañado ni protegido con contraseña.',
+        );
+      }
+      for (const p of pages) {
+        out.push({ buffer: p, mimetype: 'image/jpeg', size: p.length });
+      }
+    }
+    return out;
   }
 
   /**
