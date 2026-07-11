@@ -47,6 +47,17 @@ export class ForgotPasswordDto {
   email!: string;
 }
 
+export class VerifyEmailDto {
+  @IsString()
+  @IsNotEmpty({ message: 'Falta el token del enlace' })
+  token!: string;
+}
+
+export class ResendVerificationDto {
+  @IsEmail({}, { message: 'Correo electrónico inválido' })
+  email!: string;
+}
+
 export class ResetPasswordDto {
   @IsString()
   @IsNotEmpty({ message: 'Falta el token del enlace' })

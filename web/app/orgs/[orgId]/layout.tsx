@@ -7,6 +7,7 @@ import { api, clearTokens, getTokens } from '../../../lib/api';
 import ThemeToggle from '../../../components/ThemeToggle';
 import Logo from '../../../components/Logo';
 import NotificationsBell from '../../../components/NotificationsBell';
+import VerifyEmailBanner from '../../../components/VerifyEmailBanner';
 import type { Me } from '../../../lib/types';
 
 const NAV = [
@@ -162,7 +163,10 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
             )}
           </div>
         </header>
-        <main className="app-content">{children}</main>
+        <main className="app-content">
+          {me && me.emailVerified === false && <VerifyEmailBanner email={me.email} />}
+          {children}
+        </main>
       </div>
     </div>
   );

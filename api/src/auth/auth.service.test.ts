@@ -25,12 +25,17 @@ describe('hashToken', () => {
 
 function buildService(overrides: Record<string, unknown> = {}) {
   const prisma = {
-    user: { findUnique: vi.fn(), create: vi.fn() },
+    user: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn().mockResolvedValue({}) },
     refreshToken: {
       findUnique: vi.fn(),
       create: vi.fn().mockResolvedValue({}),
       update: vi.fn().mockResolvedValue({}),
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+    },
+    emailVerificationToken: {
+      findUnique: vi.fn(),
+      create: vi.fn().mockResolvedValue({}),
+      update: vi.fn().mockResolvedValue({}),
     },
     ...overrides,
   };
@@ -85,6 +90,69 @@ describe('AuthService.login', () => {
       'Credenciales inválidas',
     );
     expect(prisma.user.findUnique).toHaveBeenCalledWith({ where: { email: 'ana@ejemplo.com' } });
+  });
+});
+
+describe('AuthService.verifyEmail', () => {
+  it('rechaza un token inexistente', async () => {
+    const { service, prisma } = buildService();
+    prisma.emailVerificationToken.findUnique.mockResolvedValue(null);
+    await expect(service.verifyEmail('token-x')).rejects.toThrow(/no es válido/);
+  });
+
+  it('rechaza un token ya usado', async () => {
+    const { service, prisma } = buildService();
+    prisma.emailVerificationToken.findUnique.mockResolvedValue({
+      id: 't1',
+      userId: 'u1',
+      usedAt: new Date(),
+      expiresAt: new Date(Date.now() + 10_000),
+    });
+    await expect(service.verifyEmail('token-x')).rejects.toThrow(/no es válido/);
+  });
+
+  it('rechaza un token vencido', async () => {
+    const { service, prisma } = buildService();
+    prisma.emailVerificationToken.findUnique.mockResolvedValue({
+      id: 't1',
+      userId: 'u1',
+      usedAt: null,
+      expiresAt: new Date(Date.now() - 10_000),
+    });
+    await expect(service.verifyEmail('token-x')).rejects.toThrow(/venció/);
+  });
+
+  it('con un token válido marca el correo como verificado y consume el token', async () => {
+    const { service, prisma } = buildService();
+    prisma.emailVerificationToken.findUnique.mockResolvedValue({
+      id: 't1',
+      userId: 'u1',
+      usedAt: null,
+      expiresAt: new Date(Date.now() + 10_000),
+    });
+    await service.verifyEmail('token-x');
+    expect(prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'u1' } }),
+    );
+    expect(prisma.emailVerificationToken.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 't1' } }),
+    );
+  });
+});
+
+describe('AuthService.resendVerification', () => {
+  it('no revela nada si el correo no existe', async () => {
+    const { service, prisma } = buildService();
+    prisma.user.findUnique.mockResolvedValue(null);
+    await expect(service.resendVerification('nadie@x.com')).resolves.toEqual({});
+    expect(prisma.emailVerificationToken.create).not.toHaveBeenCalled();
+  });
+
+  it('no reenvía si el correo ya está verificado', async () => {
+    const { service, prisma } = buildService();
+    prisma.user.findUnique.mockResolvedValue({ ...user, emailVerifiedAt: new Date() });
+    await expect(service.resendVerification(user.email)).resolves.toEqual({});
+    expect(prisma.emailVerificationToken.create).not.toHaveBeenCalled();
   });
 });
 

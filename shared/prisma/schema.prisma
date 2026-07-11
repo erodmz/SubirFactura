@@ -42,6 +42,7 @@ model User {
   nombre       String
   telefono     String?
   isSuperAdmin Boolean      @default(false) @map("is_super_admin")
+  emailVerifiedAt DateTime? @map("email_verified_at")
   createdAt    DateTime     @default(now()) @map("created_at")
   updatedAt    DateTime     @updatedAt @map("updated_at")
   memberships  Membership[]
@@ -50,6 +51,7 @@ model User {
   auditLogs    AuditLog[]
   refreshTokens RefreshToken[]
   passwordResetTokens PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
   invitationsSent Invitation[]
   invoicesSubidas Invoice[]    @relation("InvoicesSubidas")
 
@@ -84,6 +86,21 @@ model PasswordResetToken {
 
   @@index([userId])
   @@map("password_reset_tokens")
+}
+
+// Tokens de verificación de correo — mismo patrón que el reset: solo se guarda
+// el hash, con un solo uso (usedAt). El valor en claro va en el enlace al usuario.
+model EmailVerificationToken {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("email_verification_tokens")
 }
 
 // Invitaciones a una organización (rol contador o cliente)

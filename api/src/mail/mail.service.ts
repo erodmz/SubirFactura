@@ -25,6 +25,15 @@ export class MailService {
     await this.send(email, asunto, cuerpo);
   }
 
+  async sendEmailVerification(email: string, verifyUrl: string): Promise<void> {
+    const asunto = 'Confirma tu correo en SubirFactura';
+    const cuerpo =
+      `¡Bienvenido a SubirFactura!\n\n` +
+      `Confirma que este correo es tuyo abriendo este enlace (válido por 24 horas):\n${verifyUrl}\n\n` +
+      `Si no creaste esta cuenta, ignora este correo.`;
+    await this.send(email, asunto, cuerpo);
+  }
+
   private async send(to: string, subject: string, text: string): Promise<void> {
     // TODO(correo): conectar proveedor real. Ej. con Resend:
     //   if (process.env.RESEND_API_KEY) { await resend.emails.send({...}); return; }

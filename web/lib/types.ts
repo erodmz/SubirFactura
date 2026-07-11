@@ -3,6 +3,7 @@ export interface Me {
   email: string;
   nombre: string | null;
   isSuperAdmin: boolean;
+  emailVerified?: boolean;
   memberships: {
     membershipId: string;
     rol: 'org_admin' | 'contador' | 'cliente';

@@ -62,7 +62,7 @@ export class AuthService {
     return parseDuration(process.env.JWT_REFRESH_EXPIRES_IN ?? '7d');
   }
 
-  async register(dto: RegisterDto) {
+  async register(dto: RegisterDto, baseUrl?: string) {
     const email = normalizeEmail(dto.email);
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) throw new ConflictException('Ya existe una cuenta con ese correo');
@@ -77,7 +77,73 @@ export class AuthService {
     });
     await this.audit.log({ userId: user.id, accion: 'user.register', entidad: 'user', entidadId: user.id });
 
-    return { user: this.publicUser(user), tokens: await this.issueTokens(user) };
+    // Verificación de correo: se emite un enlace y (fuera de producción) se
+    // devuelve para poder probar sin proveedor de correo conectado. NO bloquea
+    // el registro: el usuario entra y ve un aviso hasta confirmar.
+    const devVerifyUrl = await this.sendVerificationEmail(user, baseUrl);
+
+    return {
+      user: this.publicUser(user),
+      tokens: await this.issueTokens(user),
+      ...(devVerifyUrl ? { devVerifyUrl } : {}),
+    };
+  }
+
+  /**
+   * Emite un token de verificación de correo (24 h, un solo uso), lo envía y
+   * devuelve el enlace SOLO fuera de producción (para probar sin proveedor).
+   */
+  private async sendVerificationEmail(
+    user: Pick<User, 'id' | 'email'>,
+    baseUrl?: string,
+  ): Promise<string | undefined> {
+    const token = randomBytes(32).toString('hex');
+    await this.prisma.emailVerificationToken.create({
+      data: {
+        userId: user.id,
+        tokenHash: hashToken(token),
+        expiresAt: new Date(Date.now() + 86_400_000), // 24 horas
+      },
+    });
+    const base = (baseUrl ?? process.env.WEB_ORIGIN?.split(',')[0] ?? 'http://localhost:3001').replace(/\/$/, '');
+    const verifyUrl = `${base}/verificar-correo?token=${token}`;
+    await this.mail.sendEmailVerification(user.email, verifyUrl);
+    return process.env.NODE_ENV === 'production' ? undefined : verifyUrl;
+  }
+
+  /**
+   * Reenvía el correo de verificación. No revela si el correo existe ni si ya
+   * estaba verificado (evita enumeración de cuentas).
+   */
+  async resendVerification(email: string, baseUrl?: string): Promise<{ devVerifyUrl?: string }> {
+    const user = await this.prisma.user.findUnique({ where: { email: normalizeEmail(email) } });
+    if (!user || user.emailVerifiedAt) return {};
+    const devVerifyUrl = await this.sendVerificationEmail(user, baseUrl);
+    return devVerifyUrl ? { devVerifyUrl } : {};
+  }
+
+  /** Confirma el correo con el token del enlace (no usado, no vencido). */
+  async verifyEmail(token: string): Promise<void> {
+    const stored = await this.prisma.emailVerificationToken.findUnique({
+      where: { tokenHash: hashToken(token) },
+    });
+    if (!stored || stored.usedAt || stored.expiresAt < new Date()) {
+      throw new BadRequestException('El enlace no es válido o ya venció. Solicita uno nuevo.');
+    }
+    await this.prisma.user.update({
+      where: { id: stored.userId },
+      data: { emailVerifiedAt: new Date() },
+    });
+    await this.prisma.emailVerificationToken.update({
+      where: { id: stored.id },
+      data: { usedAt: new Date() },
+    });
+    await this.audit.log({
+      userId: stored.userId,
+      accion: 'user.verify_email',
+      entidad: 'user',
+      entidadId: stored.userId,
+    });
   }
 
   async login(rawEmail: string, password: string) {
@@ -280,6 +346,7 @@ export class AuthService {
       nombre: user.nombre,
       telefono: user.telefono,
       isSuperAdmin: user.isSuperAdmin,
+      emailVerified: user.emailVerifiedAt != null,
     };
   }
 }

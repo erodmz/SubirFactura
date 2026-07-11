@@ -7,7 +7,9 @@ import {
   LoginDto,
   RefreshDto,
   RegisterDto,
+  ResendVerificationDto,
   ResetPasswordDto,
+  VerifyEmailDto,
 } from './dto/auth.dto';
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-user.decorator';
@@ -27,8 +29,9 @@ export class AuthController {
   @Public()
   @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @Post('auth/register')
-  register(@Body() dto: RegisterDto) {
-    return this.authService.register(dto);
+  register(@Body() dto: RegisterDto, @Headers('origin') origin?: string) {
+    const baseUrl = origin ?? process.env.WEB_ORIGIN?.split(',')[0] ?? 'http://localhost:3001';
+    return this.authService.register(dto, baseUrl);
   }
 
   @Public()
@@ -77,6 +80,26 @@ export class AuthController {
     return { ok: true };
   }
 
+  /** Confirma el correo con el token del enlace. */
+  @Public()
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
+  @HttpCode(200)
+  @Post('auth/verify-email')
+  async verifyEmail(@Body() dto: VerifyEmailDto) {
+    await this.authService.verifyEmail(dto.token);
+    return { ok: true };
+  }
+
+  /** Reenvía el correo de verificación. Responde 200 siempre (no revela nada). */
+  @Public()
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
+  @HttpCode(200)
+  @Post('auth/resend-verification')
+  resendVerification(@Body() dto: ResendVerificationDto, @Headers('origin') origin?: string) {
+    const baseUrl = origin ?? process.env.WEB_ORIGIN?.split(',')[0] ?? 'http://localhost:3001';
+    return this.authService.resendVerification(dto.email, baseUrl);
+  }
+
   /** Cambio de contraseña del usuario autenticado. Devuelve tokens nuevos. */
   @HttpCode(200)
   @Post('auth/change-password')
@@ -93,7 +116,7 @@ export class AuthController {
     const [profile, memberships] = await Promise.all([
       this.prisma.user.findUnique({
         where: { id: user.userId },
-        select: { nombre: true },
+        select: { nombre: true, emailVerifiedAt: true },
       }),
       this.prisma.membership.findMany({
         where: { userId: user.userId },
@@ -147,6 +170,7 @@ export class AuthController {
     return {
       ...user,
       nombre: profile?.nombre ?? null,
+      emailVerified: profile?.emailVerifiedAt != null,
       memberships: memberships.map((m) => ({
         membershipId: m.id,
         rol: m.rol,
