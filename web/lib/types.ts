@@ -83,6 +83,8 @@ export interface Invoice {
     evaluation?: { camposBajaConfianza?: string[]; erroresValidacion?: string[] };
     /** Extracción cruda del OCR; usamos el nombre impreso para contrastarlo con el legal. */
     extraction?: { razon_social?: { valor?: string | null }; rnc_comprador?: { valor?: string | null } };
+    /** Datos leídos del QR e-CF oficial (si el comprobante lo traía). */
+    qr?: { ncf?: string | null } | null;
     /** Correcciones determinísticas aplicadas tras el OCR (trazabilidad). */
     ajustes?: string[];
     /** Cliente cuyo RNC casi coincide con el comprador leído (sugerencia, no auto-asignación). */
@@ -140,6 +142,7 @@ export interface DashboardData {
   hoy: string; // AAAA-MM-DD
   total: number;
   kpis: { subidasMes: number; reportablesMes: number; montoMes: number; itbisMes: number };
+  valor: { leidasMes: number; duplicadosEvitadosMes: number; minutosAhorrados: number };
   kpisPrev: { subidas: number; monto: number };
   records: {
     subidas: { valor: number; periodo: string } | null;

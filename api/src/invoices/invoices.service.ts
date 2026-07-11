@@ -425,6 +425,11 @@ export class InvoicesService {
     let reportablesMes = 0;
     let montoMes = 0;
     let itbisMes = 0;
+    // Libro del valor: lo que la app hizo por ti este mes (hacer visible el
+    // valor invisible). Solo cosas reales y auditables.
+    let leidasMes = 0; // la IA extrajo los datos (no quedaron en subida/procesando)
+    let duplicadosMes = 0; // comprobantes repetidos que se atajaron
+    const LEIDA = new Set(['extraida', 'en_revision', 'validada', 'incluida_en_606', 'reportada']);
 
     for (const r of rows) {
       const m = mesDe(r.createdAt);
@@ -443,7 +448,11 @@ export class InvoicesService {
         const cl = porCliente.get(r.clientProfileId) ?? { n: 0, monto: 0 };
         porCliente.set(r.clientProfileId, { n: cl.n + 1, monto: cl.monto + monto });
       }
-      if (m === periodo) subidasMes++;
+      if (m === periodo) {
+        subidasMes++;
+        if (r.estado === 'duplicada') duplicadosMes++;
+        else if (LEIDA.has(r.estado)) leidasMes++;
+      }
       if (r.periodoFiscal && REPORTABLE.has(r.estado)) {
         montoPorPeriodo.set(r.periodoFiscal, (montoPorPeriodo.get(r.periodoFiscal) ?? 0) + monto);
         if (r.periodoFiscal === periodo) {
@@ -519,6 +528,9 @@ export class InvoicesService {
       hoy: dia(now),
       total: rows.length,
       kpis: { subidasMes, reportablesMes, montoMes, itbisMes },
+      // ~2 min por factura tecleada a mano es una estimación conservadora
+      // (NCF + RNC + fecha + montos + categoría). Se etiqueta como "estimado".
+      valor: { leidasMes, duplicadosEvitadosMes: duplicadosMes, minutosAhorrados: leidasMes * 2 },
       kpisPrev: {
         subidas: subidasPorMes.get(prevPeriodo) ?? 0,
         monto: montoPorPeriodo.get(prevPeriodo) ?? 0,

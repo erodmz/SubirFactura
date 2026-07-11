@@ -1052,18 +1052,46 @@ function ReviewPanel({
                 OCR: {invoice.confianzaPorCampo.error}
               </div>
             )}
-            {invoice.validacionDgii?.ok && (
-              <p style={{ color: 'var(--ok)', fontSize: 14, margin: 0 }}>
-                ✓ NCF, RNC y padrón DGII verificados
-              </p>
-            )}
-            {invoice.validacionDgii?.ecf?.verificado && invoice.validacionDgii.ecf.aceptado && (
-              <p style={{ color: 'var(--ok)', fontSize: 14, margin: 0 }}>
-                {invoice.validacionDgii.ecf.serie === 'B'
-                  ? '✓ NCF verificado en vivo con la DGII (válido)'
-                  : '✓ e-CF verificado en vivo con la DGII (Aceptado)'}
-              </p>
-            )}
+            {/* Transparencia operativa: lo que la app hizo por ti y que a mano
+                no podrías hacer rápido. Hace visible el valor invisible. */}
+            {(() => {
+              const v = invoice.validacionDgii;
+              const c = invoice.confianzaPorCampo;
+              const ecf = v?.ecf?.verificado && v.ecf.aceptado;
+              const leyoQr = !!c?.qr?.ncf;
+              const corrigioNcf = (c?.ajustes ?? []).some((a) => a.includes('NCF corregido'));
+              const hechos: string[] = [];
+              if (leyoQr) hechos.push('Leí el NCF y el RNC del QR oficial de la DGII');
+              if (corrigioNcf) hechos.push('Corregí un dígito del NCF que venía mal leído');
+              if (v?.padron?.existe) hechos.push('Confirmé el RNC del proveedor en el padrón de la DGII');
+              if (ecf)
+                hechos.push(
+                  v!.ecf!.serie === 'B'
+                    ? 'Verifiqué el comprobante en vivo con la DGII (válido)'
+                    : 'Verifiqué el e-CF en vivo con la DGII (Aceptado)',
+                );
+              if (hechos.length === 0) return null;
+              return (
+                <div
+                  style={{
+                    fontSize: 13.5,
+                    background: 'var(--bg-soft)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 10,
+                    padding: '10px 12px',
+                  }}
+                >
+                  <strong style={{ fontSize: 13, color: 'var(--muted)' }}>Lo que verifiqué por ti:</strong>
+                  <ul style={{ margin: '6px 0 0', padding: 0, listStyle: 'none', display: 'grid', gap: 4 }}>
+                    {hechos.map((h, i) => (
+                      <li key={i} style={{ color: 'var(--ok)' }}>
+                        ✓ <span style={{ color: 'var(--text)' }}>{h}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })()}
           </div>
         </div>
 

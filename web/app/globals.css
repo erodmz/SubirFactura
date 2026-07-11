@@ -2092,3 +2092,29 @@ tbody tr.row-click:active td {
     transition: none;
   }
 }
+
+/* Libro del valor del dashboard: hace visible lo que la app hizo por ti. */
+.valor-mes .valor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px;
+  margin-top: 4px;
+}
+.valor-mes .valor-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.valor-mes .valor-grid strong {
+  font-size: 28px;
+  line-height: 1.1;
+  color: var(--brand);
+  font-variant-numeric: tabular-nums;
+}
+.valor-mes .valor-grid span {
+  font-size: 13px;
+  color: var(--muted);
+}
+.valor-mes .valor-grid em {
+  font-style: italic;
+}

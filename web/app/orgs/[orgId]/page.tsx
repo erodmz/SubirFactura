@@ -43,6 +43,14 @@ function moneyCompact(v: number): string {
   return String(Math.round(v));
 }
 
+/** Minutos → "45 min" o "2 h 30 min" para el libro del valor. */
+function formatMinutos(min: number): string {
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m === 0 ? `${h} h` : `${h} h ${m} min`;
+}
+
 const SEMAFORO: Record<CierreEstado['semaforo'], string> = {
   verde: 'var(--ok)',
   amarillo: 'var(--m-orange)',
@@ -54,6 +62,7 @@ const SEMAFORO: Record<CierreEstado['semaforo'], string> = {
 const WIDGETS: { id: string; label: string; size: number }[] = [
   { id: 'cierre', label: '606 del período', size: 4 },
   { id: 'kpis', label: 'KPIs del mes', size: 4 },
+  { id: 'valor', label: 'Tu mes con SubirFactura', size: 4 },
   { id: 'insights', label: 'Qué atender', size: 4 },
   { id: 'clientes', label: 'Clientes por atender', size: 4 },
   { id: 'estado', label: 'Facturas por estado', size: 2 },
@@ -344,6 +353,35 @@ export default function OrgDashboard() {
             }
           />
           <Tile label="ITBIS del mes" value={`RD$ ${moneyCompact(dash.kpis.itbisMes)}`} />
+        </div>
+      ),
+    // Libro del valor: hace visible lo que la app hizo por ti (y lo que a mano
+    // habrías perdido). Solo aparece cuando de verdad hay algo que mostrar.
+    valor: () =>
+      dash &&
+      dash.valor.leidasMes > 0 && (
+        <div className="card valor-mes">
+          <h2 style={{ marginTop: 0 }}>Tu mes con SubirFactura</h2>
+          <div className="valor-grid">
+            <div>
+              <strong>{dash.valor.leidasMes}</strong>
+              <span>factura{dash.valor.leidasMes === 1 ? '' : 's'} leída{dash.valor.leidasMes === 1 ? '' : 's'} por la IA</span>
+            </div>
+            <div>
+              <strong>~{formatMinutos(dash.valor.minutosAhorrados)}</strong>
+              <span>de tecleo que te ahorraste <em>(estimado)</em></span>
+            </div>
+            {dash.valor.duplicadosEvitadosMes > 0 && (
+              <div>
+                <strong>{dash.valor.duplicadosEvitadosMes}</strong>
+                <span>duplicado{dash.valor.duplicadosEvitadosMes === 1 ? '' : 's'} atajado{dash.valor.duplicadosEvitadosMes === 1 ? '' : 's'} antes de la DGII</span>
+              </div>
+            )}
+          </div>
+          <p className="muted" style={{ margin: '10px 0 0', fontSize: 13 }}>
+            A mano, cada factura son ~2 min tecleando el NCF, el RNC, la fecha y los montos —
+            y un dígito del RNC suele salir mal.
+          </p>
         </div>
       ),
     insights: () =>
