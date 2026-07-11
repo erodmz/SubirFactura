@@ -353,9 +353,14 @@ export default function DgiiPage() {
                     )}
                   </td>
                   <td style={{ textAlign: 'right' }}>
-                    <a style={{ cursor: 'pointer' }} onClick={() => setClientId(c.clienteId)}>
+                    <button
+                      type="button"
+                      className="link-btn"
+                      onClick={() => setClientId(c.clienteId)}
+                      aria-label={`Abrir el 606 de ${c.razonSocial}`}
+                    >
                       Abrir
-                    </a>
+                    </button>
                   </td>
                 </tr>
               ))}

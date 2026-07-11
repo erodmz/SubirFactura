@@ -234,6 +234,35 @@ button.danger:hover {
   background: color-mix(in srgb, var(--danger) 12%, transparent);
 }
 
+/* Foco visible por teclado: un anillo consistente en botones y enlaces.
+   Solo :focus-visible para no molestar al clic con mouse. */
+button:focus-visible,
+a:focus-visible,
+[role='button']:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/* Botón que se ve como enlace pero es alcanzable por teclado y tiene rol de
+   botón (reemplaza los <a onClick> sin href). */
+.link-btn {
+  margin: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--brand);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+}
+.link-btn:hover {
+  text-decoration: underline;
+  background: none;
+}
+
 .theme-toggle {
   margin: 0;
   padding: 6px 10px;

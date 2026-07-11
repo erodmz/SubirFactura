@@ -243,9 +243,14 @@ export default function ClientsPage() {
               header: '',
               align: 'right',
               render: (c) => (
-                <a style={{ cursor: 'pointer' }} onClick={() => openDetail(c)}>
+                <button
+                  type="button"
+                  className="link-btn"
+                  onClick={() => openDetail(c)}
+                  aria-label={`Gestionar ${c.razonSocial}`}
+                >
                   Gestionar
-                </a>
+                </button>
               ),
             },
           ]}

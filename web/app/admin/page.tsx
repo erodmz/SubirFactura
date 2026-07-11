@@ -69,9 +69,14 @@ export default function AdminPage() {
                 </td>
                 <td>{org._count.memberships}</td>
                 <td style={{ textAlign: 'right' }}>
-                  <a style={{ cursor: 'pointer' }} onClick={() => setEditing(org.id)}>
+                  <button
+                    type="button"
+                    className="link-btn"
+                    onClick={() => setEditing(org.id)}
+                    aria-label={`Cambiar plan de ${org.nombre}`}
+                  >
                     Cambiar
-                  </a>
+                  </button>
                 </td>
               </tr>
             ))}

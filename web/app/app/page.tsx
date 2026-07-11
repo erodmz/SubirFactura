@@ -104,9 +104,9 @@ export default function HomePage() {
         {me?.isSuperAdmin && <Link href="/admin">Panel super-admin</Link>}
         <Link href="/settings">Mi cuenta</Link>
         <ThemeToggle />
-        <a onClick={logout} style={{ cursor: 'pointer' }}>
+        <button type="button" className="link-btn" onClick={logout}>
           Salir
-        </a>
+        </button>
       </div>
       <main className="select-page">
         {!me ? (
