@@ -15,6 +15,14 @@ export default function ClientsPage() {
   const [form, setForm] = useState({ rncOCedula: '', razonSocial: '' });
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  // Autocompletar desde la DGII: 'buscando' | 'ok' (con nombre) | 'inactivo' |
+  // 'no-hallado' | '' (inactivo/limpio). El nombre lo escribió la DGII, no el
+  // contador — fricción cero.
+  const [rncEstado, setRncEstado] = useState<{
+    fase: '' | 'buscando' | 'ok' | 'inactivo' | 'no-hallado';
+    detalle?: string;
+    razonAuto?: boolean; // el nombre lo puso el autocompletar (no el usuario)
+  }>({ fase: '' });
 
   const load = useCallback(() => {
     api<Client[]>(`/api/organizations/${orgId}/clients`).then(setClients).catch(() => {});
@@ -22,6 +30,50 @@ export default function ClientsPage() {
   }, [orgId]);
 
   useEffect(load, [load]);
+
+  // Al terminar de escribir un RNC (9) o cédula (11) válidos, la DGII llena la
+  // razón social legal. Debounce para no consultar en cada tecla.
+  useEffect(() => {
+    const digits = form.rncOCedula.replace(/\D/g, '');
+    if (digits.length !== 9 && digits.length !== 11) {
+      setRncEstado({ fase: '' });
+      return;
+    }
+    let cancelado = false;
+    setRncEstado({ fase: 'buscando' });
+    const t = setTimeout(async () => {
+      try {
+        const r = await api<{
+          encontrado: boolean;
+          razonSocial: string | null;
+          estado: string | null;
+          activo: boolean;
+          fuente: string;
+        }>(`/api/organizations/${orgId}/dgii/rnc/${digits}`);
+        if (cancelado) return;
+        if (r.encontrado && r.razonSocial) {
+          // Solo autollenar si el contador no ha escrito un nombre propio.
+          setForm((f) => ({
+            ...f,
+            razonSocial: f.razonSocial.trim() === '' ? r.razonSocial! : f.razonSocial,
+          }));
+          setRncEstado(
+            r.activo
+              ? { fase: 'ok', detalle: r.razonSocial!, razonAuto: true }
+              : { fase: 'inactivo', detalle: r.estado ?? 'inactivo', razonAuto: true },
+          );
+        } else {
+          setRncEstado({ fase: 'no-hallado' });
+        }
+      } catch {
+        if (!cancelado) setRncEstado({ fase: '' }); // sin ruido: se escribe a mano
+      }
+    }, 450);
+    return () => {
+      cancelado = true;
+      clearTimeout(t);
+    };
+  }, [form.rncOCedula, orgId]);
 
   async function createClient(e: React.FormEvent) {
     e.preventDefault();
@@ -34,6 +86,7 @@ export default function ClientsPage() {
       });
       if (created.limitWarning) setNotice(created.limitWarning);
       setForm({ rncOCedula: '', razonSocial: '' });
+      setRncEstado({ fase: '' });
       load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error inesperado');
@@ -126,14 +179,45 @@ export default function ClientsPage() {
               <input
                 value={form.rncOCedula}
                 onChange={(e) => setForm((f) => ({ ...f, rncOCedula: e.target.value }))}
+                inputMode="numeric"
                 required
               />
+              {rncEstado.fase === 'buscando' && (
+                <small style={{ display: 'block', marginTop: 4, fontSize: 12.5, color: 'var(--muted)' }}>
+                  Buscando en la DGII…
+                </small>
+              )}
+              {rncEstado.fase === 'ok' && (
+                <small style={{ display: 'block', marginTop: 4, fontSize: 12.5, color: 'var(--ok)' }}>
+                  ✓ Encontrado en la DGII · activo
+                </small>
+              )}
+              {rncEstado.fase === 'inactivo' && (
+                <small style={{ display: 'block', marginTop: 4, fontSize: 12.5, color: 'var(--warning-text)' }}>
+                  ⚠ La DGII lo reporta como {rncEstado.detalle}
+                </small>
+              )}
+              {rncEstado.fase === 'no-hallado' && (
+                <small style={{ display: 'block', marginTop: 4, fontSize: 12.5, color: 'var(--muted)' }}>
+                  No aparece en la DGII — escribe el nombre a mano.
+                </small>
+              )}
             </div>
             <div>
-              <label>Razón social / nombre</label>
+              <label>
+                Razón social / nombre
+                {rncEstado.razonAuto && form.razonSocial && (
+                  <span style={{ marginLeft: 6, fontSize: 11.5, color: 'var(--ok)', fontWeight: 400 }}>
+                    · traído de la DGII
+                  </span>
+                )}
+              </label>
               <input
                 value={form.razonSocial}
-                onChange={(e) => setForm((f) => ({ ...f, razonSocial: e.target.value }))}
+                onChange={(e) => {
+                  setForm((f) => ({ ...f, razonSocial: e.target.value }));
+                  setRncEstado((s) => ({ ...s, razonAuto: false }));
+                }}
                 required
               />
             </div>

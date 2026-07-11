@@ -1,6 +1,27 @@
 import { Injectable } from '@nestjs/common';
-import { validateAgainstPadron, type PadronEntry, type PadronValidation } from '@facturard/shared';
+import {
+  consultarRncLive,
+  validateAgainstPadron,
+  validateTaxId,
+  type PadronEntry,
+  type PadronValidation,
+} from '@facturard/shared';
 import { PrismaService } from '../prisma/prisma.service';
+
+export interface RncLookup {
+  rnc: string;
+  /** ¿Es un identificador estructuralmente válido (dígito verificador)? */
+  valido: boolean;
+  kind: 'rnc' | 'cedula' | null;
+  /** Nombre legal según la DGII/padrón; null si no se encontró. */
+  razonSocial: string | null;
+  estado: string | null;
+  /** true si el estado indica actividad normal. */
+  activo: boolean;
+  /** true si la DGII lo reconoce (o el padrón lo tiene). */
+  encontrado: boolean;
+  fuente: 'dgii' | 'padron' | 'ninguna';
+}
 
 /**
  * Validación contra el Padrón RNC de la DGII. La tabla rnc_padron es global
@@ -49,5 +70,69 @@ export class PadronService {
       if (!v.existe || !v.activo || !v.razonSocialCoincide) problems.push(v);
     }
     return problems;
+  }
+
+  // Caché en memoria del lookup de RNC: el autocompletar al crear cliente puede
+  // dispararse varias veces por el mismo RNC mientras se teclea; no repetir la
+  // consulta a la DGII. TTL corto: la razón social casi nunca cambia.
+  private readonly lookupCache = new Map<string, { at: number; value: RncLookup }>();
+  private static readonly LOOKUP_TTL_MS = 10 * 60 * 1000;
+
+  /**
+   * Resuelve un RNC/cédula para autocompletar: valida el dígito verificador,
+   * consulta la DGII en vivo (fuente primaria) y cae al padrón local. Nunca
+   * lanza: ante cualquier fallo devuelve "no encontrado" para no romper el form.
+   */
+  async lookupRnc(raw: string): Promise<RncLookup> {
+    const tax = validateTaxId(raw);
+    const rnc = tax.normalized ?? raw.replace(/\D/g, '');
+    const base: RncLookup = {
+      rnc,
+      valido: tax.valid,
+      kind: tax.kind ?? null,
+      razonSocial: null,
+      estado: null,
+      activo: false,
+      encontrado: false,
+      fuente: 'ninguna',
+    };
+    if (!tax.valid) return base;
+
+    const cached = this.lookupCache.get(rnc);
+    if (cached && Date.now() - cached.at < PadronService.LOOKUP_TTL_MS) return cached.value;
+
+    let result = base;
+    try {
+      const liveEnabled = process.env.DGII_LIVE_CONSULTA !== '0';
+      const timeout = Number(process.env.DGII_CONSULTA_TIMEOUT_MS ?? 5000);
+      const live = liveEnabled ? await consultarRncLive(rnc, timeout) : null;
+      if (live?.encontrado) {
+        result = {
+          ...base,
+          razonSocial: live.razonSocial,
+          estado: live.estado,
+          activo: live.activo,
+          encontrado: true,
+          fuente: 'dgii',
+        };
+      } else {
+        const entry = (await this.getEntries([rnc])).get(rnc) ?? null;
+        if (entry) {
+          result = {
+            ...base,
+            razonSocial: entry.razonSocial,
+            estado: entry.estado ?? null,
+            activo: !entry.estado || /^(activo|normal)$/i.test(entry.estado),
+            encontrado: true,
+            fuente: 'padron',
+          };
+        }
+      }
+    } catch {
+      result = base; // degradación elegante: el usuario escribe el nombre a mano
+    }
+
+    this.lookupCache.set(rnc, { at: Date.now(), value: result });
+    return result;
   }
 }

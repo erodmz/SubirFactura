@@ -1,4 +1,5 @@
 import { BadRequestException, Controller, Get, Param, Post, Query, Req, Res } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import type { Membership } from '@facturard/shared/db';
 import { DgiiService } from './dgii.service';
@@ -22,6 +23,18 @@ export class DgiiController {
   @OrgRoles('org_admin', 'contador')
   padronStatus() {
     return this.padron.status();
+  }
+
+  /**
+   * Lookup de un RNC/cédula para autocompletar la razón social al crear un
+   * cliente (fuente: DGII en vivo, respaldo padrón). Throttle estricto: es una
+   * consulta externa que se dispara al teclear.
+   */
+  @Get('rnc/:rnc')
+  @OrgRoles('org_admin', 'contador')
+  @Throttle({ default: { ttl: 60_000, limit: 30 } })
+  lookupRnc(@Param('rnc') rnc: string) {
+    return this.padron.lookupRnc(rnc);
   }
 
   private assertPeriodo(periodo?: string): string {
