@@ -41,7 +41,12 @@ export class PlanLimitsService {
     monthStart.setUTCHours(0, 0, 0, 0);
 
     const [contadores, clientes, facturasMes] = await Promise.all([
-      this.prisma.membership.count({ where: { organizationId: orgId, rol: 'contador' } }),
+      // El org_admin también hace de contador y ocupa un asiento: cuenta.
+      // (Antes daba "0/1" para un despacho de una sola persona, y dejaba
+      // invitar un contador de más sobre el límite del plan.)
+      this.prisma.membership.count({
+        where: { organizationId: orgId, rol: { in: ['contador', 'org_admin'] } },
+      }),
       // client_profiles e invoices están bajo RLS: contar con contexto de tenant
       this.prisma.forOrg(orgId).clientProfile.count(),
       this.prisma.forOrg(orgId).invoice.count({ where: { createdAt: { gte: monthStart } } }),

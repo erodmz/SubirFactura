@@ -117,9 +117,11 @@ export default function HomePage() {
               <div>
                 <h1 className="greeting">Hola{primerNombre ? `, ${primerNombre}` : ''} 👋</h1>
                 <p className="muted greeting-sub">
-                  {all.length > 1
-                    ? `Elige una empresa para continuar · ${all.length} en total`
-                    : 'Elige una empresa para continuar.'}
+                  {all.length === 0
+                    ? 'Crea tu empresa contable para empezar — es el espacio de tu despacho.'
+                    : all.length > 1
+                      ? `Elige una empresa para continuar · ${all.length} en total`
+                      : 'Elige una empresa para continuar.'}
                 </p>
               </div>
               {!creating && (
@@ -209,9 +211,20 @@ export default function HomePage() {
             )}
 
             {filtered.length === 0 ? (
-              <p className="muted" style={{ marginTop: 20 }}>
-                No hay empresas que coincidan con “{q}”.
-              </p>
+              all.length === 0 ? (
+                <div className="card" style={{ marginTop: 20, maxWidth: 460 }}>
+                  <strong>Aún no tienes una empresa contable</strong>
+                  <p className="muted" style={{ margin: '6px 0 12px' }}>
+                    Créala para tener tu espacio de despacho: desde ahí agregas a tus clientes y
+                    empiezas a recibir sus facturas.
+                  </p>
+                  {!creating && <button onClick={() => setCreating(true)}>+ Crear empresa contable</button>}
+                </div>
+              ) : (
+                <p className="muted" style={{ marginTop: 20 }}>
+                  Ninguna empresa coincide con “{q}”.
+                </p>
+              )
             ) : view === 'list' && showToolbar ? (
               <div className="org-list">
                 {shown.map((m) => (

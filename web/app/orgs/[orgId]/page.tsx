@@ -60,6 +60,7 @@ const SEMAFORO: Record<CierreEstado['semaforo'], string> = {
 
 // Catálogo de widgets del dashboard (orden y ancho por defecto en columnas 1–4).
 const WIDGETS: { id: string; label: string; size: number }[] = [
+  { id: 'arranque', label: 'Primeros pasos', size: 4 },
   { id: 'cierre', label: '606 del período', size: 4 },
   { id: 'kpis', label: 'KPIs del mes', size: 4 },
   { id: 'valor', label: 'Tu mes con SubirFactura', size: 4 },
@@ -291,6 +292,44 @@ export default function OrgDashboard() {
 
   // ── Render de cada widget (null = sin datos → no se muestra) ──────────────
   const renderers: Record<string, () => ReactNode> = {
+    // Primeros pasos: guía el primer ciclo completo (cliente → factura → 606).
+    // Desaparece solo cuando los tres pasos están hechos (gradiente de meta).
+    arranque: () => {
+      const clientesCount = usage?.clientes?.used ?? panelClientes.length;
+      const facturasCount = dash?.total ?? 0;
+      const tiene606 = (dash?.porEstado ?? []).some(
+        (e) => (e.estado === 'incluida_en_606' || e.estado === 'reportada') && e.n > 0,
+      );
+      if (clientesCount > 0 && facturasCount > 0 && tiene606) return null; // ya arrancó
+      const pasos = [
+        { hecho: clientesCount > 0, label: 'Crea tu primer cliente', href: `/orgs/${orgId}/clients`, cta: 'Ir a Clientes' },
+        { hecho: facturasCount > 0, label: 'Sube o recibe su primera factura', href: `/orgs/${orgId}/invoices`, cta: 'Ir a Facturas' },
+        { hecho: tiene606, label: 'Genera tu primer 606 para la DGII', href: `/orgs/${orgId}/dgii`, cta: 'Ir al 606' },
+      ];
+      const siguiente = pasos.find((p) => !p.hecho);
+      const hechos = pasos.filter((p) => p.hecho).length;
+      return (
+        <div className="card arranque">
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+            <h2 style={{ margin: 0 }}>Primeros pasos</h2>
+            <span className="muted" style={{ fontSize: 13 }}>{hechos} de 3</span>
+          </div>
+          <ol className="arranque-lista">
+            {pasos.map((p, i) => (
+              <li key={i} className={p.hecho ? 'hecho' : siguiente === p ? 'activo' : ''}>
+                <span className="arranque-marca" aria-hidden>{p.hecho ? '✓' : i + 1}</span>
+                <span className="arranque-label">{p.label}</span>
+                {siguiente === p && (
+                  <Link href={p.href} className="arranque-cta">
+                    {p.cta} →
+                  </Link>
+                )}
+              </li>
+            ))}
+          </ol>
+        </div>
+      );
+    },
     cierre: () =>
       cierre && (
         <div className="card" style={{ borderLeft: `4px solid ${SEMAFORO[cierre.semaforo]}` }}>
@@ -385,7 +424,7 @@ export default function OrgDashboard() {
         </div>
       ),
     insights: () =>
-      insights.length > 0 && (
+      insights.length > 0 ? (
         <div className="card">
           <h2>Qué atender</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
@@ -394,6 +433,21 @@ export default function OrgDashboard() {
             ))}
           </div>
         </div>
+      ) : (
+        // Paz mental: cuando no hay nada que atender y el despacho ya está en
+        // marcha, decirlo explícitamente calma la ansiedad de base del contador.
+        dash &&
+        dash.total > 0 && (
+          <div className="card estas-al-dia">
+            <span className="al-dia-check" aria-hidden>✓</span>
+            <div>
+              <strong>Estás al día</strong>
+              <p className="muted" style={{ margin: '2px 0 0', fontSize: 13.5 }}>
+                Nada requiere tu atención ahora mismo. Sigue subiendo las facturas que lleguen.
+              </p>
+            </div>
+          </div>
+        )
       ),
     clientes: () =>
       panelClientes.length > 0 && (
