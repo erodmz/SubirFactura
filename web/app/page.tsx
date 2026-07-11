@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     locale: 'es_DO',
     url: SITE_URL,
     siteName: 'SubirFactura',
-    title: 'Cierra tu 606 de la DGII sin noches sin dormir',
+    title: 'El 606 más fácil de tu vida — para contadores dominicanos',
     description:
       'Tus clientes fotografían sus facturas, la IA las lee y tú generas el 606 oficial de la DGII en un clic. Hecho en RD, para contadores. Empieza gratis.',
     images: [{ url: '/landing/exito.jpg', width: 1100, height: 800, alt: 'Contadores celebrando un cierre a tiempo' }],
@@ -177,12 +177,12 @@ export default function Landing() {
         <div className="lp-hero-copy">
           <span className="lp-eyebrow">Hecho en República Dominicana 🇩🇴 · para contadores</span>
           <h1>
-            Cierra tu <span className="hl-blue">606</span> sin{' '}
-            <span className="hl-purple">noches sin dormir</span>.
+            El <span className="hl-blue">606</span> más{' '}
+            <span className="hl-purple">fácil</span> de tu vida.
           </h1>
           <p className="lp-lead">
-            Tus clientes fotografían sus facturas. La IA lee NCF, RNC e ITBIS. Tú generas el
-            Formato 606 oficial de la DGII en un clic. Así de simple.
+            Tus clientes fotografían sus facturas. La IA lee NCF, RNC e ITBIS. Tú solo das un clic y
+            tu Formato 606 de la DGII queda listo. Así de fácil.
           </p>
           <div className="lp-hero-cta">
             <AuthButtons variant="hero" />
