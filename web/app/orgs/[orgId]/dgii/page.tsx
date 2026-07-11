@@ -52,6 +52,8 @@ interface CierreResult {
   incluidas: number;
   omitidas: Omitida[];
   nombreArchivo: string;
+  montoReportado: number;
+  itbisReportado: number;
 }
 
 export default function DgiiPage() {
@@ -193,9 +195,16 @@ export default function DgiiPage() {
   }
 
   async function doCerrar() {
+    // Confirmación consciente: si hay facturas con avisos de la DGII, decirlo
+    // explícitamente antes de cerrar (no cerrar a ciegas sobre alertas).
+    const conAlertas = estado?.totales.conAlertasDgii ?? 0;
+    const aviso =
+      conAlertas > 0
+        ? `Ojo: ${conAlertas} factura(s) tienen avisos de la DGII (NCF/RNC/padrón). `
+        : '';
     if (
       !confirm(
-        `¿Cerrar el período ${periodo} de ${cliente?.razonSocial ?? 'este cliente'}? Sus facturas validadas quedarán incluidas en el 606.`,
+        `${aviso}¿Cerrar el período ${periodo} de ${cliente?.razonSocial ?? 'este cliente'}? Sus facturas validadas quedarán incluidas en el 606.`,
       )
     )
       return;
@@ -492,15 +501,43 @@ export default function DgiiPage() {
           )}
 
           {cierre && (
-            <div className="notice" style={{ marginTop: 12 }}>
-              <strong>
-                Período {cierre.periodo} de {cierre.cliente.razonSocial} cerrado.
-              </strong>{' '}
-              {cierre.incluidas} factura(s) incluidas en el 606.
-              {cierre.omitidas.length > 0 && ` ${cierre.omitidas.length} quedaron fuera.`}{' '}
-              <a style={{ cursor: 'pointer' }} onClick={doDownload}>
-                Descargar TXT
-              </a>
+            // Momento de victoria (regla pico-final): cerrar el 606 es el logro
+            // del mes; que se sienta como tal, con el recuento de valor.
+            <div className="cierre-victoria" style={{ marginTop: 12 }}>
+              <div className="cierre-victoria-head">
+                <span className="cierre-check" aria-hidden>✓</span>
+                <div>
+                  <strong>606 de {cierre.cliente.razonSocial} listo</strong>
+                  <p className="muted" style={{ margin: '2px 0 0', fontSize: 13 }}>
+                    Período {cierre.periodo}
+                    {estado && !estado.vencido && estado.diasRestantes >= 0
+                      ? ` · cerrado ${estado.diasRestantes} día(s) antes de la fecha límite`
+                      : ''}
+                  </p>
+                </div>
+              </div>
+              <div className="cierre-victoria-cifras">
+                <div>
+                  <strong>{cierre.incluidas}</strong>
+                  <span>factura{cierre.incluidas === 1 ? '' : 's'} en el 606</span>
+                </div>
+                <div>
+                  <strong>{money(cierre.montoReportado)}</strong>
+                  <span>reportado a la DGII</span>
+                </div>
+                {cierre.omitidas.length > 0 && (
+                  <div>
+                    <strong>{cierre.omitidas.length}</strong>
+                    <span>quedaron fuera</span>
+                  </div>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+                <button onClick={doDownload}>⬇ Descargar TXT</button>
+                <button className="secondary" onClick={doDownloadExcel}>
+                  ⬇ Descargar Excel
+                </button>
+              </div>
             </div>
           )}
         </div>

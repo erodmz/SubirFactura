@@ -364,6 +364,25 @@ class Invoice {
   final List<String> alertasDgii;
   /// La validación DGII pasó sin alertas.
   final bool validacionDgiiOk;
+
+  /// Avisos de revisión en UNA sola lista, sin duplicar NCF/RNC entre la lectura
+  /// (OCR) y la validación fiscal (DGII). La DGII manda para NCF/RNC; de la
+  /// lectura solo quedan los avisos propios (aritmética, legibilidad, etc.).
+  List<String> get avisosRevision {
+    bool cubiertoPorDgii(String e) {
+      final low = e.toLowerCase();
+      final esNcf = low.startsWith('ncf');
+      final esRnc = low.startsWith('rnc');
+      if (!esNcf && !esRnc) return false;
+      return alertasDgii.any((a) {
+        final al = a.toLowerCase();
+        return (esNcf && al.contains('ncf')) || (esRnc && al.contains('rnc'));
+      });
+    }
+
+    final soloLectura = erroresValidacion.where((e) => !cubiertoPorDgii(e)).toList();
+    return [...soloLectura, ...alertasDgii];
+  }
 }
 
 /// Orden estándar de la app: la última cargada arriba (por fecha de creación).

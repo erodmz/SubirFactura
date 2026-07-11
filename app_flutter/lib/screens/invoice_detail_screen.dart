@@ -423,27 +423,9 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                   ),
                   const SizedBox(height: 12),
                 ],
-                if (invoice.erroresValidacion.isNotEmpty)
-                  Card(
-                    color: Theme.of(context).colorScheme.tertiaryContainer,
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: DefaultTextStyle.merge(
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onTertiaryContainer,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('Por revisar:',
-                                style: TextStyle(fontWeight: FontWeight.bold)),
-                            for (final error in invoice.erroresValidacion) Text('• $error'),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                if (invoice.alertasDgii.isNotEmpty)
+                // Una sola caja de avisos (antes eran dos casi idénticas): la
+                // lectura y la validación DGII combinadas y sin duplicar NCF/RNC.
+                if (invoice.avisosRevision.isNotEmpty)
                   Card(
                     color: Theme.of(context).colorScheme.errorContainer,
                     child: Padding(
@@ -457,7 +439,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                           children: [
                             const Text('Revisa antes de reportar a la DGII:',
                                 style: TextStyle(fontWeight: FontWeight.bold)),
-                            for (final a in invoice.alertasDgii) Text('• $a'),
+                            for (final a in invoice.avisosRevision) Text('• $a'),
                           ],
                         ),
                       ),

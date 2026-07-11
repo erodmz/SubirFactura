@@ -2191,3 +2191,46 @@ tbody tr.row-click:active td {
   color: var(--ok);
   background: color-mix(in srgb, var(--ok) 16%, transparent);
 }
+
+/* Cierre del 606 como momento de victoria (regla pico-final). */
+.cierre-victoria {
+  border: 1px solid color-mix(in srgb, var(--ok) 35%, var(--border));
+  background: color-mix(in srgb, var(--ok) 8%, transparent);
+  border-radius: 12px;
+  padding: 16px 18px;
+  display: grid;
+  gap: 14px;
+}
+.cierre-victoria-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.cierre-check {
+  flex: 0 0 36px;
+  height: 36px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 19px;
+  font-weight: 800;
+  color: var(--on-brand);
+  background: var(--ok);
+}
+.cierre-victoria-cifras {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 14px;
+}
+.cierre-victoria-cifras > div {
+  display: flex;
+  flex-direction: column;
+}
+.cierre-victoria-cifras strong {
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+}
+.cierre-victoria-cifras span {
+  font-size: 13px;
+  color: var(--muted);
+}

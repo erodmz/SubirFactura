@@ -415,6 +415,12 @@ export class DgiiService {
       data: { estado: 'incluida_en_606' },
     });
 
+    // Monto reportado del período (para el recuento de "victoria" del cierre).
+    const montoAgg = await this.prisma.forOrg(orgId).invoice.aggregate({
+      where: { periodoFiscal: periodo, estado: 'incluida_en_606', clientProfileId: clientId },
+      _sum: { montoFacturado: true, itbis: true },
+    });
+
     await this.audit.log({
       organizationId: orgId,
       userId: actorUserId,
@@ -437,6 +443,8 @@ export class DgiiService {
       incluidas: updated.count,
       omitidas: result.omitidas,
       nombreArchivo: result.nombreArchivo,
+      montoReportado: montoAgg._sum.montoFacturado?.toNumber() ?? 0,
+      itbisReportado: montoAgg._sum.itbis?.toNumber() ?? 0,
     };
   }
 
