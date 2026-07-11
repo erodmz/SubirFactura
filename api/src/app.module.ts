@@ -2,7 +2,8 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { EsThrottlerGuard } from './common/guards/es-throttler.guard';
 import { parseDuration } from './auth/auth.service';
 import { HealthController } from './health/health.controller';
 import { PrismaModule } from './prisma/prisma.module';
@@ -53,8 +54,9 @@ import { OrgRolesGuard } from './common/guards/org-roles.guard';
   ],
   controllers: [HealthController],
   providers: [
-    // Rate limiting global (primero: frena antes de tocar auth/DB)
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    // Rate limiting global (primero: frena antes de tocar auth/DB).
+    // Mensaje del 429 en español (EsThrottlerGuard).
+    { provide: APP_GUARD, useClass: EsThrottlerGuard },
     // Autenticación global (token JWT salvo @Public) y autorización por
     // membresía/rol en rutas con :orgId (§8)
     { provide: APP_GUARD, useClass: JwtAuthGuard },
