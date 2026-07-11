@@ -199,10 +199,10 @@ export default function Landing() {
               <span className="lp-board-title">Facturas · este mes</span>
             </div>
             {[
-              { c: 'Colmado Don José', ncf: 'B0100000123', e: 'Validada', col: 'var(--m-green)' },
-              { c: 'Ferretería Popular', ncf: 'B0200004511', e: 'En revisión', col: 'var(--m-orange)' },
-              { c: 'CEIDI', ncf: 'E310000000071', e: 'En 606', col: 'var(--m-blue)' },
-              { c: 'Farmacia Carol', ncf: 'B0100008820', e: 'Procesando', col: 'var(--m-purple)' },
+              { c: 'Colmado La Esquina', ncf: 'B0100000123', e: 'Validada', col: 'var(--m-green)' },
+              { c: 'Ferretería El Tornillo', ncf: 'B0200004511', e: 'En revisión', col: 'var(--m-orange)' },
+              { c: 'Repuestos El Progreso', ncf: 'E310000000071', e: 'En 606', col: 'var(--m-blue)' },
+              { c: 'Farmacia Buena Salud', ncf: 'B0100008820', e: 'Procesando', col: 'var(--m-purple)' },
             ].map((r) => (
               <div className="lp-board-row" key={r.ncf}>
                 <span className="lp-board-client">{r.c}</span>
