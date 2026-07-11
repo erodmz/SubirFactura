@@ -10,6 +10,7 @@ import Dropdown from '../../../../components/Dropdown';
 import ImageLightbox from '../../../../components/ImageLightbox';
 import InvoiceTimeline from '../../../../components/InvoiceTimeline';
 import UploadInvoicesModal from '../../../../components/UploadInvoicesModal';
+import FabSubir from '../../../../components/FabSubir';
 import { ESTADO_COLOR } from '../../../../components/Charts';
 import { TrashIcon } from '../../../../components/icons';
 import { CATEGORIAS_606, ESTADO_LABELS, type Invoice } from '../../../../lib/types';
@@ -457,16 +458,14 @@ export default function InvoicesPage() {
               ▦
             </button>
           </div>
-          <button onClick={() => setShowUpload(true)} style={{ flexShrink: 0 }}>
-            ⬆ Subir facturas
-          </button>
         </div>
       </div>
+
+      <FabSubir onClick={() => setShowUpload(true)} />
 
       {showUpload && (
         <UploadInvoicesModal
           orgId={orgId}
-          clientes={clientes}
           onClose={() => setShowUpload(false)}
           onUploaded={(subidas) => {
             if (subidas > 0) load();

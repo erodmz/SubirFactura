@@ -9,6 +9,7 @@ import { useParams } from 'next/navigation';
 import { api } from '../../../../lib/api';
 import { useAutoRefresh } from '../../../../lib/useAutoRefresh';
 import UploadInvoicesModal from '../../../../components/UploadInvoicesModal';
+import FabSubir from '../../../../components/FabSubir';
 import type { Invoice, Me } from '../../../../lib/types';
 
 const ESTADO_LABEL: Record<string, string> = {
@@ -61,14 +62,10 @@ export default function MiNegocioPage() {
 
       {error && <div className="error">{error}</div>}
 
-      <div style={{ margin: '16px 0' }}>
-        <button onClick={() => setShowUpload(true)}>⬆ Subir facturas</button>
-      </div>
-
-      <div className="card">
+      <div className="card" style={{ marginTop: 16 }}>
         {invoices.length === 0 ? (
           <p className="muted">
-            Aún no hay facturas. Sube la primera con el botón de arriba — solo necesitas una
+            Aún no hay facturas. Sube la primera con el botón de abajo — solo necesitas una
             foto nítida del comprobante.
           </p>
         ) : (
@@ -103,10 +100,14 @@ export default function MiNegocioPage() {
         )}
       </div>
 
+      <FabSubir onClick={() => setShowUpload(true)} />
+
       {showUpload && (
         <UploadInvoicesModal
           orgId={orgId}
-          clientes={negocios}
+          // Sus facturas son SIEMPRE de su negocio: se adjunta en silencio, sin
+          // selector. Si tuviera más de uno, sube sin asignar y el worker
+          // clasifica por el RNC del comprador.
           clienteFijo={negocios.length === 1 ? negocios[0]!.id : undefined}
           onClose={() => setShowUpload(false)}
           onUploaded={(subidas) => {

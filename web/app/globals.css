@@ -2050,3 +2050,45 @@ tbody tr.row-click:active td {
 .btn-revisar:hover span {
   transform: translateX(3px);
 }
+
+/* Botón flotante de subir facturas (contador y dueño de negocio): siempre a la
+   vista, abajo a la derecha — mismo patrón que el FAB de la app móvil. */
+.fab-subir {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 40;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 20px;
+  border: none;
+  border-radius: 999px;
+  background: var(--brand);
+  color: var(--on-brand);
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.28);
+  transition: transform 0.12s ease, background 0.12s ease;
+}
+.fab-subir:hover {
+  background: var(--brand-strong);
+  transform: translateY(-1px);
+}
+.fab-subir:focus-visible {
+  outline: 2px solid var(--on-brand);
+  outline-offset: 2px;
+}
+@media (max-width: 640px) {
+  .fab-subir {
+    right: 16px;
+    bottom: 16px;
+    padding: 14px 18px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fab-subir {
+    transition: none;
+  }
+}

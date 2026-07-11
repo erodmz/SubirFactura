@@ -22,22 +22,25 @@ interface UploadItem {
 
 export default function UploadInvoicesModal({
   orgId,
-  clientes,
   clienteFijo,
   onClose,
   onUploaded,
 }: {
   orgId: string;
-  /** Clientes para asignar al subir (vacío u omitido = solo "sin asignar"). */
-  clientes?: { id: string; razonSocial: string }[];
-  /** Fija el cliente (vista del dueño de negocio): oculta el selector. */
+  /**
+   * Cliente al que pertenecen SIEMPRE estas facturas (vista del dueño de
+   * negocio: su propia empresa). Se adjunta en silencio, sin selector. Sin
+   * este valor (contador), la factura sube SIN asignar y el worker la clasifica
+   * por el RNC del comprador impreso en el comprobante — elegir el cliente a
+   * mano es una fuente frecuente de errores, por eso no hay selector.
+   */
   clienteFijo?: string;
   onClose: () => void;
   /** Cuántas facturas subieron bien (para refrescar la lista). */
   onUploaded: (subidas: number) => void;
 }) {
   const [items, setItems] = useState<UploadItem[]>([]);
-  const [clientProfileId, setClientProfileId] = useState(clienteFijo ?? '');
+  const clientProfileId = clienteFijo ?? '';
   const [dragOver, setDragOver] = useState(false);
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -189,24 +192,21 @@ export default function UploadInvoicesModal({
           />
         </div>
 
-        {!clienteFijo && (clientes?.length ?? 0) > 0 && (
-          <div style={{ marginBottom: 14 }}>
-            <label htmlFor="upload-cliente">Empresa (cliente) — opcional</label>
-            <select
-              id="upload-cliente"
-              value={clientProfileId}
-              onChange={(e) => setClientProfileId(e.target.value)}
-              disabled={busy}
-              style={{ width: '100%' }}
-            >
-              <option value="">— Sin asignar (la IA intenta por el RNC del comprador) —</option>
-              {clientes!.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.razonSocial}
-                </option>
-              ))}
-            </select>
-          </div>
+        {/* Sin selector de cliente a propósito: cada factura se asigna sola por
+            el RNC del comprador impreso en el comprobante. Elegirlo a mano es
+            fuente de errores. Solo se muestra la nota en la vista del contador
+            (el dueño de negocio ya sabe que son suyas). */}
+        {!clienteFijo && (
+          <p
+            className="muted"
+            style={{ fontSize: 13, marginTop: 0, marginBottom: 14, display: 'flex', gap: 8 }}
+          >
+            <span aria-hidden style={{ color: 'var(--accent, #4257d6)' }}>✨</span>
+            <span>
+              No elijas el cliente: cada factura se asigna sola por el RNC del comprador que
+              aparece en el comprobante. Así se evitan asignaciones equivocadas.
+            </span>
+          </p>
         )}
 
         {items.length > 0 && (
