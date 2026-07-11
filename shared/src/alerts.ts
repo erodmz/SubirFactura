@@ -65,6 +65,10 @@ export async function alertRupture(alert: RuptureAlert): Promise<void> {
   if (now - last < COOLDOWN_MS) return;
   lastAlertAt.set(alert.key, now);
 
+  // PII fuera de ntfy: el cuerpo que sale de la máquina es SOLO el title y el
+  // message (cadenas estáticas escritas a mano, sin datos del contribuyente).
+  // Lo dinámico —el texto del error y el context con RNC/NCF/ids— se queda en el
+  // log local. ntfy.sh es un servicio de terceros: nunca debe recibir PII.
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 4000);
   try {
@@ -76,7 +80,7 @@ export async function alertRupture(alert: RuptureAlert): Promise<void> {
         Priority: 'high',
         Tags: 'warning,subirfactura',
       },
-      body: `${alert.message}${detail ? `\n\n${detail}` : ''}`,
+      body: `${alert.message}\n\nRevisa el log del servidor (busca [ALERTA] ${alert.key}) para el detalle.`,
     });
   } catch {
     // ntfy caído / sin internet: el log ya quedó; no propagamos.

@@ -64,6 +64,28 @@ describe('AuthService.login', () => {
     prisma.user.findUnique.mockResolvedValue(user);
     await expect(service.login(user.email, 'clave-mala')).rejects.toThrow('Credenciales inválidas');
   });
+
+  it('bloquea la cuenta tras demasiados fallos (fuerza bruta por correo)', async () => {
+    const { service, prisma } = buildService();
+    prisma.user.findUnique.mockResolvedValue(user);
+    // Correo propio de este test para no chocar con el contador global en memoria.
+    const email = 'brute-force@ejemplo.com';
+    // Los primeros 10 intentos fallan por credenciales (umbral por defecto = 10).
+    for (let i = 0; i < 10; i++) {
+      await expect(service.login(email, 'mala')).rejects.toThrow('Credenciales inválidas');
+    }
+    // El 11.º ya no llega a comparar la contraseña: la cuenta está bloqueada.
+    await expect(service.login(email, 'mala')).rejects.toThrow(/Demasiados intentos/);
+  });
+
+  it('normaliza el correo (mayúsculas/espacios) al buscar la cuenta', async () => {
+    const { service, prisma } = buildService();
+    prisma.user.findUnique.mockResolvedValue(user);
+    await expect(service.login('  ANA@Ejemplo.com ', 'clave-mala')).rejects.toThrow(
+      'Credenciales inválidas',
+    );
+    expect(prisma.user.findUnique).toHaveBeenCalledWith({ where: { email: 'ana@ejemplo.com' } });
+  });
 });
 
 describe('AuthService.refresh (rotación)', () => {

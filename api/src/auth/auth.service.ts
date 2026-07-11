@@ -1,6 +1,8 @@
 import {
   BadRequestException,
   ConflictException,
+  HttpException,
+  HttpStatus,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -14,6 +16,20 @@ import { MailService } from '../mail/mail.service';
 import { RegisterDto } from './dto/auth.dto';
 
 const BCRYPT_ROUNDS = 10;
+
+/** Normaliza el correo para búsqueda/almacenamiento: sin espacios y en minúsculas. */
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+// Bloqueo de fuerza bruta POR CORREO. El throttle del controller limita por IP;
+// esto añade la dimensión por cuenta para frenar el credential stuffing
+// distribuido que rota IPs contra un mismo correo. En memoria: basta para un
+// despliegue de una instancia (igual que el cooldown de alertas y el caché del
+// padrón); si algún día hay varias réplicas, mover a Redis.
+const LOGIN_MAX_FAILS = Number(process.env.LOGIN_MAX_FAILS ?? 10);
+const LOGIN_FAIL_WINDOW_MS = Number(process.env.LOGIN_FAIL_WINDOW_MS ?? 15 * 60_000);
+const loginFails = new Map<string, { count: number; firstAt: number }>();
 
 export interface AuthTokens {
   accessToken: string;
@@ -47,12 +63,13 @@ export class AuthService {
   }
 
   async register(dto: RegisterDto) {
-    const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    const email = normalizeEmail(dto.email);
+    const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) throw new ConflictException('Ya existe una cuenta con ese correo');
 
     const user = await this.prisma.user.create({
       data: {
-        email: dto.email,
+        email,
         passwordHash: await bcrypt.hash(dto.password, BCRYPT_ROUNDS),
         nombre: dto.nombre,
         telefono: dto.telefono,
@@ -63,14 +80,39 @@ export class AuthService {
     return { user: this.publicUser(user), tokens: await this.issueTokens(user) };
   }
 
-  async login(email: string, password: string) {
+  async login(rawEmail: string, password: string) {
+    const email = normalizeEmail(rawEmail);
+    const now = Date.now();
+
+    // Cuenta bloqueada temporalmente por demasiados fallos recientes.
+    const rec = loginFails.get(email);
+    if (rec && now - rec.firstAt < LOGIN_FAIL_WINDOW_MS && rec.count >= LOGIN_MAX_FAILS) {
+      throw new HttpException(
+        'Demasiados intentos fallidos para esta cuenta. Espera unos minutos e inténtalo de nuevo.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+      this.recordLoginFailure(email, now);
       throw new UnauthorizedException('Credenciales inválidas');
     }
+
+    loginFails.delete(email); // login correcto: limpia el contador de la cuenta
     await this.audit.log({ userId: user.id, accion: 'user.login', entidad: 'user', entidadId: user.id });
 
     return { user: this.publicUser(user), tokens: await this.issueTokens(user) };
+  }
+
+  /** Suma un fallo de login a la cuenta, reiniciando la ventana si venció. */
+  private recordLoginFailure(email: string, now: number): void {
+    const rec = loginFails.get(email);
+    if (!rec || now - rec.firstAt >= LOGIN_FAIL_WINDOW_MS) {
+      loginFails.set(email, { count: 1, firstAt: now });
+    } else {
+      rec.count += 1;
+    }
   }
 
   /**
@@ -159,7 +201,7 @@ export class AuthService {
    * para poder probar sin proveedor de correo conectado.
    */
   async forgotPassword(email: string, baseUrl: string): Promise<{ devResetUrl?: string }> {
-    const user = await this.prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+    const user = await this.prisma.user.findUnique({ where: { email: normalizeEmail(email) } });
     if (!user) return {};
 
     const token = randomBytes(32).toString('hex');
