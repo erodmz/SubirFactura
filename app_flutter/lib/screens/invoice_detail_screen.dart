@@ -3,6 +3,13 @@ import 'package:flutter/material.dart';
 import '../api/client.dart';
 import '../models.dart';
 
+/// Fecha en que se subió la factura, en hora local: "10/07/2026 · 10:16".
+String _fechaSubida(DateTime dt) {
+  final d = dt.toLocal();
+  String dos(int n) => n.toString().padLeft(2, '0');
+  return '${dos(d.day)}/${dos(d.month)}/${d.year} · ${dos(d.hour)}:${dos(d.minute)}';
+}
+
 /// Detalle de factura + cola de revisión con edición campo a campo (§5.3).
 /// Los campos que la IA marcó como dudosos se resaltan para corregirlos.
 class InvoiceDetailScreen extends StatefulWidget {
@@ -361,7 +368,13 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                       Icon(Icons.person_outline,
                           size: 16, color: Theme.of(context).hintColor),
                       const SizedBox(width: 6),
-                      Text('Subido por ${invoice.subidoPor}',
+                      Expanded(
+                        child: Text('Subido por ${invoice.subidoPor}',
+                            style: TextStyle(color: Theme.of(context).hintColor, fontSize: 13),
+                            overflow: TextOverflow.ellipsis),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(_fechaSubida(invoice.createdAt),
                           style: TextStyle(color: Theme.of(context).hintColor, fontSize: 13)),
                     ],
                   ),
@@ -458,7 +471,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                         const Icon(Icons.verified_outlined, color: Colors.green, size: 18),
                         const SizedBox(width: 6),
                         Expanded(
-                          child: Text('NCF, RNC y padrón DGII verificados',
+                          child: Text('NCF y RNC verificados con la DGII',
                               style: TextStyle(color: Colors.green.shade700, fontSize: 13)),
                         ),
                       ],
