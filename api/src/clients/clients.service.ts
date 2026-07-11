@@ -59,6 +59,12 @@ export class ClientsService {
 
   /** org_admin ve todos; contador solo asignados; cliente solo donde es miembro (§4). */
   async list(orgId: string, membership: Membership) {
+    // Conteos por cliente (contadores asignados, usuarios que suben, facturas)
+    // para pintarlos en la lista/tarjetas sin una consulta por fila.
+    const listArgs = {
+      orderBy: { razonSocial: 'asc' as const },
+      include: { _count: { select: { assignments: true, members: true, invoices: true } } },
+    };
     if (membership.rol === 'cliente') {
       const links = await this.prisma.clientMember.findMany({
         where: { userId: membership.userId },
@@ -66,7 +72,7 @@ export class ClientsService {
       });
       return this.prisma.forOrg(orgId).clientProfile.findMany({
         where: { id: { in: links.map((l) => l.clientProfileId) } },
-        orderBy: { razonSocial: 'asc' },
+        ...listArgs,
       });
     }
     if (membership.rol === 'contador') {
@@ -76,10 +82,10 @@ export class ClientsService {
       });
       return this.prisma.forOrg(orgId).clientProfile.findMany({
         where: { id: { in: assignments.map((a) => a.clientProfileId) } },
-        orderBy: { razonSocial: 'asc' },
+        ...listArgs,
       });
     }
-    return this.prisma.forOrg(orgId).clientProfile.findMany({ orderBy: { razonSocial: 'asc' } });
+    return this.prisma.forOrg(orgId).clientProfile.findMany(listArgs);
   }
 
   async get(orgId: string, clientId: string) {

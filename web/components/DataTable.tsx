@@ -27,6 +27,9 @@ interface Props<T> {
   footer?: React.ReactNode;
   /** Si se define, la fila es clicable (abre detalle, etc.). */
   onRowClick?: (row: T) => void;
+  /** Selección múltiple: conjunto de keys seleccionadas + callback. El "seleccionar
+   *  todo" del encabezado abarca TODAS las filas ordenadas (no solo la página). */
+  selection?: { selected: Set<string>; onChange: (next: Set<string>) => void };
 }
 
 function toCsv<T>(columns: Column<T>[], rows: T[]): string {
@@ -52,6 +55,7 @@ export default function DataTable<T>({
   exportFileName,
   footer,
   onRowClick,
+  selection,
 }: Props<T>) {
   const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(initialSort ?? null);
   const [page, setPage] = useState(0);
@@ -85,6 +89,23 @@ export default function DataTable<T>({
     );
   }
 
+  // --- Selección múltiple (sobre todas las filas ordenadas) ---
+  const allKeys = useMemo(() => sorted.map(getKey), [sorted, getKey]);
+  const selectedCount = selection ? allKeys.filter((k) => selection.selected.has(k)).length : 0;
+  const allSelected = selection != null && allKeys.length > 0 && selectedCount === allKeys.length;
+  const someSelected = selectedCount > 0 && !allSelected;
+
+  function toggleAll() {
+    if (!selection) return;
+    selection.onChange(allSelected ? new Set() : new Set(allKeys));
+  }
+  function toggleOne(key: string) {
+    if (!selection) return;
+    const next = new Set(selection.selected);
+    next.has(key) ? next.delete(key) : next.add(key);
+    selection.onChange(next);
+  }
+
   function exportCsv() {
     const csv = toCsv(columns, sorted);
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
@@ -109,6 +130,19 @@ export default function DataTable<T>({
         <table>
           <thead>
             <tr>
+              {selection && (
+                <th className="dt-check">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    ref={(el) => {
+                      if (el) el.indeterminate = someSelected;
+                    }}
+                    onChange={toggleAll}
+                    aria-label="Seleccionar todo"
+                  />
+                </th>
+              )}
               {columns.map((c) => {
                 const activeSort = sort?.key === c.key;
                 return (
@@ -134,22 +168,40 @@ export default function DataTable<T>({
             </tr>
           </thead>
           <tbody>
-            {visible.map((row) => (
-              <tr
-                key={getKey(row)}
-                className={onRowClick ? 'row-click' : undefined}
-                onClick={onRowClick ? () => onRowClick(row) : undefined}
-              >
-                {columns.map((c) => (
-                  <td key={c.key} style={{ textAlign: c.align ?? 'left' }}>
-                    {c.render ? c.render(row) : c.value ? c.value(row) : null}
-                  </td>
-                ))}
-              </tr>
-            ))}
+            {visible.map((row) => {
+              const key = getKey(row);
+              const isSel = selection?.selected.has(key) ?? false;
+              return (
+                <tr
+                  key={key}
+                  className={
+                    [onRowClick ? 'row-click' : '', isSel ? 'row-selected' : '']
+                      .filter(Boolean)
+                      .join(' ') || undefined
+                  }
+                  onClick={onRowClick ? () => onRowClick(row) : undefined}
+                >
+                  {selection && (
+                    <td className="dt-check" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={isSel}
+                        onChange={() => toggleOne(key)}
+                        aria-label="Seleccionar fila"
+                      />
+                    </td>
+                  )}
+                  {columns.map((c) => (
+                    <td key={c.key} style={{ textAlign: c.align ?? 'left' }}>
+                      {c.render ? c.render(row) : c.value ? c.value(row) : null}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
             {visible.length === 0 && (
               <tr>
-                <td colSpan={columns.length} className="muted">
+                <td colSpan={columns.length + (selection ? 1 : 0)} className="muted">
                   {emptyText}
                 </td>
               </tr>

@@ -46,6 +46,7 @@ export interface Client {
   razonSocial: string;
   userId: string | null;
   contadores?: Member[];
+  _count?: { assignments: number; members: number; invoices: number };
   limitWarning?: string;
 }
 
