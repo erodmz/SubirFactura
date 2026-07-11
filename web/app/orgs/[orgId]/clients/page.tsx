@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { api } from '../../../../lib/api';
 import DataTable from '../../../../components/DataTable';
-import Modal from '../../../../components/Modal';
 import ClientFormModal from '../../../../components/ClientFormModal';
 import ClientDetailModal from '../../../../components/ClientDetailModal';
 import { useConfirm } from '../../../../components/ConfirmDialog';
@@ -250,7 +249,8 @@ export default function ClientsPage() {
                     checked={sel}
                     onChange={() => {
                       const next = new Set(selected);
-                      next.has(c.id) ? next.delete(c.id) : next.add(c.id);
+                      if (next.has(c.id)) next.delete(c.id);
+                      else next.add(c.id);
                       setSelected(next);
                     }}
                     aria-label={`Seleccionar ${c.razonSocial}`}

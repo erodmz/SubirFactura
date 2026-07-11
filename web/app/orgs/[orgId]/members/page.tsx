@@ -67,7 +67,8 @@ export default function MembersPage() {
 
   function toggle(id: string) {
     const next = new Set(selected);
-    next.has(id) ? next.delete(id) : next.add(id);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
     setSelected(next);
   }
   function toggleAll() {
@@ -145,9 +146,6 @@ export default function MembersPage() {
     setSelected(new Set());
     load();
   }
-
-  const rolBadge = (rol: string) =>
-    rol === 'org_admin' ? 'Administrador' : rol === 'contador' ? 'Contador' : 'Cliente';
 
   const visibles = filtered.map((m) => m.id);
   const allSel = visibles.length > 0 && visibles.every((id) => selected.has(id));

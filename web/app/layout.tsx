@@ -1,9 +1,17 @@
 import type { Metadata } from 'next';
 import './globals.css';
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://subirfactura.do';
+
 export const metadata: Metadata = {
-  title: 'SubirFactura',
-  description: 'Digitalización de facturas de gastos y reporte 606 — DGII',
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: 'SubirFactura — Digitaliza facturas y cierra tu 606 de la DGII',
+    template: '%s · SubirFactura',
+  },
+  description:
+    'Software para contadores en República Dominicana. Digitaliza las facturas de gastos de tus clientes con IA y genera el Formato 606 oficial de la DGII en un clic.',
+  applicationName: 'SubirFactura',
 };
 
 // Fija el tema antes del primer render (evita parpadeo claro→oscuro).

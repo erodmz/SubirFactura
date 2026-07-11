@@ -102,7 +102,8 @@ export default function DataTable<T>({
   function toggleOne(key: string) {
     if (!selection) return;
     const next = new Set(selection.selected);
-    next.has(key) ? next.delete(key) : next.add(key);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
     selection.onChange(next);
   }
 
