@@ -7,6 +7,7 @@ import { api, clearTokens, getTokens } from '../../lib/api';
 import ThemeToggle from '../../components/ThemeToggle';
 import Logo from '../../components/Logo';
 import Dropdown from '../../components/Dropdown';
+import VerifyEmailBanner from '../../components/VerifyEmailBanner';
 import type { Me } from '../../lib/types';
 
 type Membership = Me['memberships'][number];
@@ -113,6 +114,7 @@ export default function HomePage() {
           <p className="muted">Cargando…</p>
         ) : (
           <>
+            {me.emailVerified === false && <VerifyEmailBanner email={me.email} />}
             <div className="select-head">
               <div>
                 <h1 className="greeting">Hola{primerNombre ? `, ${primerNombre}` : ''} 👋</h1>
