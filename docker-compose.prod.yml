@@ -1,0 +1,251 @@
+# SubirFactura — producción (una sola caja). Ver GUIA_DESPLIEGUE.md
+#
+# Diferencias con docker-compose.yml (desarrollo):
+#   · Imágenes de GHCR por tag — NO se compila en el servidor (un build de Node
+#     revienta la RAM de un VPS chico). El tag lo pone el CD.
+#   · Sin puertos de desarrollo: al exterior SOLO Caddy (80/443). Postgres,
+#     Redis y MinIO viven en la red interna y no se publican.
+#   · Límites de memoria: un worker desbocado no puede tumbar la caja entera.
+#   · Servicio de respaldo nocturno cifrado.
+#
+# Uso:  docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
+# Rollback:  IMAGE_TAG=<sha anterior> docker compose -f docker-compose.prod.yml up -d
+
+x-logging: &logging
+  logging:
+    driver: json-file
+    options: { max-size: '10m', max-file: '3' }
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    <<: *logging
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits: { memory: 1g }
+    networks: [internal]
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    <<: *logging
+    # La cola es la memoria del pipeline: si Redis pierde los jobs, se pierden
+    # facturas en vuelo. appendonly = persistencia en disco.
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits: { memory: 256m }
+    networks: [internal]
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    <<: *logging
+    command: server /data --console-address ':9001'
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits: { memory: 512m }
+    networks: [internal]
+
+  # Migraciones + seeds, una vez por despliegue. El resto espera a que termine.
+  # Imagen propia (stage `migrate`): el runtime del API no trae el CLI de prisma
+  # ni tsx, que hacen falta para migrar y sembrar.
+  migrate:
+    image: ghcr.io/${GHCR_OWNER}/subirfactura-migrate:${IMAGE_TAG:-latest}
+    <<: *logging
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: on-failure
+    networks: [internal]
+
+  api:
+    image: ghcr.io/${GHCR_OWNER}/subirfactura-api:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    <<: *logging
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      # Rol sin BYPASSRLS: las consultas por tenant pasan por las políticas RLS.
+      APP_DATABASE_URL: postgresql://facturard_app:${POSTGRES_APP_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379
+      S3_ENDPOINT: http://minio:9000
+      S3_BUCKET: ${S3_BUCKET}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+      APP_URL: https://${APP_DOMAIN}
+      WEB_ORIGIN: https://${APP_DOMAIN}
+      DGII_LIVE_VERIFICATION: ${DGII_LIVE_VERIFICATION:-false}
+      DGII_LIVE_CONSULTA: ${DGII_LIVE_CONSULTA:-true}
+      NTFY_URL: ${NTFY_URL:-https://ntfy.sh}
+      NTFY_TOPIC: ${NTFY_TOPIC}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      SMTP_URL: ${SMTP_URL:-}
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+      minio: { condition: service_healthy }
+    healthcheck:
+      test: ['CMD-SHELL', 'node -e "fetch(\"http://localhost:3000/health\").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits: { memory: 768m }
+    networks: [internal]
+
+  worker:
+    image: ghcr.io/${GHCR_OWNER}/subirfactura-worker:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    <<: *logging
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379
+      S3_ENDPOINT: http://minio:9000
+      S3_BUCKET: ${S3_BUCKET}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-haiku-4-5}
+      OCR_CONFIDENCE_THRESHOLD: ${OCR_CONFIDENCE_THRESHOLD:-0.90}
+      OCR_MAX_RETRIES: ${OCR_MAX_RETRIES:-3}
+      OCR_CONCURRENCY: ${OCR_CONCURRENCY:-2}
+      DGII_LIVE_CONSULTA: ${DGII_LIVE_CONSULTA:-true}
+      NTFY_URL: ${NTFY_URL:-https://ntfy.sh}
+      NTFY_TOPIC: ${NTFY_TOPIC}
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+      minio: { condition: service_healthy }
+    # El componente elástico: cuando haya picos, subir réplicas.
+    #   docker compose -f docker-compose.prod.yml up -d --scale worker=3
+    deploy:
+      resources:
+        limits: { memory: 768m }
+    networks: [internal]
+
+  web:
+    image: ghcr.io/${GHCR_OWNER}/subirfactura-web:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    <<: *logging
+    environment:
+      NODE_ENV: production
+      # Mismo origen detrás de Caddy: el panel llama a /api/* relativo.
+      NEXT_PUBLIC_API_URL: ''
+      NEXT_PUBLIC_SITE_URL: https://${APP_DOMAIN}
+    depends_on: [api]
+    deploy:
+      resources:
+        limits: { memory: 512m }
+    networks: [internal]
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    <<: *logging
+    # Lo ÚNICO expuesto al exterior.
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN}
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+      - caddyconfig:/config
+    depends_on: [api, web]
+    deploy:
+      resources:
+        limits: { memory: 256m }
+    networks: [internal]
+
+  # Respaldo nocturno cifrado (ver docker/backup/backup.sh).
+  backup:
+    build: ./docker/backup
+    image: ghcr.io/${GHCR_OWNER}/subirfactura-backup:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    <<: *logging
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_DB: ${POSTGRES_DB}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      # Clave PÚBLICA de age: el servidor cifra pero no puede descifrar.
+      BACKUP_AGE_PUBLIC_KEY: ${BACKUP_AGE_PUBLIC_KEY}
+      BACKUP_REMOTE: ${BACKUP_REMOTE}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+      BACKUP_CRON: ${BACKUP_CRON:-15 3 * * *}
+      BACKUP_IMAGES: ${BACKUP_IMAGES:-false}
+      S3_BUCKET: ${S3_BUCKET}
+      # Destino remoto (R2 / B2 / Spaces), configurado por variables de rclone.
+      RCLONE_CONFIG_S3_TYPE: s3
+      RCLONE_CONFIG_S3_PROVIDER: ${BACKUP_S3_PROVIDER:-Cloudflare}
+      RCLONE_CONFIG_S3_ENDPOINT: ${BACKUP_S3_ENDPOINT}
+      RCLONE_CONFIG_S3_ACCESS_KEY_ID: ${BACKUP_S3_ACCESS_KEY}
+      RCLONE_CONFIG_S3_SECRET_ACCESS_KEY: ${BACKUP_S3_SECRET_KEY}
+      RCLONE_CONFIG_S3_REGION: ${BACKUP_S3_REGION:-auto}
+      # Espejo de imágenes (opcional), leyendo del MinIO local.
+      RCLONE_CONFIG_MINIO_TYPE: s3
+      RCLONE_CONFIG_MINIO_PROVIDER: Minio
+      RCLONE_CONFIG_MINIO_ENDPOINT: http://minio:9000
+      RCLONE_CONFIG_MINIO_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      RCLONE_CONFIG_MINIO_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      NTFY_URL: ${NTFY_URL:-https://ntfy.sh}
+      NTFY_TOPIC: ${NTFY_TOPIC}
+    depends_on:
+      postgres: { condition: service_healthy }
+    deploy:
+      resources:
+        limits: { memory: 256m }
+    networks: [internal]
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:
+  caddydata:
+  caddyconfig:
+
+networks:
+  internal:
+    driver: bridge
