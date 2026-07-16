@@ -1,8 +1,10 @@
 name: CI
 
+# Solo en PRs y ramas de trabajo: en main, el workflow de Deploy ya corre
+# lint/build/test antes de construir, así no se paga dos veces lo mismo.
 on:
   push:
-    branches: [main]
+    branches-ignore: [main]
   pull_request:
 
 jobs:

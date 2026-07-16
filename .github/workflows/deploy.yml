@@ -1,0 +1,166 @@
+name: Deploy
+
+# Despliegue a producción. Se dispara solo al empujar a main (después de que CI
+# pase) o a mano desde la pestaña Actions.
+#
+# Las imágenes se construyen AQUÍ, no en el servidor: un build de Node revienta
+# la RAM de un VPS chico, y así el despliegue es solo "bajar y levantar".
+# Cada imagen se etiqueta con el SHA del commit → el rollback es desplegar un
+# tag anterior (ver GUIA_DESPLIEGUE.md), sin reconstruir nada.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag a desplegar (SHA de un commit ya construido). Vacío = construir este commit.'
+        required: false
+
+concurrency:
+  group: deploy-produccion
+  cancel-in-progress: false # nunca cortar un despliegue a medias
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  # ── 1. Calidad: si esto falla, no se construye ni se despliega nada ─────────
+  verificar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm build
+      - run: pnpm test
+
+  # ── 2. Construir y publicar las imágenes en GHCR ────────────────────────────
+  construir:
+    needs: verificar
+    # Si se pide desplegar un tag ya existente, no hay nada que construir.
+    if: github.event.inputs.tag == ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - nombre: api
+            target: api
+            dockerfile: Dockerfile
+          - nombre: worker
+            target: worker
+            dockerfile: Dockerfile
+          - nombre: migrate
+            target: migrate
+            dockerfile: Dockerfile
+          - nombre: web
+            target: ''
+            dockerfile: web/Dockerfile
+          - nombre: backup
+            target: ''
+            dockerfile: docker/backup/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Entrar a GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Construir y publicar ${{ matrix.nombre }}
+        uses: docker/build-push-action@v6
+        with:
+          # El backup se construye desde su carpeta; el resto desde la raíz.
+          context: ${{ matrix.nombre == 'backup' && 'docker/backup' || '.' }}
+          file: ${{ matrix.dockerfile }}
+          target: ${{ matrix.target }}
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/subirfactura-${{ matrix.nombre }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/subirfactura-${{ matrix.nombre }}:latest
+          # Caché entre despliegues: sin esto cada build baja medio npm otra vez.
+          cache-from: type=gha,scope=${{ matrix.nombre }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.nombre }}
+
+  # ── 3. Desplegar: el servidor solo baja las imágenes y levanta ──────────────
+  desplegar:
+    needs: construir
+    # Corre aunque se salte "construir" (caso: desplegar un tag ya existente).
+    if: always() && !failure() && !cancelled()
+    runs-on: ubuntu-latest
+    environment: produccion
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Decidir qué tag se despliega
+        id: tag
+        run: echo "valor=${{ github.event.inputs.tag || github.sha }}" >> "$GITHUB_OUTPUT"
+
+      - name: Copiar el compose al servidor
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          source: 'docker-compose.prod.yml,docker/Caddyfile,docker/initdb/*'
+          target: /opt/subirfactura
+          overwrite: true
+
+      - name: Bajar imágenes y levantar
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            cd /opt/subirfactura
+
+            # El .env.prod vive SOLO en el servidor (nunca en el repo ni en Actions).
+            if [ ! -f .env.prod ]; then
+              echo "::error::Falta /opt/subirfactura/.env.prod en el servidor"
+              exit 1
+            fi
+
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            export IMAGE_TAG="${{ steps.tag.outputs.valor }}"
+            docker compose -f docker-compose.prod.yml --env-file .env.prod pull
+            # migrate corre y termina; luego el resto arranca contra el esquema nuevo.
+            docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --remove-orphans
+
+            # Purga imágenes viejas para que el disco del VPS no se llene sola.
+            docker image prune -af --filter "until=168h" || true
+
+      - name: Verificar que quedó vivo
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            # Un deploy no está bien hasta que /health responde de verdad.
+            for i in $(seq 1 20); do
+              if docker compose -f /opt/subirfactura/docker-compose.prod.yml --env-file /opt/subirfactura/.env.prod \
+                   exec -T api node -e 'fetch("http://localhost:3000/health").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))'; then
+                echo "✅ API sana tras el despliegue"
+                exit 0
+              fi
+              echo "esperando al API… ($i/20)"; sleep 5
+            done
+            echo "::error::El API no respondió sano tras el despliegue"
+            docker compose -f /opt/subirfactura/docker-compose.prod.yml --env-file /opt/subirfactura/.env.prod logs --tail=50 api
+            exit 1
