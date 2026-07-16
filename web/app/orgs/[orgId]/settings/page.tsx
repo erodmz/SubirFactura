@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { api, apiUpload } from '../../../../lib/api';
+import { api, apiUpload, apiUrl } from '../../../../lib/api';
 import Toggle from '../../../../components/Toggle';
 
 export default function OrgSettingsPage() {
@@ -79,7 +79,7 @@ export default function OrgSettingsPage() {
             }}
           >
             {logoUrl ? (
-              <img src={logoUrl} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <img src={apiUrl(logoUrl)} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             ) : (
               <span className="muted" style={{ fontSize: 22 }}>🏢</span>
             )}

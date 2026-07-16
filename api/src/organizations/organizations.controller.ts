@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  StreamableFile,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
@@ -15,6 +16,7 @@ import { OrganizationsService } from './organizations.service';
 import { MembersService } from './members.service';
 import { PlanLimitsService } from '../plans/plan-limits.service';
 import { OrgRoles } from '../common/decorators/org-roles.decorator';
+import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-user.decorator';
 import {
   CreateOrganizationDto,
@@ -63,6 +65,23 @@ export class OrganizationsController {
   ) {
     if (!file) throw new Error('Falta el archivo del logo (campo "file")');
     return this.organizations.uploadLogo(orgId, user.userId, file);
+  }
+
+  /**
+   * Sirve el logo por el propio API — así MinIO nunca se expone a internet.
+   * Es @Public a propósito: <img src> no puede mandar el header Authorization,
+   * y el logo es la marca del propio despacho (la imprime en sus documentos),
+   * no un dato de terceros. El orgId es un UUID no adivinable.
+   */
+  @Public()
+  @Get(':orgId/logo')
+  async logo(@Param('orgId') orgId: string): Promise<StreamableFile> {
+    const { body, contentType, contentLength } = await this.organizations.logoBytes(orgId);
+    return new StreamableFile(body, {
+      type: contentType,
+      disposition: 'inline',
+      length: contentLength,
+    });
   }
 
   /** Uso vs límites del plan, con avisos al 80% (§7). */

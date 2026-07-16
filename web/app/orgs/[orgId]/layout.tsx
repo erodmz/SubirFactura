@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { api, clearTokens, getTokens } from '../../../lib/api';
+import { api, apiUrl, clearTokens, getTokens } from '../../../lib/api';
 import ThemeToggle from '../../../components/ThemeToggle';
 import Logo from '../../../components/Logo';
 import NotificationsBell from '../../../components/NotificationsBell';
@@ -89,7 +89,7 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
             {orgLogo ? (
               <span className="sidebar-org-logo">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={orgLogo} alt={orgName} />
+                <img src={apiUrl(orgLogo)} alt={orgName} />
               </span>
             ) : (
               <Logo />

@@ -103,6 +103,34 @@ export async function apiUpload<T = unknown>(path: string, formData: FormData): 
   return (await res.json()) as T;
 }
 
+/**
+ * Convierte una ruta del API en URL absoluta usable en <img src> / href.
+ * El API devuelve rutas relativas (p. ej. el logo: /api/organizations/:id/logo)
+ * para no depender del dominio: en producción el panel y el API comparten origen
+ * (API_BASE = ''), pero en desarrollo el API vive en otro puerto.
+ */
+export function apiUrl(path: string): string {
+  return `${API_BASE}${path}`;
+}
+
+/**
+ * Trae una imagen del API (con auth + refresh) y devuelve un object URL usable
+ * en <img src>. Hace falta porque <img> no puede mandar el header Authorization
+ * y las imágenes de facturas se sirven por el proxy autenticado del API (no por
+ * URL firmada del almacén). Quien lo llama debe hacer URL.revokeObjectURL()
+ * cuando termine, para no filtrar memoria.
+ */
+export async function apiObjectUrl(path: string): Promise<string> {
+  const doFetch = () =>
+    fetch(`${API_BASE}${path}`, {
+      headers: { Authorization: `Bearer ${getTokens()?.accessToken ?? ''}` },
+    });
+  let res = await doFetch();
+  if (res.status === 401 && (await tryRefresh())) res = await doFetch();
+  if (!res.ok) throw await parseError(res);
+  return URL.createObjectURL(await res.blob());
+}
+
 /** Descarga un archivo del API (con auth + refresh) y la dispara en el navegador. */
 export async function apiDownload(path: string, filename: string): Promise<void> {
   const doFetch = () =>

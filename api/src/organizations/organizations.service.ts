@@ -12,6 +12,21 @@ const LOGO_MIME = new Map([
   ['image/webp', 'webp'],
 ]);
 
+/**
+ * Ruta del logo servida por el propio API, RELATIVA a la base del API — el
+ * cliente la antepone con la suya (en producción, mismo origen tras Caddy: '').
+ *
+ * Se sirve por el API y no con una URL firmada de MinIO porque así el almacén
+ * nunca queda expuesto a internet. La ruta es pública (ver el controller): el
+ * logo es la marca del propio despacho —la imprime en sus documentos—, no es un
+ * dato de terceros, y el id de la organización es un UUID no adivinable. Esto
+ * permite usarlo directo en <img src>, que no puede mandar el header de
+ * Authorization.
+ */
+export function logoPath(orgId: string, logoKey: string | null): string | null {
+  return logoKey ? `/api/organizations/${orgId}/logo` : null;
+}
+
 @Injectable()
 export class OrganizationsService {
   constructor(
@@ -72,8 +87,17 @@ export class OrganizationsService {
       include: { plan: true },
     });
     if (!org) throw new NotFoundException('Organización no encontrada');
-    const logoUrl = org.logoKey ? await this.storage.presignedGetUrl(org.logoKey) : null;
-    return { ...org, logoUrl };
+    return { ...org, logoUrl: logoPath(org.id, org.logoKey) };
+  }
+
+  /** Bytes del logo para servirlo por el propio API (ver logoPath). */
+  async logoBytes(orgId: string) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { logoKey: true },
+    });
+    if (!org?.logoKey) throw new NotFoundException('Esta organización no tiene logo');
+    return this.storage.getObject(org.logoKey);
   }
 
   async update(orgId: string, userId: string, dto: UpdateOrganizationDto) {
@@ -112,6 +136,6 @@ export class OrganizationsService {
       entidad: 'organization',
       entidadId: orgId,
     });
-    return { logoUrl: await this.storage.presignedGetUrl(key) };
+    return { logoUrl: logoPath(orgId, key) };
   }
 }

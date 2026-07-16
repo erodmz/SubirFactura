@@ -14,14 +14,13 @@ import {
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.service';
-import { StorageService } from '../storage/storage.service';
+import { logoPath } from '../organizations/organizations.service';
 
 @Controller()
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly prisma: PrismaService,
-    private readonly storage: StorageService,
   ) {}
 
   // Rutas de credenciales: límite estricto contra fuerza bruta / credential
@@ -128,14 +127,6 @@ export class AuthController {
       }),
     ]);
 
-    // URL firmada del logo de cada empresa (para la lista de empresas).
-    const logoUrls = new Map<string, string>();
-    for (const m of memberships) {
-      if (m.organization.logoKey && !logoUrls.has(m.organizationId)) {
-        logoUrls.set(m.organizationId, await this.storage.presignedGetUrl(m.organization.logoKey));
-      }
-    }
-
     // Negocios (client_profiles) que el usuario puede subir como cliente.
     // Para un cliente, "sus empresas" son estos negocios, no el despacho.
     const links = await this.prisma.clientMember.findMany({
@@ -180,7 +171,7 @@ export class AuthController {
           id: m.organization.id,
           nombre: m.organization.nombre,
           estadoSuscripcion: m.organization.estadoSuscripcion,
-          logoUrl: logoUrls.get(m.organizationId) ?? null,
+          logoUrl: logoPath(m.organization.id, m.organization.logoKey),
         },
       })),
       clientProfiles,

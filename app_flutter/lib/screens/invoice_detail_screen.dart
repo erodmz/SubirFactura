@@ -87,9 +87,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
       '/api/organizations/${widget.membership.orgId}/invoices/${widget.invoiceId}';
 
   /// Cuántas páginas tiene la factura (para pedirlas por el proxy por índice).
-  int _imageCount(Invoice invoice) => invoice.imageUrls.isNotEmpty
-      ? invoice.imageUrls.length
-      : (invoice.imageUrl != null ? 1 : 0);
+  int _imageCount(Invoice invoice) => invoice.pageCount;
 
   @override
   void initState() {

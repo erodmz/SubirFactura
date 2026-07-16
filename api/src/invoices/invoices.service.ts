@@ -592,12 +592,12 @@ export class InvoicesService {
     });
     if (!invoice) throw new NotFoundException('Factura no encontrada');
     this.assertInvoiceInScope(invoice, await this.invoiceScope(user, membership));
-    const keys = [invoice.imagenUrl, ...invoice.images.map((i) => i.key)];
-    const imageUrls = await Promise.all(keys.map((k) => this.storage.presignedGetUrl(k)));
+    // Sin URLs firmadas de MinIO: las páginas se piden por el proxy autenticado
+    // (GET :invoiceId/image?i=N), que respeta el alcance por rol/RLS y evita
+    // exponer el almacén a internet. Aquí solo va cuántas páginas hay.
     return {
       ...invoice,
-      imageUrl: imageUrls[0], // compat
-      imageUrls,
+      pageCount: 1 + invoice.images.length,
     };
   }
 
@@ -623,7 +623,17 @@ export class InvoicesService {
     const keys = [invoice.imagenUrl, ...invoice.images.map((i) => i.key)];
     const key = keys[index];
     if (!key) throw new NotFoundException('Imagen no encontrada');
-    return this.storage.getObject(key);
+    try {
+      return await this.storage.getObject(key);
+    } catch (err) {
+      // Clave colgante (el registro apunta a un objeto que ya no está en el
+      // almacén): es un 404, no un fallo del servidor. Devolver 500 ensuciaba
+      // los logs y hacía ver caído al API por un dato viejo.
+      if ((err as { name?: string })?.name === 'NoSuchKey') {
+        throw new NotFoundException('La imagen de esta factura ya no está disponible');
+      }
+      throw err;
+    }
   }
 
   /**

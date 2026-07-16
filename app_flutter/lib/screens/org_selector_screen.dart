@@ -59,7 +59,12 @@ class OrgSelectorScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(color: Theme.of(context).dividerColor),
                         ),
-                        child: Image.network(m.orgLogoUrl!, fit: BoxFit.contain),
+                        // logoUrl viene como ruta del API (/api/organizations/…/logo);
+                        // el almacén no se expone, así que la servimos por el API.
+                        child: Image.network(
+                          '${ApiClient.baseUrl}${m.orgLogoUrl!}',
+                          fit: BoxFit.contain,
+                        ),
                       )
                     : CircleAvatar(
                         child: Text(

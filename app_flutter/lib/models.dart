@@ -251,8 +251,7 @@ class Invoice {
     this.tipoRetencionIsr,
     this.montoRetencionRenta,
     this.isrPercibido,
-    this.imageUrl,
-    this.imageUrls = const [],
+    this.pageCount = 0,
     this.camposBajaConfianza = const [],
     this.erroresValidacion = const [],
     this.alertasDgii = const [],
@@ -304,8 +303,7 @@ class Invoice {
       tipoRetencionIsr: json['tipoRetencionIsr'] as String?,
       montoRetencionRenta: parseNum(json['montoRetencionRenta']),
       isrPercibido: parseNum(json['isrPercibido']),
-      imageUrl: json['imageUrl'] as String?,
-      imageUrls: (json['imageUrls'] as List?)?.cast<String>() ?? const [],
+      pageCount: (json['pageCount'] as num?)?.toInt() ?? 0,
       camposBajaConfianza:
           (evaluation?['camposBajaConfianza'] as List?)?.cast<String>() ?? const [],
       erroresValidacion: errores,
@@ -355,8 +353,9 @@ class Invoice {
   final String? tipoRetencionIsr;
   final double? montoRetencionRenta;
   final double? isrPercibido;
-  final String? imageUrl;
-  final List<String> imageUrls;
+  /// Cuántas páginas tiene la factura. Las imágenes se piden una a una por el
+  /// proxy autenticado del API (…/image?i=N); el almacén no se expone.
+  final int pageCount;
   final List<String> camposBajaConfianza;
   final List<String> erroresValidacion;
 

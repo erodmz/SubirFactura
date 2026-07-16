@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useSearchParams } from 'next/navigation';
-import { api } from '../../../../lib/api';
+import { api, apiObjectUrl } from '../../../../lib/api';
 import { useAutoRefresh } from '../../../../lib/useAutoRefresh';
 import DataTable from '../../../../components/DataTable';
 import Dropdown from '../../../../components/Dropdown';
@@ -717,17 +717,36 @@ function ReviewPanel({
   const [lightbox, setLightbox] = useState<number | null>(null); // índice de imagen ampliada
   const [subidoPor, setSubidoPor] = useState<{ nombre: string; email: string } | null>(null);
 
+  // Las páginas se piden por el proxy autenticado del API (el almacén no está
+  // expuesto). Como <img> no manda el header Authorization, se traen como blob
+  // y se liberan al cerrar para no filtrar memoria.
   useEffect(() => {
+    let vivo = true;
+    let creadas: string[] = [];
     api<{
-      imageUrl?: string;
-      imageUrls?: string[];
+      pageCount?: number;
       subidoPor?: { nombre: string; email: string } | null;
     }>(`/api/organizations/${orgId}/invoices/${invoice.id}`)
-      .then((d) => {
-        setImageUrls(d.imageUrls ?? (d.imageUrl ? [d.imageUrl] : []));
+      .then(async (d) => {
+        if (!vivo) return;
         setSubidoPor(d.subidoPor ?? null);
+        const paginas = d.pageCount ?? 0;
+        const urls = await Promise.all(
+          Array.from({ length: paginas }, (_, i) =>
+            apiObjectUrl(`/api/organizations/${orgId}/invoices/${invoice.id}/image?i=${i}`),
+          ),
+        );
+        creadas = urls;
+        if (vivo) setImageUrls(urls);
+        else urls.forEach((u) => URL.revokeObjectURL(u));
       })
-      .catch(() => {});
+      .catch(() => {
+        if (vivo) setImageUrls([]);
+      });
+    return () => {
+      vivo = false;
+      creadas.forEach((u) => URL.revokeObjectURL(u));
+    };
   }, [orgId, invoice.id]);
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {

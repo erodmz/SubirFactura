@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { api, clearTokens, getTokens } from '../../lib/api';
+import { api, apiUrl, clearTokens, getTokens } from '../../lib/api';
 import ThemeToggle from '../../components/ThemeToggle';
 import Logo from '../../components/Logo';
 import Dropdown from '../../components/Dropdown';
@@ -281,7 +281,7 @@ function OrgTile({ m }: { m: Membership }) {
     <Link href={`/orgs/${m.organization.id}`} className="org-card">
       {m.organization.logoUrl ? (
         <span className="org-logo">
-          <img src={m.organization.logoUrl} alt={m.organization.nombre} />
+          <img src={apiUrl(m.organization.logoUrl)} alt={m.organization.nombre} />
         </span>
       ) : (
         <span className="org-initial">{m.organization.nombre.charAt(0).toUpperCase()}</span>
@@ -297,7 +297,7 @@ function OrgRow({ m }: { m: Membership }) {
     <Link href={`/orgs/${m.organization.id}`} className="org-row">
       {m.organization.logoUrl ? (
         <span className="org-logo sm">
-          <img src={m.organization.logoUrl} alt={m.organization.nombre} />
+          <img src={apiUrl(m.organization.logoUrl)} alt={m.organization.nombre} />
         </span>
       ) : (
         <span className="org-initial sm">{m.organization.nombre.charAt(0).toUpperCase()}</span>
