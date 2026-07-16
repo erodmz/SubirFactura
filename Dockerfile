@@ -19,13 +19,25 @@ COPY shared shared
 COPY api api
 COPY workers workers
 RUN pnpm db:generate && pnpm -r build
-RUN pnpm --filter @facturard/api --prod deploy --legacy /out/api \
- && pnpm --filter @facturard/workers --prod deploy --legacy /out/workers \
- && cd /out/api && npx prisma@6 generate --schema=node_modules/@facturard/shared/prisma/schema.prisma \
- && cd /out/workers && npx prisma@6 generate --schema=node_modules/@facturard/shared/prisma/schema.prisma
+# Dos detalles que rompían el build de producción:
+#   1. --ignore-scripts: el postinstall de la raíz llama `prisma generate`, y
+#      `prisma` es devDependency — en un deploy --prod no existe ("prisma: not
+#      found"). El cliente se genera explícitamente abajo con pnpm dlx.
+#   2. El generate corre DENTRO de node_modules/@facturard/shared: con pnpm,
+#      @prisma/client se enlaza en el contexto de shared (quien lo importa), no
+#      en la raíz del deploy. Desde /out/api, prisma no lo encontraba e intentaba
+#      instalarlo solo, fallando el build.
+RUN pnpm --filter @facturard/api --prod deploy --legacy --ignore-scripts /out/api \
+ && pnpm --filter @facturard/workers --prod deploy --legacy --ignore-scripts /out/workers \
+ && cd /out/api/node_modules/@facturard/shared && pnpm dlx prisma@6 generate --schema=prisma/schema.prisma \
+ && cd /out/workers/node_modules/@facturard/shared && pnpm dlx prisma@6 generate --schema=prisma/schema.prisma
 
 # ── Runtime: API ──────────────────────────────────────────────────────────────
 FROM node:23-alpine AS api
+# poppler-utils = pdfinfo + pdftoppm: el API rasteriza los PDF subidos a
+# imágenes de página al recibirlos (invoices/pdf.ts). Sin esto, subir un PDF
+# falla en producción.
+RUN apk add --no-cache poppler-utils
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=build /out/api .
