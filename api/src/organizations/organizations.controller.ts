@@ -108,8 +108,11 @@ export class OrganizationsController {
     return this.members.updateRole(orgId, membershipId, dto.rol, user.userId);
   }
 
+  // Otorgar permisos es administrativo (igual que cambiar rol o quitar
+  // miembros, ya restringidos): solo org_admin. Antes un contador podía
+  // togglear permisos de clientes gestionados por otro contador (B9).
   @Patch(':orgId/members/:membershipId/validate-permission')
-  @OrgRoles('org_admin', 'contador')
+  @OrgRoles('org_admin')
   setValidatePermission(
     @Param('orgId') orgId: string,
     @Param('membershipId') membershipId: string,
@@ -120,7 +123,7 @@ export class OrganizationsController {
   }
 
   @Patch(':orgId/members/:membershipId/reports-permission')
-  @OrgRoles('org_admin', 'contador')
+  @OrgRoles('org_admin')
   setReportsPermission(
     @Param('orgId') orgId: string,
     @Param('membershipId') membershipId: string,

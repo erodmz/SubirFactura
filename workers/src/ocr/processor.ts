@@ -126,8 +126,9 @@ async function runFiscalValidation(args: FiscalValidationArgs): Promise<FiscalVa
       }
     }
 
+    // Sin NCF/RNC en el log (son PII fiscal): basta el estado de la validación.
     console.log(
-      `[dgii] validación ${ncf ?? 's/ncf'}: RNC vía ${fuenteRnc}` +
+      `[dgii] validación: RNC vía ${fuenteRnc}` +
         (padronEntry ? ` (${padronEntry.estado ?? '?'})` : padronConsultado ? ' (no hallado)' : '') +
         (ecf ? `, e-CF ${ecf.estado ?? '?'}` : ''),
     );
@@ -205,7 +206,7 @@ export async function processOcrJob(job: Job<OcrJobData>) {
     if (qr.rncEmisor) extraction.rnc_proveedor = { valor: qr.rncEmisor, confianza: 1 };
     if (qr.montoTotal != null) extraction.monto_total = { valor: qr.montoTotal, confianza: 1 };
     if (qr.fechaEmision) extraction.fecha = { valor: qr.fechaEmision, confianza: 1 };
-    console.log(`[ocr] factura ${invoiceId}: QR e-CF leído (${qr.ncf ?? 'sin NCF'})`);
+    console.log(`[ocr] factura ${invoiceId}: QR e-CF leído (${qr.ncf ? 'con NCF' : 'sin NCF'})`);
   }
 
   // Post-proceso determinístico (§5.4): corrige el cero de relleno del NCF y
@@ -248,7 +249,7 @@ export async function processOcrJob(job: Job<OcrJobData>) {
       if (match) {
         clientProfileId = match.id;
         const via = qr?.rncComprador ? 'QR' : 'IA';
-        console.log(`[ocr] factura ${invoiceId}: empresa asignada por RNC comprador ${rncLeido} (${via})`);
+        console.log(`[ocr] factura ${invoiceId}: empresa asignada por RNC del comprador (${via})`);
       }
     }
 
@@ -266,7 +267,7 @@ export async function processOcrJob(job: Job<OcrJobData>) {
         const c = candidatos[0]!;
         sugerenciaCliente = { id: c.id, razonSocial: c.razonSocial, rnc: c.rncOCedula };
         console.log(
-          `[ocr] factura ${invoiceId}: RNC comprador ${rncLeido} casi coincide con "${c.razonSocial}" (${c.rncOCedula}) — sugerido en revisión`,
+          `[ocr] factura ${invoiceId}: RNC del comprador casi coincide con un cliente (distancia 1) — sugerido en revisión`,
         );
       }
     }
