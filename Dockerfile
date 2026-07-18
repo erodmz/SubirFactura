@@ -32,6 +32,17 @@ RUN pnpm --filter @facturard/api --prod deploy --legacy --ignore-scripts /out/ap
  && cd /out/api/node_modules/@facturard/shared && pnpm dlx prisma@6 generate --schema=prisma/schema.prisma \
  && cd /out/workers/node_modules/@facturard/shared && pnpm dlx prisma@6 generate --schema=prisma/schema.prisma
 
+# Poda de tooling SOLO-dev que el `deploy --prod` de un workspace file: arrastra
+# igual dentro de @facturard/shared (el CLI de prisma, typescript, vite/vitest,
+# esbuild, rollup, effect…). No se usan en runtime; @prisma/client y el cliente
+# generado (.prisma) se conservan. ~120 MB menos por imagen, en cada deploy.
+RUN for base in /out/api /out/workers; do \
+      for pkg in prisma typescript effect esbuild @esbuild vite vitest rollup @rollup fast-check jiti tsx tinypool tinybench @vitest chai; do \
+        find "$base/node_modules" -maxdepth 6 -type d -name "$pkg" -path "*/node_modules/*" ! -path "*/@prisma/*" -exec rm -rf {} + 2>/dev/null || true; \
+      done; \
+      find "$base/node_modules/.pnpm" -maxdepth 1 -type d \( -name 'prisma@*' -o -name 'typescript@*' -o -name 'effect@*' -o -name 'esbuild@*' -o -name '@esbuild*' -o -name 'vite@*' -o -name 'vitest@*' -o -name 'rollup@*' -o -name 'fast-check@*' -o -name 'jiti@*' -o -name 'tsx@*' \) -exec rm -rf {} + 2>/dev/null || true; \
+    done
+
 # ── Runtime: migraciones + seeds ──────────────────────────────────────────────
 # Reusa el stage `build` porque necesita lo que el runtime NO tiene: el CLI de
 # prisma (devDependency) y tsx para el seed. Corre una vez por despliegue y
