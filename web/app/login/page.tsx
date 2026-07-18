@@ -7,6 +7,7 @@ import { api, saveTokens, PENDING_INVITE_KEY, type Tokens } from '../../lib/api'
 import ThemeToggle from '../../components/ThemeToggle';
 import Logo from '../../components/Logo';
 import { EyeIcon, EyeOffIcon } from '../../components/icons';
+import GoogleSignIn from '../../components/GoogleSignIn';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -96,6 +97,7 @@ export default function LoginPage() {
           </div>
           <button disabled={busy}>{busy ? 'Entrando…' : 'Entrar'}</button>
         </form>
+        <GoogleSignIn onError={setError} />
         <p className="muted" style={{ marginTop: 16, textAlign: 'center' }}>
           <Link href="/forgot-password">¿Olvidaste tu contraseña?</Link>
         </p>

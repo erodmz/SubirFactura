@@ -38,7 +38,10 @@ enum SubscriptionStatus {
 model User {
   id           String       @id @default(uuid())
   email        String       @unique
-  passwordHash String       @map("password_hash")
+  // Opcional: un usuario que entra SOLO con Google/Facebook no tiene contraseña.
+  // La identidad sigue siendo única por correo; los proveedores se enlazan en
+  // oauth_accounts. Si es null, el login por contraseña se rechaza con un aviso.
+  passwordHash String?      @map("password_hash")
   nombre       String
   telefono     String?
   isSuperAdmin Boolean      @default(false) @map("is_super_admin")
@@ -52,10 +55,29 @@ model User {
   refreshTokens RefreshToken[]
   passwordResetTokens PasswordResetToken[]
   emailVerificationTokens EmailVerificationToken[]
+  oauthAccounts OAuthAccount[]
   invitationsSent Invitation[]
   invoicesSubidas Invoice[]    @relation("InvoicesSubidas")
 
   @@map("users")
+}
+
+// Identidades de proveedor (Google, Facebook…) enlazadas a un User. Un mismo
+// usuario (por correo) puede tener varias, y así "entrar con Google" y "entrar
+// con Facebook" trabajan como la misma cuenta. providerAccountId es el id
+// estable del usuario en el proveedor (el `sub` del ID token).
+model OAuthAccount {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  provider          String // 'google' | 'facebook' | ...
+  providerAccountId String   @map("provider_account_id")
+  email             String?
+  createdAt         DateTime @default(now()) @map("created_at")
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("oauth_accounts")
 }
 
 // Refresh tokens rotados (ESPECIFICACION.md §8) — se guarda solo el hash

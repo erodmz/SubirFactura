@@ -47,6 +47,12 @@ export class ForgotPasswordDto {
   email!: string;
 }
 
+export class GoogleLoginDto {
+  @IsString()
+  @IsNotEmpty({ message: 'Falta el token de Google' })
+  idToken!: string;
+}
+
 export class VerifyEmailDto {
   @IsString()
   @IsNotEmpty({ message: 'Falta el token del enlace' })

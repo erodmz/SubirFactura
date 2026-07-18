@@ -3479,3 +3479,20 @@ tr.row-selected td {
     font-size: 14px;
   }
 }
+
+/* Separador "o" sobre el botón de acceso social */
+.oauth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0 14px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.oauth-divider::before,
+.oauth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}

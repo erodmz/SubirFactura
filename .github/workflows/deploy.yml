@@ -86,6 +86,10 @@ jobs:
           context: ${{ matrix.nombre == 'backup' && 'docker/backup' || '.' }}
           file: ${{ matrix.dockerfile }}
           target: ${{ matrix.target }}
+          # El client id de Google es público y se hornea en el web (NEXT_PUBLIC_*
+          # es build-time). Se toma de una variable del repo, no de un secreto.
+          build-args: |
+            NEXT_PUBLIC_GOOGLE_CLIENT_ID=${{ vars.GOOGLE_CLIENT_ID }}
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/subirfactura-${{ matrix.nombre }}:${{ github.sha }}

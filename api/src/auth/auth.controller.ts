@@ -1,12 +1,14 @@
 import { Body, Controller, Get, Headers, HttpCode, Post } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
+import { OAuthService } from './oauth.service';
 import {
   ChangePasswordDto,
   ForgotPasswordDto,
   LoginDto,
   RefreshDto,
   RegisterDto,
+  GoogleLoginDto,
   ResendVerificationDto,
   ResetPasswordDto,
   VerifyEmailDto,
@@ -20,6 +22,7 @@ import { logoPath } from '../organizations/organizations.service';
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
+    private readonly oauth: OAuthService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -47,6 +50,15 @@ export class AuthController {
   @Post('auth/refresh')
   refresh(@Body() dto: RefreshDto) {
     return this.authService.refresh(dto.refreshToken);
+  }
+
+  /** Entra o se registra con Google (verifica el ID token y emite nuestros tokens). */
+  @Public()
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
+  @HttpCode(200)
+  @Post('auth/google')
+  google(@Body() dto: GoogleLoginDto) {
+    return this.oauth.loginWithGoogle(dto.idToken);
   }
 
   @Public()

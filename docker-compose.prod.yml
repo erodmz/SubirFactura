@@ -112,6 +112,9 @@ services:
       JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
       APP_URL: https://${APP_DOMAIN}
       WEB_ORIGIN: https://${APP_DOMAIN}
+      # Acceso con Google (opcional): sin esto, /auth/google responde "no
+      # configurado" y el botón no aparece en el panel.
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       DGII_LIVE_VERIFICATION: ${DGII_LIVE_VERIFICATION:-false}
       DGII_LIVE_CONSULTA: ${DGII_LIVE_CONSULTA:-true}
       NTFY_URL: ${NTFY_URL:-https://ntfy.sh}

@@ -37,6 +37,10 @@ function buildService(overrides: Record<string, unknown> = {}) {
       create: vi.fn().mockResolvedValue({}),
       update: vi.fn().mockResolvedValue({}),
     },
+    oAuthAccount: {
+      findUnique: vi.fn(),
+      create: vi.fn().mockResolvedValue({}),
+    },
     ...overrides,
   };
   const jwt = { signAsync: vi.fn().mockResolvedValue('access-token') };
@@ -209,5 +213,55 @@ describe('AuthService.refresh (rotación)', () => {
     const { service, prisma } = buildService();
     prisma.refreshToken.findUnique.mockResolvedValue(null);
     await expect(service.refresh('token-falso')).rejects.toThrow(/inválido/);
+  });
+});
+
+describe('AuthService.loginWithProvider (Google/Facebook)', () => {
+  const perfil = {
+    provider: 'google',
+    providerAccountId: 'g-123',
+    email: 'Nueva@Ejemplo.com',
+    emailVerified: true,
+    nombre: 'Nueva Persona',
+  };
+
+  it('rechaza si el proveedor no entregó correo verificado', async () => {
+    const { service } = buildService();
+    await expect(
+      service.loginWithProvider({ ...perfil, emailVerified: false }),
+    ).rejects.toThrow(/verificado/);
+  });
+
+  it('si ya está enlazado, entra con ese usuario (sin crear ni enlazar)', async () => {
+    const { service, prisma } = buildService();
+    prisma.oAuthAccount.findUnique.mockResolvedValue({ userId: 'u1', user });
+    const r = await service.loginWithProvider(perfil);
+    expect(r.user.email).toBe(user.email);
+    expect(prisma.user.create).not.toHaveBeenCalled();
+    expect(prisma.oAuthAccount.create).not.toHaveBeenCalled();
+  });
+
+  it('si existe un usuario con ese correo, ENLAZA el proveedor (misma cuenta)', async () => {
+    const { service, prisma } = buildService();
+    prisma.oAuthAccount.findUnique.mockResolvedValue(null);
+    prisma.user.findUnique.mockResolvedValue(user); // ya existe por correo
+    await service.loginWithProvider(perfil);
+    expect(prisma.user.create).not.toHaveBeenCalled(); // no crea otro
+    expect(prisma.oAuthAccount.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ userId: 'u1', provider: 'google' }) }),
+    );
+  });
+
+  it('si no existe, crea usuario SIN contraseña y con correo verificado, y enlaza', async () => {
+    const { service, prisma } = buildService();
+    prisma.oAuthAccount.findUnique.mockResolvedValue(null);
+    prisma.user.findUnique.mockResolvedValue(null); // no existe
+    prisma.user.create.mockResolvedValue({ ...user, id: 'u2', email: 'nueva@ejemplo.com' });
+    await service.loginWithProvider(perfil);
+    const arg = prisma.user.create.mock.calls[0][0].data;
+    expect(arg.passwordHash).toBeUndefined(); // sin contraseña
+    expect(arg.emailVerifiedAt).toBeInstanceOf(Date); // el proveedor ya verificó
+    expect(arg.email).toBe('nueva@ejemplo.com'); // normalizado
+    expect(prisma.oAuthAccount.create).toHaveBeenCalled();
   });
 });

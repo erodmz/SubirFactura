@@ -244,7 +244,14 @@ export class AuthService {
     newPassword: string,
   ): Promise<AuthTokens> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user || !(await bcrypt.compare(currentPassword, user.passwordHash))) {
+    if (!user?.passwordHash) {
+      // Cuenta que entra solo con Google/Facebook: no tiene contraseña que
+      // cambiar. Para ponerse una, usa el flujo de "olvidé mi contraseña".
+      throw new BadRequestException(
+        'Esta cuenta entra con acceso social. Usa "olvidé mi contraseña" para crear una.',
+      );
+    }
+    if (!(await bcrypt.compare(currentPassword, user.passwordHash))) {
       throw new UnauthorizedException('La contraseña actual no es correcta');
     }
 
@@ -326,6 +333,55 @@ export class AuthService {
       entidad: 'user',
       entidadId: stored.userId,
     });
+  }
+
+  /**
+   * Entra (o registra) con una identidad de proveedor ya verificada (Google,
+   * Facebook…). La identidad canónica es el correo:
+   *   1. Si ya hay una cuenta de ESE proveedor enlazada → esa es.
+   *   2. Si no, pero existe un usuario con ese correo → se ENLAZA el proveedor a
+   *      esa cuenta (así "entrar con Google" y con contraseña son la misma).
+   *   3. Si no existe → se crea un usuario sin contraseña, con el correo ya
+   *      verificado (el proveedor ya lo verificó).
+   * El correo debe venir verificado por el proveedor; si no, se rechaza para no
+   * permitir apropiarse de una cuenta ajena con un correo sin confirmar.
+   */
+  async loginWithProvider(perfil: {
+    provider: string;
+    providerAccountId: string;
+    email: string;
+    emailVerified: boolean;
+    nombre?: string;
+  }): Promise<{ user: ReturnType<AuthService['publicUser']>; tokens: AuthTokens }> {
+    const { provider, providerAccountId } = perfil;
+    const email = normalizeEmail(perfil.email);
+    if (!email || !perfil.emailVerified) {
+      throw new UnauthorizedException('El proveedor no entregó un correo verificado');
+    }
+
+    // 1) ¿ya enlazado?
+    const link = await this.prisma.oAuthAccount.findUnique({
+      where: { provider_providerAccountId: { provider, providerAccountId } },
+      include: { user: true },
+    });
+    if (link) {
+      await this.audit.log({ userId: link.userId, accion: `auth.login.${provider}`, entidad: 'user', entidadId: link.userId });
+      return { user: this.publicUser(link.user), tokens: await this.issueTokens(link.user) };
+    }
+
+    // 2) usuario existente por correo → enlazar; 3) o crear uno nuevo sin clave
+    const user =
+      (await this.prisma.user.findUnique({ where: { email } })) ??
+      (await this.prisma.user.create({
+        data: { email, nombre: perfil.nombre?.trim() || email.split('@')[0] || email, emailVerifiedAt: new Date() },
+      }));
+
+    await this.prisma.oAuthAccount.create({
+      data: { userId: user.id, provider, providerAccountId, email },
+    });
+    await this.audit.log({ userId: user.id, accion: `auth.link.${provider}`, entidad: 'user', entidadId: user.id });
+
+    return { user: this.publicUser(user), tokens: await this.issueTokens(user) };
   }
 
   private async issueTokens(user: User): Promise<AuthTokens> {

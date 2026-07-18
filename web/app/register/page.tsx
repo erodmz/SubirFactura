@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api, saveTokens, PENDING_INVITE_KEY, type Tokens } from '../../lib/api';
+import GoogleSignIn from '../../components/GoogleSignIn';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -53,6 +54,7 @@ export default function RegisterPage() {
           <input value={form.telefono} onChange={set('telefono')} />
           <button disabled={busy}>{busy ? 'Creando…' : 'Crear cuenta'}</button>
         </form>
+        <GoogleSignIn onError={setError} />
         <p className="muted" style={{ marginTop: 16 }}>
           ¿Ya tienes cuenta? <Link href="/login">Inicia sesión</Link>
         </p>

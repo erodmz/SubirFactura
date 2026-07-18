@@ -226,6 +226,29 @@ scripts/restore-backup.sh ./restore/subirfactura-*.age \
 
 ---
 
+## 7.5 Activar "Entrar con Google" (opcional)
+
+El acceso social viene **apagado** hasta que lo configures (sin credenciales, el
+botón no aparece y `/auth/google` responde "no configurado"). Para encenderlo:
+
+1. **Google Cloud Console** → *APIs y servicios* → *Credenciales* → *Crear
+   credenciales* → *ID de cliente de OAuth* → tipo **Aplicación web**.
+   - Orígenes de JavaScript autorizados: `https://TU_DOMINIO`
+   - Copia el **Client ID** (es público, no es secreto).
+2. En GitHub → *Settings* → *Secrets and variables* → *Actions* → pestaña
+   **Variables** (no Secrets): crea `GOOGLE_CLIENT_ID` con ese valor. El CD lo
+   hornea en el panel web (`NEXT_PUBLIC_*` es build-time).
+3. En el servidor, añade a `.env.prod`: `GOOGLE_CLIENT_ID=<el mismo valor>`
+   (lo usa el API para verificar los tokens).
+4. Vuelve a desplegar (push a main). El botón aparece solo.
+
+> La identidad es única por correo: si alguien ya tiene cuenta con contraseña y
+> entra con Google usando el mismo correo, se **enlazan** — es la misma cuenta.
+> Facebook y el botón en la app móvil (`google_sign_in`) reusan este mismo
+> backend; quedan como siguiente paso.
+
+---
+
 ## 8. Operación diaria
 
 ```bash
