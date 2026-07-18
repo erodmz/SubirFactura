@@ -44,11 +44,21 @@ export class DgiiController {
     return periodo;
   }
 
-  /** El 606 lo presenta cada contribuyente: todo lo que genera archivo exige el cliente. */
-  private assertCliente(clientId?: string): string {
+  /**
+   * El 606 lo presenta cada contribuyente: todo lo que genera archivo exige el
+   * cliente. Además valida el ALCANCE: un contador solo puede tocar el 606 de
+   * sus clientes asignados — si no, podía leer/cerrar el 606 de un cliente ajeno
+   * pasando su UUID por query (IDOR intra-despacho).
+   */
+  private async assertCliente(
+    orgId: string,
+    clientId: string | undefined,
+    membership: Membership,
+  ): Promise<string> {
     if (!clientId) {
       throw new BadRequestException('Selecciona el cliente (contribuyente) del reporte 606');
     }
+    await this.clients.assertClientInScope(orgId, clientId, membership);
     return clientId;
   }
 
@@ -60,9 +70,12 @@ export class DgiiController {
   @OrgRoles('org_admin', 'contador')
   async cierre(
     @Param('orgId') orgId: string,
+    @Req() req: { membership: Membership },
     @Query('periodo') periodo?: string,
     @Query('clientId') clientId?: string,
   ) {
+    // Con cliente: valida el alcance. Sin cliente: vista global del despacho.
+    if (clientId) await this.clients.assertClientInScope(orgId, clientId, req.membership);
     return this.dgii.cierreEstado(orgId, this.assertPeriodo(periodo), clientId || undefined);
   }
 
@@ -71,13 +84,14 @@ export class DgiiController {
   @OrgRoles('org_admin', 'contador')
   async preview(
     @Param('orgId') orgId: string,
+    @Req() req: { membership: Membership },
     @Query('periodo') periodo?: string,
     @Query('clientId') clientId?: string,
   ) {
     const result = await this.dgii.generate606(
       orgId,
       this.assertPeriodo(periodo),
-      this.assertCliente(clientId),
+      await this.assertCliente(orgId, clientId, req.membership),
     );
     return {
       cliente: result.cliente,
@@ -94,13 +108,14 @@ export class DgiiController {
   async download(
     @Param('orgId') orgId: string,
     @Res({ passthrough: true }) res: Response,
+    @Req() req: { membership: Membership },
     @Query('periodo') periodo?: string,
     @Query('clientId') clientId?: string,
   ) {
     const result = await this.dgii.generate606(
       orgId,
       this.assertPeriodo(periodo),
-      this.assertCliente(clientId),
+      await this.assertCliente(orgId, clientId, req.membership),
     );
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${result.nombreArchivo}"`);
@@ -113,13 +128,14 @@ export class DgiiController {
   async excel(
     @Param('orgId') orgId: string,
     @Res() res: Response,
+    @Req() req: { membership: Membership },
     @Query('periodo') periodo?: string,
     @Query('clientId') clientId?: string,
   ) {
     const { buffer, nombreArchivo } = await this.dgii.generate606Excel(
       orgId,
       this.assertPeriodo(periodo),
-      this.assertCliente(clientId),
+      await this.assertCliente(orgId, clientId, req.membership),
     );
     res.setHeader(
       'Content-Type',
@@ -135,13 +151,14 @@ export class DgiiController {
   async cerrar(
     @Param('orgId') orgId: string,
     @CurrentUser() user: AuthenticatedUser,
+    @Req() req: { membership: Membership },
     @Query('periodo') periodo?: string,
     @Query('clientId') clientId?: string,
   ) {
     return this.dgii.cerrarPeriodo606(
       orgId,
       this.assertPeriodo(periodo),
-      this.assertCliente(clientId),
+      await this.assertCliente(orgId, clientId, req.membership),
       user.userId,
     );
   }

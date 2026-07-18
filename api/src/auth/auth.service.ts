@@ -16,6 +16,9 @@ import { MailService } from '../mail/mail.service';
 import { RegisterDto } from './dto/auth.dto';
 
 const BCRYPT_ROUNDS = 10;
+// Hash bcrypt real (de una contraseña aleatoria) para comparar cuando el usuario
+// no existe: iguala el costo de tiempo del camino "usuario válido".
+const DUMMY_HASH = '$2b$10$CwTycUXWue0Thq9StjUM0uJ8Dvfr5g3n2zN6q9mF3xr1p0zK8sVaC';
 
 /** Normaliza el correo para búsqueda/almacenamiento: sin espacios y en minúsculas. */
 function normalizeEmail(email: string): string {
@@ -160,7 +163,10 @@ export class AuthService {
     }
 
     const user = await this.prisma.user.findUnique({ where: { email } });
-    if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+    // bcrypt.compare siempre, aun sin usuario (contra un hash fijo), para que el
+    // tiempo de respuesta no revele si el correo existe (enumeración por timing).
+    const ok = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_HASH);
+    if (!user || !ok) {
       this.recordLoginFailure(email, now);
       throw new UnauthorizedException('Credenciales inválidas');
     }

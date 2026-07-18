@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -88,7 +89,33 @@ export class ClientsService {
     return this.prisma.forOrg(orgId).clientProfile.findMany(listArgs);
   }
 
-  async get(orgId: string, clientId: string) {
+  /**
+   * Aislamiento DENTRO del despacho (la RLS solo aísla entre despachos). Un
+   * contador solo alcanza a sus clientes ASIGNADOS; un cliente, a sus negocios
+   * habilitados; el org_admin, a todos. Se aplica en TODA operación que reciba
+   * un clientId, no solo en las listas — si no, un contador podía leer/cerrar
+   * el 606 de un cliente ajeno pasando el UUID por query (IDOR intra-despacho).
+   */
+  async assertClientInScope(orgId: string, clientId: string, membership: Membership) {
+    if (membership.rol === 'org_admin') return;
+    if (membership.rol === 'contador') {
+      const asignado = await this.prisma.assignment.findFirst({
+        where: { contadorMembershipId: membership.id, clientProfileId: clientId },
+        select: { clientProfileId: true },
+      });
+      if (!asignado) throw new ForbiddenException('No tienes acceso a este cliente');
+      return;
+    }
+    // cliente: solo sus negocios habilitados
+    const link = await this.prisma.clientMember.findFirst({
+      where: { userId: membership.userId, clientProfileId: clientId },
+      select: { clientProfileId: true },
+    });
+    if (!link) throw new ForbiddenException('No tienes acceso a este cliente');
+  }
+
+  async get(orgId: string, clientId: string, membership?: Membership) {
+    if (membership) await this.assertClientInScope(orgId, clientId, membership);
     const client = await this.prisma.forOrg(orgId).clientProfile.findUnique({
       where: { id: clientId },
     });
@@ -105,8 +132,14 @@ export class ClientsService {
     return { ...client, contadores: assignments.map((a) => a.contadorMembership) };
   }
 
-  async update(orgId: string, clientId: string, actorUserId: string, dto: UpdateClientDto) {
-    await this.get(orgId, clientId);
+  async update(
+    orgId: string,
+    clientId: string,
+    actorUserId: string,
+    dto: UpdateClientDto,
+    membership?: Membership,
+  ) {
+    await this.get(orgId, clientId, membership);
     const client = await this.prisma.forOrg(orgId).clientProfile.update({
       where: { id: clientId },
       data: { razonSocial: dto.razonSocial ?? undefined, userId: dto.userId },
@@ -196,8 +229,8 @@ export class ClientsService {
   // ── Usuarios que suben facturas del cliente (muchos a muchos) ──────────────
 
   /** Lista los usuarios habilitados para subir facturas de este cliente. */
-  async listMembers(orgId: string, clientId: string) {
-    await this.get(orgId, clientId);
+  async listMembers(orgId: string, clientId: string, membership?: Membership) {
+    await this.get(orgId, clientId, membership);
     const links = await this.prisma.clientMember.findMany({
       where: { clientProfileId: clientId },
       include: { user: { select: { id: true, nombre: true, email: true } } },
@@ -207,8 +240,14 @@ export class ClientsService {
   }
 
   /** Habilita a un usuario (ya miembro de la organización) a subir facturas del cliente. */
-  async addMember(orgId: string, clientId: string, userId: string, actorUserId: string) {
-    await this.get(orgId, clientId);
+  async addMember(
+    orgId: string,
+    clientId: string,
+    userId: string,
+    actorUserId: string,
+    actorMembership?: Membership,
+  ) {
+    await this.get(orgId, clientId, actorMembership);
     const membership = await this.prisma.membership.findUnique({
       where: { userId_organizationId: { userId, organizationId: orgId } },
     });
@@ -234,8 +273,14 @@ export class ClientsService {
     });
   }
 
-  async removeMember(orgId: string, clientId: string, userId: string, actorUserId: string) {
-    await this.get(orgId, clientId);
+  async removeMember(
+    orgId: string,
+    clientId: string,
+    userId: string,
+    actorUserId: string,
+    actorMembership?: Membership,
+  ) {
+    await this.get(orgId, clientId, actorMembership);
     await this.prisma.clientMember.deleteMany({
       where: { clientProfileId: clientId, userId },
     });

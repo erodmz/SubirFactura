@@ -42,8 +42,12 @@ export class ClientsController {
 
   @Get(':clientId')
   @OrgRoles('org_admin', 'contador')
-  get(@Param('orgId') orgId: string, @Param('clientId') clientId: string) {
-    return this.clients.get(orgId, clientId);
+  get(
+    @Param('orgId') orgId: string,
+    @Param('clientId') clientId: string,
+    @Req() req: { membership: Membership },
+  ) {
+    return this.clients.get(orgId, clientId, req.membership);
   }
 
   @Patch(':clientId')
@@ -52,9 +56,10 @@ export class ClientsController {
     @Param('orgId') orgId: string,
     @Param('clientId') clientId: string,
     @CurrentUser() user: AuthenticatedUser,
+    @Req() req: { membership: Membership },
     @Body() dto: UpdateClientDto,
   ) {
-    return this.clients.update(orgId, clientId, user.userId, dto);
+    return this.clients.update(orgId, clientId, user.userId, dto, req.membership);
   }
 
   @Delete(':clientId')
@@ -95,8 +100,12 @@ export class ClientsController {
 
   @Get(':clientId/members')
   @OrgRoles('org_admin', 'contador')
-  listMembers(@Param('orgId') orgId: string, @Param('clientId') clientId: string) {
-    return this.clients.listMembers(orgId, clientId);
+  listMembers(
+    @Param('orgId') orgId: string,
+    @Param('clientId') clientId: string,
+    @Req() req: { membership: Membership },
+  ) {
+    return this.clients.listMembers(orgId, clientId, req.membership);
   }
 
   @Post(':clientId/members')
@@ -105,9 +114,10 @@ export class ClientsController {
     @Param('orgId') orgId: string,
     @Param('clientId') clientId: string,
     @CurrentUser() user: AuthenticatedUser,
+    @Req() req: { membership: Membership },
     @Body() dto: AddClientMemberDto,
   ) {
-    return this.clients.addMember(orgId, clientId, dto.userId, user.userId);
+    return this.clients.addMember(orgId, clientId, dto.userId, user.userId, req.membership);
   }
 
   @Delete(':clientId/members/:userId')
@@ -118,7 +128,8 @@ export class ClientsController {
     @Param('clientId') clientId: string,
     @Param('userId') userId: string,
     @CurrentUser() user: AuthenticatedUser,
+    @Req() req: { membership: Membership },
   ) {
-    return this.clients.removeMember(orgId, clientId, userId, user.userId);
+    return this.clients.removeMember(orgId, clientId, userId, user.userId, req.membership);
   }
 }

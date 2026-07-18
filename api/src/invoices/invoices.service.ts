@@ -899,7 +899,14 @@ export class InvoicesService {
     periodoFiscal: string,
     formaPago: string,
     user: AuthenticatedUser,
+    membership: Membership,
   ) {
+    // Alcance intra-despacho: un contador solo edita en lote las facturas de sus
+    // clientes asignados (antes podía alterar el 606 de un cliente ajeno).
+    const scope = await this.invoiceScope(user, membership);
+    if (scope && !scope.ids.includes(clientProfileId)) {
+      throw new ForbiddenException('No tienes acceso a este cliente');
+    }
     const result = await this.prisma.forOrg(orgId).invoice.updateMany({
       where: {
         organizationId: orgId,

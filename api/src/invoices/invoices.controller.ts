@@ -55,6 +55,7 @@ export class InvoicesController {
   bulkFormaPago(
     @Param('orgId') orgId: string,
     @CurrentUser() user: AuthenticatedUser,
+    @Req() req: { membership: Membership },
     @Body() dto: BulkFormaPagoDto,
   ) {
     return this.invoices.bulkFormaPago(
@@ -63,6 +64,7 @@ export class InvoicesController {
       dto.periodoFiscal,
       dto.formaPago,
       user,
+      req.membership,
     );
   }
 
