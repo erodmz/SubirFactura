@@ -7,6 +7,7 @@ import 'client_invoices_screen.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
 import 'org_selector_screen.dart';
+import 'workspace_selector_screen.dart';
 
 /// Decide a dónde entrar según el rol y los accesos:
 /// - Contador/admin → despacho(s) contable(s): 1 → directo, varios → selector.
@@ -100,21 +101,27 @@ class _HomeRouterState extends State<HomeRouter> {
 
         final me = snapshot.data!;
 
-        // Contador/admin: trabaja a nivel de despacho.
+        // Un mismo usuario puede tener DOS mundos: despacho(s) contable(s) y
+        // negocio(s) propios donde sube sus facturas (el dueño que además lleva
+        // sus empresas). Antes, si eras contador, la app te ocultaba tus
+        // negocios; ahora se contemplan ambos.
         final despachos = me.contadorMemberships;
+        final negocios = me.clientProfiles;
+
+        // Caso mixto: ofrecer ambos mundos en un selector unificado.
+        if (despachos.isNotEmpty && negocios.isNotEmpty) {
+          return WorkspaceSelectorScreen(me: me, despachos: despachos, negocios: negocios);
+        }
+
+        // Solo despacho(s): 1 → directo, varios → selector de despachos.
         if (despachos.isNotEmpty) {
           if (despachos.length == 1) {
-            return HomeScreen(
-              membership: despachos.first,
-              me: me,
-              canSwitchOrg: false,
-            );
+            return HomeScreen(membership: despachos.first, me: me, canSwitchOrg: false);
           }
           return OrgSelectorScreen(me: me, memberships: despachos);
         }
 
-        // Cliente: ve sus negocios, no el despacho.
-        final negocios = me.clientProfiles;
+        // Solo negocio(s).
         if (negocios.isEmpty) {
           return _message(
             'Aún no tienes un negocio asignado.\nPide a tu contador que te habilite para subir facturas.',
