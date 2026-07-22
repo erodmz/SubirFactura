@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, apiObjectUrl } from '../../lib/api';
+import SuccessCheck from '../../components/SuccessCheck';
 import type { AdminCreatedOrg, AdminOrg } from '../../lib/types';
 
 const PLANES = ['Básico', 'Pro', 'Empresarial'];
@@ -29,6 +30,7 @@ export default function AdminPage() {
   });
   const [created, setCreated] = useState<AdminCreatedOrg | null>(null);
   const [copied, setCopied] = useState(false);
+  const [approvedMsg, setApprovedMsg] = useState('');
 
   const load = useCallback(() => {
     api<AdminOrg[]>('/api/admin/organizations')
@@ -110,6 +112,8 @@ export default function AdminPage() {
     setError('');
     try {
       await api(`/api/admin/organizations/${org.id}/aprobar`, { method: 'POST' });
+      setApprovedMsg(`"${org.nombre}" aprobada — sus miembros ya pueden entrar`);
+      setTimeout(() => setApprovedMsg(''), 3000);
       load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error inesperado');
@@ -167,6 +171,15 @@ export default function AdminPage() {
       <Link href="/app">← Volver</Link>
       <h1>Plataforma (super-admin)</h1>
       {error && <div className="error">{error}</div>}
+      {approvedMsg && (
+        <p
+          className="anim-pop"
+          style={{ color: 'var(--ok)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}
+        >
+          <SuccessCheck />
+          {approvedMsg}
+        </p>
+      )}
 
       <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -223,9 +236,10 @@ export default function AdminPage() {
         )}
 
         {created && (
-          <div className="card" style={{ marginTop: '1rem' }}>
-            <strong>
-              ✓ {created.nombre} creada (plan {created.plan.nombre})
+          <div className="card anim-pop" style={{ marginTop: '1rem' }}>
+            <strong style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <SuccessCheck />
+              {created.nombre} creada (plan {created.plan.nombre})
             </strong>
             {created.invitation ? (
               <p style={{ marginBottom: 0 }}>

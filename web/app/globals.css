@@ -614,6 +614,74 @@ th {
   cursor: default;
 }
 
+/* ── Micro-animaciones (discretas: el app se siente vivo, no un circo) ────── */
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* Cada tarjeta entra con un respiro sutil al montarse. */
+.card {
+  animation: fade-up 0.22s ease both;
+}
+
+@keyframes pop-in {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+.anim-pop {
+  animation: pop-in 0.35s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+
+/* Check de éxito: el círculo y la palomita se DIBUJAN (stroke-dash). */
+.success-check {
+  flex-shrink: 0;
+}
+.success-check .ring {
+  stroke-dasharray: 76;
+  stroke-dashoffset: 76;
+  animation: draw-stroke 0.45s ease-out forwards;
+}
+.success-check .tick {
+  stroke-dasharray: 22;
+  stroke-dashoffset: 22;
+  animation: draw-stroke 0.3s ease-out 0.35s forwards;
+}
+@keyframes draw-stroke {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Menos movimiento para quien lo pide (accesibilidad). */
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .anim-pop,
+  .success-check .ring,
+  .success-check .tick {
+    animation: none;
+  }
+  .success-check .ring,
+  .success-check .tick {
+    stroke-dashoffset: 0;
+  }
+}
+
 /* Control segmentado (píldora): una opción entre pocas, sin radios crudos. */
 .segmented {
   display: inline-flex;

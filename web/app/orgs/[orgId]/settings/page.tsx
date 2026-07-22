@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { api, apiUpload, apiUrl } from '../../../../lib/api';
 import Toggle from '../../../../components/Toggle';
+import SuccessCheck from '../../../../components/SuccessCheck';
 import type { PlanInfo } from '../../../../lib/types';
 
 interface LimitUsage {
@@ -133,7 +134,19 @@ export default function OrgSettingsPage() {
         <div className="card" data-tour="plan">
           <h2>Tu plan y consumo</h2>
           {planMsg && (
-            <p style={{ color: 'var(--ok, #34d399)', fontWeight: 600 }}>{planMsg}</p>
+            <p
+              className="anim-pop"
+              style={{
+                color: 'var(--ok)',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              <SuccessCheck />
+              {planMsg}
+            </p>
           )}
           <p className="muted" style={{ marginTop: 0 }}>
             Plan actual: <strong>{usage.plan?.nombre ?? '—'}</strong>

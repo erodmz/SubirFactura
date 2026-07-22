@@ -95,11 +95,15 @@ export default function OnboardingPage() {
         .ob-progress .seg.done { opacity:1; }
         .ob-progress .seg.done .bar { opacity:1; background: var(--accent, #6c7cff); }
         .ob-plans { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px; margin:14px 0; }
-        .ob-plan { text-align:left; border:2px solid transparent; border-radius:12px; padding:14px; cursor:pointer;
-                   background: rgba(127,127,127,.08); transition: border-color .15s, transform .15s; }
-        .ob-plan:hover { transform: translateY(-2px); }
-        .ob-plan.sel { border-color: var(--accent, #6c7cff); }
-        .ob-plan .precio { font-size:1.15rem; font-weight:700; margin:.35rem 0; }
+        /* Son <button>: anular el blanco-sobre-brand del botón global, que en
+           tema claro dejaba el texto invisible. */
+        .ob-plan { text-align:left; border:2px solid var(--border); border-radius:12px; padding:14px;
+                   cursor:pointer; background: var(--bg-soft); color: var(--text);
+                   transition: border-color .15s, transform .15s, box-shadow .15s; }
+        .ob-plan:hover { transform: translateY(-2px); background: var(--bg-soft); box-shadow: 0 6px 18px rgba(0,0,0,.08); }
+        .ob-plan.sel { border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 22%, transparent); }
+        .ob-plan .precio { font-size:1.15rem; font-weight:700; margin:.35rem 0; color: var(--brand); }
+        .ob-plan ul { color: var(--muted); }
         .ob-plan ul { margin:.4rem 0 0; padding-left:1.1rem; font-size:.85rem; }
         .ob-plan ul li { margin:.15rem 0; }
         @keyframes ob-pop { 0% { transform: scale(.6); opacity:0 } 100% { transform: scale(1); opacity:1 } }

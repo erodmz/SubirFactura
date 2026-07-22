@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '../lib/api';
 import Toggle from './Toggle';
+import SuccessCheck from './SuccessCheck';
 
 /**
  * Registro MANUAL de un gasto — para cuando no hay comprobante que fotografiar
@@ -72,16 +73,21 @@ export default function ManualInvoiceModal({
           },
         },
       );
-      if (res.aprobacionRequerida) {
-        setAviso('Este negocio exige aprobación: el gasto quedó en revisión.');
-        setTimeout(() => {
+      // Un respiro con el check dibujándose antes de cerrar: se SIENTE guardado.
+      setAviso(
+        res.aprobacionRequerida
+          ? 'Este negocio exige aprobación: el gasto quedó en revisión.'
+          : res.estado === 'validada'
+            ? 'Gasto registrado y validado.'
+            : 'Gasto registrado — quedó en revisión.',
+      );
+      setTimeout(
+        () => {
           onCreated();
           onClose();
-        }, 1600);
-      } else {
-        onCreated();
-        onClose();
-      }
+        },
+        res.aprobacionRequerida ? 1600 : 900,
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error inesperado');
       setBusy(false);
@@ -116,7 +122,21 @@ export default function ManualInvoiceModal({
           cuando no hay nada que fotografiar.
         </p>
         {error && <div className="error">{error}</div>}
-        {aviso && <p style={{ color: 'var(--accent, #6c7cff)', fontWeight: 600 }}>{aviso}</p>}
+        {aviso && (
+          <p
+            className="anim-pop"
+            style={{
+              color: 'var(--ok)',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <SuccessCheck />
+            {aviso}
+          </p>
+        )}
         <form onSubmit={guardar}>
           {!clienteFijo && (
             <>
