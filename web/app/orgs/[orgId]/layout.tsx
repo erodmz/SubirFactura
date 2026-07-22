@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { useParams, usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api, apiUrl, clearTokens, getTokens } from '../../../lib/api';
@@ -8,6 +8,7 @@ import ThemeToggle from '../../../components/ThemeToggle';
 import Logo from '../../../components/Logo';
 import NotificationsBell from '../../../components/NotificationsBell';
 import VerifyEmailBanner from '../../../components/VerifyEmailBanner';
+import Tour from '../../../components/Tour';
 import type { Me } from '../../../lib/types';
 
 const NAV = [
@@ -107,6 +108,7 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
                 href={href}
                 className={active ? 'side-link active' : 'side-link'}
                 onClick={() => setDrawerOpen(false)}
+                data-tour={`nav-${item.key.replace('/', '') || 'resumen'}`}
               >
                 <span className="side-icon" aria-hidden>
                   {item.icon}
@@ -151,6 +153,9 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
                 <Link href="/settings" className="user-dropdown-item">
                   Mi cuenta
                 </Link>
+                <Link href={`${pathname}?tour=1`} className="user-dropdown-item">
+                  Ver guía de inicio
+                </Link>
                 {me.isSuperAdmin && (
                   <Link href="/admin" className="user-dropdown-item">
                     Panel super-admin
@@ -167,6 +172,11 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
           {me && me.emailVerified === false && <VerifyEmailBanner email={me.email} />}
           {children}
         </main>
+        {rol && (
+          <Suspense fallback={null}>
+            <Tour rol={rol} />
+          </Suspense>
+        )}
       </div>
     </div>
   );

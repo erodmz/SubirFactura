@@ -19,6 +19,7 @@ import { OrgRoles } from '../common/decorators/org-roles.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-user.decorator';
 import {
+  ChangePlanDto,
   CreateOrganizationDto,
   SetValidatePermissionDto,
   SetReportsPermissionDto,
@@ -89,6 +90,17 @@ export class OrganizationsController {
   @OrgRoles('org_admin', 'contador')
   usage(@Param('orgId') orgId: string) {
     return this.planLimits.getUsage(orgId);
+  }
+
+  /** Cambio de plan en autoservicio (cobro manual: notifica al operador). */
+  @Post(':orgId/plan')
+  @OrgRoles('org_admin')
+  changePlan(
+    @Param('orgId') orgId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ChangePlanDto,
+  ) {
+    return this.organizations.changePlan(orgId, user.userId, dto.planNombre);
   }
 
   @Get(':orgId/members')

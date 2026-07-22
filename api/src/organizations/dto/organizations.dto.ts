@@ -8,6 +8,17 @@ export class CreateOrganizationDto {
   @IsOptional()
   @IsString()
   rnc?: string;
+
+  /** Plan elegido en el onboarding (default: Básico). Cobro manual en v1. */
+  @IsOptional()
+  @IsString()
+  planNombre?: string;
+}
+
+export class ChangePlanDto {
+  @IsString()
+  @IsNotEmpty()
+  planNombre!: string;
 }
 
 export class UpdateOrganizationDto {

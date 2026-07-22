@@ -249,6 +249,15 @@ export const ESTADO_LABELS: Record<string, string> = {
   duplicada: 'Duplicada',
 };
 
+/** Catálogo de planes (GET /api/plans) — la verdad vive en la BD. */
+export interface PlanInfo {
+  nombre: string;
+  maxContadores: number;
+  maxClientes: number;
+  maxFacturasMes: number;
+  precio: string; // Decimal serializado, ej. "1995.00"
+}
+
 export interface AdminOrg {
   id: string;
   nombre: string;

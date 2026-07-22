@@ -41,6 +41,10 @@ export class AdminService {
     if (dto.rnc && !validateTaxId(dto.rnc).valid) {
       throw new BadRequestException('RNC inválido');
     }
+    if (dto.rnc) {
+      const dup = await this.prisma.organization.findUnique({ where: { rnc: dto.rnc } });
+      if (dup) throw new BadRequestException(`Ya existe una empresa con el RNC ${dto.rnc}: ${dup.nombre}`);
+    }
     const planNombre = dto.planNombre ?? 'Básico';
     const plan = await this.prisma.plan.findUnique({ where: { nombre: planNombre } });
     if (!plan) throw new NotFoundException(`Plan no encontrado: ${planNombre}`);

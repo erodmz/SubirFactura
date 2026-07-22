@@ -20,10 +20,7 @@ const TOOLBAR_FROM = 6;
 export default function HomePage() {
   const router = useRouter();
   const [me, setMe] = useState<Me | null>(null);
-  const [nombre, setNombre] = useState('');
-  const [rnc, setRnc] = useState('');
   const [error, setError] = useState('');
-  const [creating, setCreating] = useState(false);
 
   const [q, setQ] = useState('');
   const [sort, setSort] = useState('az');
@@ -51,20 +48,6 @@ export default function HomePage() {
       localStorage.setItem('facturard-orgview', v);
     } catch {
       /* ignore */
-    }
-  }
-
-  async function createOrg(e: React.FormEvent) {
-    e.preventDefault();
-    setError('');
-    try {
-      const org = await api<{ id: string }>('/api/organizations', {
-        method: 'POST',
-        body: { nombre, rnc: rnc || undefined },
-      });
-      router.push(`/orgs/${org.id}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error inesperado');
     }
   }
 
@@ -126,37 +109,12 @@ export default function HomePage() {
                       : 'Elige una empresa para continuar.'}
                 </p>
               </div>
-              {!creating && (
-                <button onClick={() => setCreating(true)} style={{ margin: 0 }}>
-                  + Crear empresa
-                </button>
-              )}
+              <button onClick={() => router.push('/onboarding')} style={{ margin: 0 }}>
+                + Crear empresa
+              </button>
             </div>
 
             {error && <div className="error">{error}</div>}
-
-            {creating && (
-              <div className="card" style={{ maxWidth: 420 }}>
-                <h2>Nueva empresa contable</h2>
-                <form onSubmit={createOrg}>
-                  <label>Nombre de la empresa</label>
-                  <input value={nombre} onChange={(e) => setNombre(e.target.value)} required autoFocus />
-                  <label>RNC (opcional)</label>
-                  <input value={rnc} onChange={(e) => setRnc(e.target.value)} />
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button style={{ marginTop: 12 }}>Crear</button>
-                    <button
-                      type="button"
-                      className="secondary"
-                      style={{ marginTop: 12 }}
-                      onClick={() => setCreating(false)}
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                </form>
-              </div>
-            )}
 
             {showToolbar && (
               <div className="select-toolbar">
@@ -220,7 +178,7 @@ export default function HomePage() {
                     Créala para tener tu espacio de despacho: desde ahí agregas a tus clientes y
                     empiezas a recibir sus facturas.
                   </p>
-                  {!creating && <button onClick={() => setCreating(true)}>+ Crear empresa contable</button>}
+                  <button onClick={() => router.push('/onboarding')}>+ Crear empresa contable</button>
                 </div>
               ) : (
                 <p className="muted" style={{ marginTop: 20 }}>
@@ -238,8 +196,8 @@ export default function HomePage() {
                 {shown.map((m) => (
                   <OrgTile key={m.membershipId} m={m} />
                 ))}
-                {!showToolbar && !creating && (
-                  <button className="org-card org-card-new" onClick={() => setCreating(true)}>
+                {!showToolbar && (
+                  <button className="org-card org-card-new" onClick={() => router.push('/onboarding')}>
                     <span className="org-initial org-initial-ghost">+</span>
                     <strong>Crear empresa contable</strong>
                     <span className="muted">Añade un despacho nuevo</span>

@@ -39,6 +39,32 @@ export interface RuptureAlert {
 }
 
 /**
+ * Evento de NEGOCIO para el operador de la plataforma (nueva empresa, cambio de
+ * plan). A diferencia de alertRupture: sin cooldown (cada evento importa) y el
+ * mensaje puede llevar el nombre de la empresa — es información del propio
+ * negocio del operador, no PII de contribuyentes (RNC/NCF siguen prohibidos).
+ * Best-effort: nunca lanza.
+ */
+export async function notifyBusinessEvent(title: string, message: string): Promise<void> {
+  console.log(`[EVENTO] ${title} :: ${message}`);
+  if (!NTFY_TOPIC) return;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 4000);
+  try {
+    await fetch(`${NTFY_URL.replace(/\/$/, '')}/${NTFY_TOPIC}`, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: { Title: title, Tags: 'moneybag,subirfactura' },
+      body: message,
+    });
+  } catch {
+    // sin internet / ntfy caído: el log ya quedó.
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
  * Registra (y notifica) una ruptura. Siempre deja el log; envía a ntfy si está
  * configurado y no está en cooldown. No lanza jamás.
  */

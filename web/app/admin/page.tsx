@@ -14,6 +14,7 @@ const PLANES = ['Básico', 'Pro', 'Empresarial'];
  */
 export default function AdminPage() {
   const [orgs, setOrgs] = useState<AdminOrg[]>([]);
+  const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<string | null>(null);
   const [form, setForm] = useState({ planNombre: 'Básico', estado: 'activa', fin: '' });
   const [error, setError] = useState('');
@@ -111,6 +112,18 @@ export default function AdminPage() {
     setTimeout(() => setCopied(false), 2000);
   }
 
+  // Búsqueda por nombre o RNC (el RNC se compara sin guiones ni espacios).
+  const digits = (s: string) => s.replace(/[^0-9]/g, '');
+  const query = search.trim().toLowerCase();
+  const queryDigits = digits(query);
+  const visible = query
+    ? orgs.filter(
+        (o) =>
+          o.nombre.toLowerCase().includes(query) ||
+          (queryDigits.length > 0 && o.rnc != null && digits(o.rnc).includes(queryDigits)),
+      )
+    : orgs;
+
   return (
     <main>
       <Link href="/app">← Volver</Link>
@@ -194,6 +207,16 @@ export default function AdminPage() {
           </div>
         )}
 
+        <div style={{ marginTop: '1rem' }}>
+          <input
+            type="search"
+            placeholder="Buscar por nombre o RNC…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            aria-label="Buscar empresa por nombre o RNC"
+          />
+        </div>
+
         <table>
           <thead>
             <tr>
@@ -205,7 +228,14 @@ export default function AdminPage() {
             </tr>
           </thead>
           <tbody>
-            {orgs.map((org) => (
+            {visible.length === 0 && (
+              <tr>
+                <td colSpan={5} className="muted">
+                  {query ? 'Ninguna empresa coincide con la búsqueda.' : 'Aún no hay empresas.'}
+                </td>
+              </tr>
+            )}
+            {visible.map((org) => (
               <tr key={org.id} style={org.deletedAt ? { opacity: 0.55 } : undefined}>
                 <td>
                   {org.nombre}

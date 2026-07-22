@@ -150,7 +150,9 @@ model Invitation {
 model Organization {
   id                 String              @id @default(uuid())
   nombre             String
-  rnc                String?
+  // Único cuando existe (Postgres permite varios NULL): dos despachos no
+  // pueden compartir RNC.
+  rnc                String?             @unique
   planId             String?             @map("plan_id")
   estadoSuscripcion  SubscriptionStatus? @map("estado_suscripcion")
   // Si está activo, la revisión exige que la aritmética (subtotal+impuestos=total)

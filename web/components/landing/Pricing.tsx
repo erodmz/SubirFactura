@@ -15,8 +15,10 @@ interface Plan {
 
 const PLANES: Plan[] = [
   {
-    nombre: 'Gratis',
-    gancho: 'Para empezar hoy mismo',
+    // Mismo nombre que en la BD (seeds): el usuario ve "Básico" aquí, en el
+    // onboarding y en configuración — sin bautizos distintos por pantalla.
+    nombre: 'Básico',
+    gancho: 'Gratis, para empezar hoy mismo',
     precioMes: 0,
     cta: 'Comenzar gratis',
     ctaHref: '/register',
@@ -34,7 +36,7 @@ const PLANES: Plan[] = [
       'Hasta 50 clientes',
       '1,500 facturas al mes',
       'Verificación DGII en vivo',
-      'Todo lo del plan Gratis',
+      'Todo lo del plan Básico',
     ],
   },
   {

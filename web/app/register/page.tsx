@@ -28,7 +28,9 @@ export default function RegisterPage() {
       });
       saveTokens(tokens);
       const pendingInvite = localStorage.getItem(PENDING_INVITE_KEY);
-      router.push(pendingInvite ? `/invitations/${pendingInvite}` : '/app');
+      // Sin invitación pendiente = contador que llega del landing a montar su
+      // despacho → onboarding guiado (nombre + plan).
+      router.push(pendingInvite ? `/invitations/${pendingInvite}` : '/onboarding');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error inesperado');
       setBusy(false);
