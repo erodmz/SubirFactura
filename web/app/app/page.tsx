@@ -56,6 +56,13 @@ export default function HomePage() {
     router.replace('/');
   }
 
+  // El super-admin no crea empresas PARA SÍ: las crea para un contador (con su
+  // plan e invitación de admin) desde el panel de plataforma. El onboarding
+  // "monta TU despacho" es solo para el autoservicio.
+  function crearEmpresa() {
+    router.push(me?.isSuperAdmin ? '/admin?crear=1' : '/onboarding');
+  }
+
   const all = me?.memberships ?? [];
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -108,7 +115,7 @@ export default function HomePage() {
                       : 'Elige una empresa para continuar.'}
                 </p>
               </div>
-              <button onClick={() => router.push('/onboarding')} style={{ margin: 0 }}>
+              <button onClick={crearEmpresa} style={{ margin: 0 }}>
                 + Crear empresa
               </button>
             </div>
@@ -177,7 +184,7 @@ export default function HomePage() {
                     Créala para tener tu espacio de despacho: desde ahí agregas a tus clientes y
                     empiezas a recibir sus facturas.
                   </p>
-                  <button onClick={() => router.push('/onboarding')}>+ Crear empresa contable</button>
+                  <button onClick={crearEmpresa}>+ Crear empresa contable</button>
                 </div>
               ) : (
                 <p className="muted" style={{ marginTop: 20 }}>
@@ -196,10 +203,14 @@ export default function HomePage() {
                   <OrgTile key={m.membershipId} m={m} />
                 ))}
                 {!showToolbar && (
-                  <button className="org-card org-card-new" onClick={() => router.push('/onboarding')}>
+                  <button className="org-card org-card-new" onClick={crearEmpresa}>
                     <span className="org-initial org-initial-ghost">+</span>
                     <strong>Crear empresa contable</strong>
-                    <span className="muted">Añade un despacho nuevo</span>
+                    <span className="muted">
+                      {me.isSuperAdmin
+                        ? 'Créala para un contador e invita a su admin'
+                        : 'Añade un despacho nuevo'}
+                    </span>
                   </button>
                 )}
               </div>

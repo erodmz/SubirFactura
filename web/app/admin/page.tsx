@@ -40,6 +40,14 @@ export default function AdminPage() {
 
   useEffect(load, [load]);
 
+  // Llegada desde "+ Crear empresa" del selector: formulario abierto de una vez.
+  // (window.location y no useSearchParams: evita el límite de Suspense de Next.)
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('crear') === '1') {
+      setCreating(true);
+    }
+  }, []);
+
   async function save(orgId: string) {
     setError('');
     try {
@@ -219,13 +227,16 @@ export default function AdminPage() {
               </select>
             </div>
             <div>
-              <label>Correo del admin (opcional)</label>
+              <label>Correo del contador admin</label>
               <input
                 type="email"
                 value={createForm.adminEmail}
                 onChange={(e) => setCreateForm((f) => ({ ...f, adminEmail: e.target.value }))}
                 placeholder="contador@despacho.do"
               />
+              <p className="muted" style={{ margin: '4px 0 0', fontSize: '.78rem' }}>
+                Recibe el enlace de invitación y queda como administrador de la empresa.
+              </p>
             </div>
             <div style={{ flex: '0 0 auto', alignSelf: 'flex-end' }}>
               <button type="button" onClick={createOrg} disabled={!createForm.nombre.trim()}>

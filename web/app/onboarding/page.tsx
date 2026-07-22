@@ -35,6 +35,13 @@ export default function OnboardingPage() {
       router.replace('/login');
       return;
     }
+    // El super-admin no monta "su" despacho: crea empresas PARA otros (con
+    // plan e invitación de admin) desde el panel de plataforma.
+    api<{ isSuperAdmin?: boolean }>('/api/me')
+      .then((me) => {
+        if (me.isSuperAdmin) router.replace('/admin?crear=1');
+      })
+      .catch(() => {});
     api<PlanInfo[]>('/api/plans').then(setPlanes).catch(() => {});
   }, [router]);
 
