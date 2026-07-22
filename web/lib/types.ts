@@ -48,6 +48,8 @@ export interface Client {
   rncOCedula: string;
   razonSocial: string;
   userId: string | null;
+  /** Logo del negocio, servido por el API (null si no ha subido). */
+  logoUrl?: string | null;
   /** Política de aprobación de registros manuales: hereda de la empresa o la fuerza/exime. */
   aprobacionManual?: 'heredar' | 'siempre' | 'nunca';
   contadores?: Member[];

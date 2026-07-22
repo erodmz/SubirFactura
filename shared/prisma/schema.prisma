@@ -236,6 +236,9 @@ model ClientProfile {
   // Política de aprobación de registros manuales de ESTE cliente:
   // heredar (default de la empresa) · siempre · nunca.
   aprobacionManual ManualApprovalPolicy @default(heredar) @map("aprobacion_manual")
+  // Logo del negocio (objeto en MinIO): identifica al cliente de un vistazo
+  // en la lista/tarjetas. Se sirve por el API, igual que el de la empresa.
+  logoKey        String?      @map("logo_key")
   createdAt      DateTime     @default(now()) @map("created_at")
   updatedAt      DateTime     @updatedAt @map("updated_at")
   organization   Organization @relation(fields: [organizationId], references: [id])

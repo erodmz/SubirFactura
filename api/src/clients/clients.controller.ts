@@ -8,10 +8,15 @@ import {
   Patch,
   Post,
   Req,
+  StreamableFile,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import type { Membership } from '@facturard/shared/db';
 import { ClientsService } from './clients.service';
 import { OrgRoles } from '../common/decorators/org-roles.decorator';
+import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-user.decorator';
 import {
   AddClientMemberDto,
@@ -49,6 +54,39 @@ export class ClientsController {
     @Req() req: { membership: Membership },
   ) {
     return this.clients.get(orgId, clientId, req.membership);
+  }
+
+  @Post(':clientId/logo')
+  @OrgRoles('org_admin', 'contador')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 2 * 1024 * 1024 } }))
+  uploadLogo(
+    @Param('orgId') orgId: string,
+    @Param('clientId') clientId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: { membership: Membership },
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) throw new Error('Falta el archivo del logo (campo "file")');
+    return this.clients.uploadLogo(orgId, clientId, user.userId, req.membership, file);
+  }
+
+  /**
+   * @Public por la misma razón que el logo de la empresa: <img src> no puede
+   * mandar Authorization, el logo es la marca del negocio (no un dato fiscal)
+   * y los ids son UUID no adivinables.
+   */
+  @Public()
+  @Get(':clientId/logo')
+  async logo(
+    @Param('orgId') orgId: string,
+    @Param('clientId') clientId: string,
+  ): Promise<StreamableFile> {
+    const { body, contentType, contentLength } = await this.clients.logoBytes(orgId, clientId);
+    return new StreamableFile(body, {
+      type: contentType,
+      disposition: 'inline',
+      length: contentLength,
+    });
   }
 
   @Patch(':clientId')

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { api } from '../lib/api';
+import { api, apiUpload, apiUrl } from '../lib/api';
 import Modal from './Modal';
 import SegmentedControl from './SegmentedControl';
 import type { Client, Member } from '../lib/types';
@@ -43,6 +43,26 @@ export default function ClientDetailModal({
   const [client, setClient] = useState<Client | null>(null);
   const [users, setUsers] = useState<ClientUser[]>([]);
   const [error, setError] = useState('');
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+
+  async function uploadLogo(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingLogo(true);
+    setError('');
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      await apiUpload(`/api/organizations/${orgId}/clients/${clientId}/logo`, fd);
+      await reload();
+      onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo subir el logo');
+    } finally {
+      setUploadingLogo(false);
+      e.target.value = '';
+    }
+  }
 
   const reload = useCallback(async () => {
     try {
@@ -150,6 +170,54 @@ export default function ClientDetailModal({
       }
     >
       {error && <div className="error" style={{ marginBottom: 14 }}>{error}</div>}
+
+      {client && (
+        <section style={{ marginBottom: 22 }}>
+          <div className="detail-section-head">
+            <h3>Logo del negocio</h3>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <span
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: 10,
+                border: '1px solid var(--border)',
+                background: 'var(--bg-soft)',
+                display: 'grid',
+                placeItems: 'center',
+                overflow: 'hidden',
+                flexShrink: 0,
+              }}
+            >
+              {client.logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={apiUrl(client.logoUrl)}
+                  alt={client.razonSocial}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              ) : (
+                <span className="muted" style={{ fontSize: 20 }}>🏪</span>
+              )}
+            </span>
+            <div>
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={uploadLogo}
+                disabled={uploadingLogo}
+                style={{ width: 'auto', border: 'none', padding: 0 }}
+              />
+              <p className="muted" style={{ margin: '4px 0 0', fontSize: 12.5 }}>
+                {uploadingLogo
+                  ? 'Subiendo…'
+                  : 'PNG, JPG o WebP · hasta 2 MB. Se muestra en la lista de clientes.'}
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
 
       {client && (
         <section style={{ marginBottom: 22 }}>

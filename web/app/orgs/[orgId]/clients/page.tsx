@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { api } from '../../../../lib/api';
+import { api, apiUrl } from '../../../../lib/api';
 import DataTable from '../../../../components/DataTable';
 import ClientFormModal from '../../../../components/ClientFormModal';
 import ClientDetailModal from '../../../../components/ClientDetailModal';
@@ -190,7 +190,17 @@ export default function ClientsPage() {
             emptyText={q ? 'Ningún cliente coincide con la búsqueda' : 'Sin clientes todavía'}
             selection={{ selected, onChange: setSelected }}
             columns={[
-              { key: 'razonSocial', header: 'Razón social', value: (c) => c.razonSocial },
+              {
+                key: 'razonSocial',
+                header: 'Razón social',
+                value: (c) => c.razonSocial,
+                render: (c) => (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    <ClientLogo c={c} size={24} />
+                    {c.razonSocial}
+                  </span>
+                ),
+              },
               { key: 'rncOCedula', header: 'RNC / Cédula', value: (c) => c.rncOCedula },
               {
                 key: 'contadores',
@@ -256,7 +266,10 @@ export default function ClientsPage() {
                     aria-label={`Seleccionar ${c.razonSocial}`}
                   />
                 </span>
-                <div className="ec-title">{c.razonSocial}</div>
+                <div className="ec-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <ClientLogo c={c} size={28} />
+                  {c.razonSocial}
+                </div>
                 <div className="ec-meta">RNC / Cédula · {c.rncOCedula}</div>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   <span className="mini-chip">👤 {c._count?.assignments ?? 0} contador(es)</span>
@@ -297,5 +310,42 @@ export default function ClientsPage() {
         />
       )}
     </>
+  );
+}
+
+/** Logo pequeño del cliente; sin logo, la inicial del negocio como fallback. */
+function ClientLogo({ c, size }: { c: Client; size: number }) {
+  const base: React.CSSProperties = {
+    width: size,
+    height: size,
+    borderRadius: 6,
+    border: '1px solid var(--border)',
+    flexShrink: 0,
+  };
+  if (c.logoUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={apiUrl(c.logoUrl)}
+        alt=""
+        style={{ ...base, objectFit: 'cover', background: 'var(--bg-soft)' }}
+      />
+    );
+  }
+  return (
+    <span
+      aria-hidden
+      style={{
+        ...base,
+        background: 'var(--bg-soft)',
+        display: 'grid',
+        placeItems: 'center',
+        fontSize: size * 0.5,
+        fontWeight: 700,
+        color: 'var(--brand)',
+      }}
+    >
+      {c.razonSocial.charAt(0).toUpperCase()}
+    </span>
   );
 }

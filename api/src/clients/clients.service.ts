@@ -5,12 +5,28 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { validateTaxId } from '@facturard/shared';
 import { Prisma, type Membership } from '@facturard/shared/db';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { StorageService } from '../storage/storage.service';
 import { PlanLimitsService } from '../plans/plan-limits.service';
 import { CreateClientDto, UpdateClientDto } from './dto/clients.dto';
+
+const LOGO_MIME = new Map([
+  ['image/png', 'png'],
+  ['image/jpeg', 'jpg'],
+  ['image/webp', 'webp'],
+]);
+
+/**
+ * Ruta del logo del cliente servida por el propio API (mismo diseño que el
+ * logo de la empresa: MinIO nunca se expone; ids UUID no adivinables).
+ */
+function clientLogoPath(orgId: string, clientId: string, logoKey: string | null): string | null {
+  return logoKey ? `/api/organizations/${orgId}/clients/${clientId}/logo` : null;
+}
 
 /**
  * CRUD de clientes finales. client_profiles está bajo RLS, por lo que todas
@@ -21,6 +37,7 @@ export class ClientsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly storage: StorageService,
     private readonly planLimits: PlanLimitsService,
   ) {}
 
@@ -74,27 +91,34 @@ export class ClientsService {
       orderBy: { razonSocial: 'asc' as const },
       include: { _count: { select: { assignments: true, members: true, invoices: true } } },
     };
+    const withLogo = <T extends { id: string; logoKey: string | null }>(rows: T[]) =>
+      rows.map((c) => ({ ...c, logoUrl: clientLogoPath(orgId, c.id, c.logoKey) }));
+
     if (membership.rol === 'cliente') {
       const links = await this.prisma.clientMember.findMany({
         where: { userId: membership.userId },
         select: { clientProfileId: true },
       });
-      return this.prisma.forOrg(orgId).clientProfile.findMany({
-        where: { id: { in: links.map((l) => l.clientProfileId) } },
-        ...listArgs,
-      });
+      return withLogo(
+        await this.prisma.forOrg(orgId).clientProfile.findMany({
+          where: { id: { in: links.map((l) => l.clientProfileId) } },
+          ...listArgs,
+        }),
+      );
     }
     if (membership.rol === 'contador') {
       const assignments = await this.prisma.assignment.findMany({
         where: { contadorMembershipId: membership.id },
         select: { clientProfileId: true },
       });
-      return this.prisma.forOrg(orgId).clientProfile.findMany({
-        where: { id: { in: assignments.map((a) => a.clientProfileId) } },
-        ...listArgs,
-      });
+      return withLogo(
+        await this.prisma.forOrg(orgId).clientProfile.findMany({
+          where: { id: { in: assignments.map((a) => a.clientProfileId) } },
+          ...listArgs,
+        }),
+      );
     }
-    return this.prisma.forOrg(orgId).clientProfile.findMany(listArgs);
+    return withLogo(await this.prisma.forOrg(orgId).clientProfile.findMany(listArgs));
   }
 
   /**
@@ -137,7 +161,50 @@ export class ClientsService {
         },
       },
     });
-    return { ...client, contadores: assignments.map((a) => a.contadorMembership) };
+    return {
+      ...client,
+      contadores: assignments.map((a) => a.contadorMembership),
+      logoUrl: clientLogoPath(orgId, client.id, client.logoKey),
+    };
+  }
+
+  /** Sube/reemplaza el logo del cliente (se muestra pequeño en la lista). */
+  async uploadLogo(
+    orgId: string,
+    clientId: string,
+    actorUserId: string,
+    membership: Membership,
+    file: { buffer: Buffer; mimetype: string },
+  ) {
+    await this.assertClientInScope(orgId, clientId, membership);
+    const ext = LOGO_MIME.get(file.mimetype);
+    if (!ext) {
+      throw new BadRequestException('Formato de logo no válido (usa PNG, JPG o WebP)');
+    }
+    const key = `logos/${orgId}/clients/${clientId}/${randomUUID()}.${ext}`;
+    await this.storage.putObject(key, file.buffer, file.mimetype);
+    await this.prisma.forOrg(orgId).clientProfile.update({
+      where: { id: clientId },
+      data: { logoKey: key },
+    });
+    await this.audit.log({
+      organizationId: orgId,
+      userId: actorUserId,
+      accion: 'client.upload_logo',
+      entidad: 'client_profile',
+      entidadId: clientId,
+    });
+    return { logoUrl: clientLogoPath(orgId, clientId, key) };
+  }
+
+  /** Bytes del logo para servirlo por el propio API (ver clientLogoPath). */
+  async logoBytes(orgId: string, clientId: string) {
+    const client = await this.prisma.forOrg(orgId).clientProfile.findUnique({
+      where: { id: clientId },
+      select: { logoKey: true },
+    });
+    if (!client?.logoKey) throw new NotFoundException('Este cliente no tiene logo');
+    return this.storage.getObject(client.logoKey);
   }
 
   async update(
