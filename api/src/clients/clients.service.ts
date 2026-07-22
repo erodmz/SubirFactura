@@ -24,7 +24,7 @@ export class ClientsService {
     private readonly planLimits: PlanLimitsService,
   ) {}
 
-  async create(orgId: string, actorUserId: string, dto: CreateClientDto) {
+  async create(orgId: string, actorUserId: string, dto: CreateClientDto, membership?: Membership) {
     const taxId = validateTaxId(dto.rncOCedula);
     if (!taxId.valid) {
       throw new BadRequestException(taxId.error ?? 'RNC o cédula inválido');
@@ -44,6 +44,14 @@ export class ClientsService {
         userId: dto.userId,
       },
     });
+
+    // Quien crea el cliente lo atiende: queda asignado como su contador desde
+    // el primer segundo (aplica también al org_admin, que ejerce de contador).
+    if (membership && (membership.rol === 'contador' || membership.rol === 'org_admin')) {
+      await this.prisma.assignment.create({
+        data: { contadorMembershipId: membership.id, clientProfileId: client.id },
+      });
+    }
 
     await this.audit.log({
       organizationId: orgId,
@@ -185,7 +193,12 @@ export class ClientsService {
     const membership = await this.prisma.membership.findUnique({
       where: { id: contadorMembershipId },
     });
-    if (!membership || membership.organizationId !== orgId || membership.rol !== 'contador') {
+    // El org_admin también ejerce de contador y puede atender clientes.
+    if (
+      !membership ||
+      membership.organizationId !== orgId ||
+      (membership.rol !== 'contador' && membership.rol !== 'org_admin')
+    ) {
       throw new BadRequestException('El miembro indicado no es un contador de esta organización');
     }
     const existing = await this.prisma.assignment.findUnique({

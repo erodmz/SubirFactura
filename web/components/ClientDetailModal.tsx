@@ -113,7 +113,8 @@ export default function ClientDetailModal({
     onClose();
   }
 
-  const contadores = members.filter((m) => m.rol === 'contador');
+  // El org_admin también ejerce de contador: puede asignarse a clientes.
+  const contadores = members.filter((m) => m.rol === 'contador' || m.rol === 'org_admin');
   const asignados = client?.contadores ?? [];
   const sinAsignar = contadores.filter((c) => !asignados.some((a) => a.id === c.id));
   const habilitables = members.filter((m) => !users.some((u) => u.id === m.user.id));

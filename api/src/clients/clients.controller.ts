@@ -29,9 +29,10 @@ export class ClientsController {
   create(
     @Param('orgId') orgId: string,
     @CurrentUser() user: AuthenticatedUser,
+    @Req() req: { membership: Membership },
     @Body() dto: CreateClientDto,
   ) {
-    return this.clients.create(orgId, user.userId, dto);
+    return this.clients.create(orgId, user.userId, dto, req.membership);
   }
 
   @Get()
