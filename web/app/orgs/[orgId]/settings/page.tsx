@@ -24,6 +24,7 @@ const fmtRD = (n: number) => (n === 0 ? 'Gratis' : `RD$${n.toLocaleString('es-DO
 export default function OrgSettingsPage() {
   const { orgId } = useParams<{ orgId: string }>();
   const [aritmetica, setAritmetica] = useState<boolean | null>(null);
+  const [aprobacionManual, setAprobacionManual] = useState<boolean | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [error, setError] = useState('');
@@ -38,11 +39,14 @@ export default function OrgSettingsPage() {
   }, [orgId]);
 
   useEffect(() => {
-    api<{ requiereValidacionAritmetica: boolean; logoUrl: string | null }>(
-      `/api/organizations/${orgId}`,
-    )
+    api<{
+      requiereValidacionAritmetica: boolean;
+      requiereAprobacionManual: boolean;
+      logoUrl: string | null;
+    }>(`/api/organizations/${orgId}`)
       .then((o) => {
         setAritmetica(o.requiereValidacionAritmetica);
+        setAprobacionManual(o.requiereAprobacionManual);
         setLogoUrl(o.logoUrl);
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Error'));
@@ -103,6 +107,19 @@ export default function OrgSettingsPage() {
       });
     } catch (err) {
       setAritmetica(!value);
+      setError(err instanceof Error ? err.message : 'Error');
+    }
+  }
+
+  async function toggleAprobacionManual(value: boolean) {
+    setAprobacionManual(value);
+    try {
+      await api(`/api/organizations/${orgId}`, {
+        method: 'PATCH',
+        body: { requiereAprobacionManual: value },
+      });
+    } catch (err) {
+      setAprobacionManual(!value);
       setError(err instanceof Error ? err.message : 'Error');
     }
   }
@@ -257,6 +274,19 @@ export default function OrgSettingsPage() {
             />
             <p className="muted" style={{ marginTop: 6 }}>
               Si lo apagas, el contador puede validar aunque los montos no cuadren exactamente.
+            </p>
+          </>
+        )}
+        {aprobacionManual !== null && (
+          <>
+            <Toggle
+              checked={aprobacionManual}
+              onChange={toggleAprobacionManual}
+              label="Exigir aprobación de los gastos registrados a mano (default de la empresa)"
+            />
+            <p className="muted" style={{ marginTop: 6 }}>
+              Cada cliente puede heredar este default o fijar su propia política (en Clientes →
+              Gestionar), y en Equipo puedes eximir a usuarios de confianza.
             </p>
           </>
         )}

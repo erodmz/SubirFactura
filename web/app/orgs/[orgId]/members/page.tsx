@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { api } from '../../../../lib/api';
 import InviteMemberModal from '../../../../components/InviteMemberModal';
+import Toggle from '../../../../components/Toggle';
 import { useConfirm } from '../../../../components/ConfirmDialog';
 import type { Member } from '../../../../lib/types';
 
@@ -90,7 +91,7 @@ export default function MembersPage() {
 
   async function setFlag(
     id: string,
-    campo: 'puedeValidar' | 'puedeVerReportes',
+    campo: 'puedeValidar' | 'puedeVerReportes' | 'exentoAprobacion',
     valor: boolean,
     endpoint: string,
   ) {
@@ -218,6 +219,7 @@ export default function MembersPage() {
                 <th>Rol</th>
                 <th>Puede validar</th>
                 <th>Ve reportes</th>
+                <th>Exento de aprobación</th>
                 <th></th>
               </tr>
             </thead>
@@ -252,31 +254,35 @@ export default function MembersPage() {
                     </td>
                     <td>
                       {m.rol === 'cliente' ? (
-                        <label className="toggle-cell" title="Permite a este cliente validar facturas (no solo guardarlas)">
-                          <input
-                            type="checkbox"
+                        <span title="Permite a este cliente validar facturas (no solo guardarlas)">
+                          <Toggle
                             checked={m.puedeValidar ?? false}
-                            onChange={(e) => setFlag(m.id, 'puedeValidar', e.target.checked, 'validate-permission')}
+                            onChange={(v) => setFlag(m.id, 'puedeValidar', v, 'validate-permission')}
                           />
-                          {m.puedeValidar ? 'Sí' : 'No'}
-                        </label>
+                        </span>
                       ) : (
                         <span className="muted">—</span>
                       )}
                     </td>
                     <td>
                       {m.rol === 'cliente' ? (
-                        <label className="toggle-cell" title="Permite a este cliente ver el resumen de gastos en la app">
-                          <input
-                            type="checkbox"
+                        <span title="Permite a este cliente ver el resumen de gastos en la app">
+                          <Toggle
                             checked={m.puedeVerReportes ?? false}
-                            onChange={(e) => setFlag(m.id, 'puedeVerReportes', e.target.checked, 'reports-permission')}
+                            onChange={(v) => setFlag(m.id, 'puedeVerReportes', v, 'reports-permission')}
                           />
-                          {m.puedeVerReportes ? 'Sí' : 'No'}
-                        </label>
+                        </span>
                       ) : (
                         <span className="muted">—</span>
                       )}
+                    </td>
+                    <td>
+                      <span title="Usuario de confianza: sus registros manuales no pasan por el workflow de aprobación">
+                        <Toggle
+                          checked={m.exentoAprobacion ?? false}
+                          onChange={(v) => setFlag(m.id, 'exentoAprobacion', v, 'exempt-approval')}
+                        />
+                      </span>
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       <button

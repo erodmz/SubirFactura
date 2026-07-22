@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '../lib/api';
+import Toggle from './Toggle';
 
 /**
  * Registro MANUAL de un gasto — para cuando no hay comprobante que fotografiar
@@ -163,15 +164,13 @@ export default function ManualInvoiceModal({
             </div>
           </div>
           {puedeValidar && (
-            <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
-              <input
-                type="checkbox"
+            <div style={{ marginTop: 8 }}>
+              <Toggle
                 checked={validar}
-                onChange={(e) => setValidar(e.target.checked)}
-                style={{ width: 'auto' }}
+                onChange={setValidar}
+                label="Validar al guardar (exige NCF, RNC, fecha, montos y que cuadren)"
               />
-              Validar al guardar (exige NCF, RNC, fecha, montos y que cuadren)
-            </label>
+            </div>
           )}
           <p className="muted" style={{ fontSize: '.82rem' }}>
             Puedes guardar con lo que tengas: queda en revisión y el contador la completa.

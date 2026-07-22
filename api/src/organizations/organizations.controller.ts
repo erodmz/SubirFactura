@@ -22,6 +22,7 @@ import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-use
 import {
   ChangePlanDto,
   CreateOrganizationDto,
+  SetExemptApprovalDto,
   SetValidatePermissionDto,
   SetReportsPermissionDto,
   UpdateMemberRoleDto,
@@ -149,6 +150,17 @@ export class OrganizationsController {
     @Body() dto: SetValidatePermissionDto,
   ) {
     return this.members.setValidatePermission(orgId, membershipId, dto.puedeValidar, user.userId);
+  }
+
+  @Patch(':orgId/members/:membershipId/exempt-approval')
+  @OrgRoles('org_admin')
+  setExemptApproval(
+    @Param('orgId') orgId: string,
+    @Param('membershipId') membershipId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: SetExemptApprovalDto,
+  ) {
+    return this.members.setExemptApproval(orgId, membershipId, dto.exentoAprobacion, user.userId);
   }
 
   @Patch(':orgId/members/:membershipId/reports-permission')

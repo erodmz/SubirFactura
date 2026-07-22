@@ -38,6 +38,8 @@ export interface Member {
   rol: 'org_admin' | 'contador' | 'cliente';
   puedeValidar?: boolean;
   puedeVerReportes?: boolean;
+  /** Usuario de confianza: sus registros manuales no pasan por aprobación. */
+  exentoAprobacion?: boolean;
   user: { id: string; email: string; nombre: string; telefono: string | null };
 }
 
@@ -46,8 +48,8 @@ export interface Client {
   rncOCedula: string;
   razonSocial: string;
   userId: string | null;
-  /** Workflow: los gastos registrados a mano entran en revisión obligatoria. */
-  requiereAprobacion?: boolean;
+  /** Política de aprobación de registros manuales: hereda de la empresa o la fuerza/exime. */
+  aprobacionManual?: 'heredar' | 'siempre' | 'nunca';
   contadores?: Member[];
   _count?: { assignments: number; members: number; invoices: number };
   limitWarning?: string;

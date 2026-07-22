@@ -145,7 +145,7 @@ export class ClientsService {
       data: {
         razonSocial: dto.razonSocial ?? undefined,
         userId: dto.userId,
-        requiereAprobacion: dto.requiereAprobacion ?? undefined,
+        aprobacionManual: dto.aprobacionManual ?? undefined,
       },
     });
     await this.audit.log({

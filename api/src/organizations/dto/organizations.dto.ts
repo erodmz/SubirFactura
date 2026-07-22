@@ -34,6 +34,11 @@ export class UpdateOrganizationDto {
   @IsOptional()
   @IsBoolean()
   requiereValidacionAritmetica?: boolean;
+
+  /** Default de la empresa: los registros manuales requieren aprobación. */
+  @IsOptional()
+  @IsBoolean()
+  requiereAprobacionManual?: boolean;
 }
 
 export class UpdateMemberRoleDto {
@@ -49,4 +54,9 @@ export class SetValidatePermissionDto {
 export class SetReportsPermissionDto {
   @IsBoolean()
   puedeVerReportes!: boolean;
+}
+
+export class SetExemptApprovalDto {
+  @IsBoolean()
+  exentoAprobacion!: boolean;
 }

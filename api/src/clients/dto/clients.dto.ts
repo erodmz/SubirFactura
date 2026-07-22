@@ -1,4 +1,4 @@
-import { IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsIn, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class CreateClientDto {
   @IsString()
@@ -25,10 +25,10 @@ export class UpdateClientDto {
   @IsString()
   userId?: string | null;
 
-  /** Workflow de aprobación: los registros manuales de este cliente entran en revisión. */
+  /** Política de aprobación de registros manuales: hereda de la empresa o la fuerza/exime. */
   @IsOptional()
-  @IsBoolean()
-  requiereAprobacion?: boolean;
+  @IsIn(['heredar', 'siempre', 'nunca'])
+  aprobacionManual?: 'heredar' | 'siempre' | 'nunca';
 }
 
 export class CreateAssignmentDto {

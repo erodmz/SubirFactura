@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import Modal from './Modal';
-import Toggle from './Toggle';
+import SegmentedControl from './SegmentedControl';
 import type { Client, Member } from '../lib/types';
 import type { ConfirmOptions } from './ConfirmDialog';
 
@@ -153,20 +153,29 @@ export default function ClientDetailModal({
       {client && (
         <section style={{ marginBottom: 22 }}>
           <div className="detail-section-head">
-            <h3>Gastos registrados a mano</h3>
+            <h3>Aprobación de gastos registrados a mano</h3>
           </div>
-          <Toggle
-            checked={client.requiereAprobacion ?? false}
+          <SegmentedControl
+            ariaLabel="Política de aprobación de registros manuales"
+            value={client.aprobacionManual ?? 'heredar'}
             onChange={(v) =>
               wrap(() =>
                 api(`/api/organizations/${orgId}/clients/${clientId}`, {
                   method: 'PATCH',
-                  body: { requiereAprobacion: v },
+                  body: { aprobacionManual: v },
                 }),
               )
             }
-            label="Exigir aprobación: todo gasto registrado a mano queda en revisión hasta que alguien con permiso lo valide"
+            options={[
+              { value: 'heredar', label: 'Como la empresa', hint: 'Usa el default definido en Configuración de la empresa' },
+              { value: 'siempre', label: 'Siempre', hint: 'Todo registro manual queda en revisión hasta que alguien lo apruebe' },
+              { value: 'nunca', label: 'Nunca', hint: 'Los registros manuales pueden validarse directo (quien tenga permiso)' },
+            ]}
           />
+          <p className="muted" style={{ marginTop: 8, fontSize: '.82rem' }}>
+            Con aprobación, todo gasto registrado a mano queda en revisión hasta que alguien
+            con permiso lo valide. Los usuarios de confianza pueden quedar exentos en Equipo.
+          </p>
         </section>
       )}
 

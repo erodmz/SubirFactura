@@ -7,10 +7,11 @@ type Theme = 'dark' | 'light';
 /** Alterna tema claro/oscuro y lo persiste. El tema inicial lo fija el script
  *  inline del layout para evitar parpadeo; aquí solo lo leemos y cambiamos. */
 export default function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>('dark');
+  // 'light' es el default de producto (primera visita); el efecto lee el real.
+  const [theme, setTheme] = useState<Theme>('light');
 
   useEffect(() => {
-    const current = (document.documentElement.dataset.theme as Theme) || 'dark';
+    const current = (document.documentElement.dataset.theme as Theme) || 'light';
     setTheme(current);
   }, []);
 

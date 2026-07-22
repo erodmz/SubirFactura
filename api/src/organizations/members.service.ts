@@ -78,6 +78,29 @@ export class MembersService {
     return updated;
   }
 
+  /** Exime a un usuario de confianza del workflow de aprobación de registros manuales. */
+  async setExemptApproval(
+    orgId: string,
+    membershipId: string,
+    exentoAprobacion: boolean,
+    actorUserId: string,
+  ) {
+    await this.getInOrg(orgId, membershipId);
+    const updated = await this.prisma.membership.update({
+      where: { id: membershipId },
+      data: { exentoAprobacion },
+    });
+    await this.audit.log({
+      organizationId: orgId,
+      userId: actorUserId,
+      accion: 'membership.set_exempt_approval',
+      entidad: 'membership',
+      entidadId: membershipId,
+      datos: { exentoAprobacion },
+    });
+    return updated;
+  }
+
   /** Habilita/inhabilita a un cliente para ver el resumen de gastos (analítica). */
   async setReportsPermission(
     orgId: string,

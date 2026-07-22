@@ -69,8 +69,18 @@ export class InvoicesService {
     }
     const limitWarning = await this.planLimits.ensureCanAddFactura(orgId);
 
-    // Workflow de aprobación por cliente: fuerza revisión aunque pidan validar.
-    const validar = dto.validar === true && !client.requiereAprobacion;
+    // Workflow de aprobación en 3 niveles (flexibilidad controlada):
+    //   1. la EMPRESA fija el default, 2. el CLIENTE hereda o lo fuerza/exime,
+    //   3. un USUARIO de confianza puede quedar exento.
+    const org = await this.prisma.organization.findUniqueOrThrow({
+      where: { id: orgId },
+      select: { requiereAprobacionManual: true },
+    });
+    const politica = client.aprobacionManual; // heredar | siempre | nunca
+    const requiereAprobacion =
+      (politica === 'siempre' || (politica === 'heredar' && org.requiereAprobacionManual)) &&
+      !membership.exentoAprobacion;
+    const validar = dto.validar === true && !requiereAprobacion;
 
     const created = await this.prisma.forOrg(orgId).invoice.create({
       data: {
@@ -93,7 +103,7 @@ export class InvoicesService {
       return {
         ...updated,
         limitWarning,
-        aprobacionRequerida: dto.validar === true && client.requiereAprobacion,
+        aprobacionRequerida: dto.validar === true && requiereAprobacion,
       };
     } catch (error) {
       // No dejar el esqueleto huérfano si los campos no pasaron (dup NCF, etc.).
