@@ -10,6 +10,8 @@ import '../widgets/logo.dart';
 import 'capture_screen.dart';
 import 'invoice_detail_screen.dart';
 import 'login_screen.dart';
+import 'manual_invoice_screen.dart';
+import 'pending_org_screen.dart';
 import 'resumen_gastos_screen.dart';
 import 'settings_screen.dart';
 
@@ -52,12 +54,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _loading = true;
   Timer? _poll;
 
+  /// KYC: si la empresa no está aprobada, el API la bloquea — mostramos la
+  /// pantalla de revisión en vez del despacho (y no pedimos facturas en vano).
+  late bool _aprobada = widget.membership.estadoAprobacion == 'aprobada';
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     UploadQueue.instance.addListener(_onQueueChanged);
-    _load();
+    if (_aprobada) _load();
   }
 
   @override
@@ -136,8 +142,33 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
+  Future<void> _registrarManual() async {
+    final aviso = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (_) => ManualInvoiceScreen(
+          orgId: widget.membership.orgId,
+          canValidar: widget.membership.rol != 'cliente' || widget.membership.puedeValidar,
+        ),
+      ),
+    );
+    if (aviso != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(aviso)));
+      await _load();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (!_aprobada) {
+      return PendingOrgScreen(
+        membership: widget.membership,
+        onApproved: () {
+          setState(() => _aprobada = true);
+          _load();
+        },
+        onExit: widget.canSwitchOrg ? () => Navigator.of(context).pop() : null,
+      );
+    }
     final me = widget.me;
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
@@ -145,6 +176,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         title: const Logo(size: 24),
         actions: [
           const ConnectivityBadge(),
+          IconButton(
+            tooltip: 'Registrar gasto a mano',
+            icon: const Icon(Icons.edit_note_outlined),
+            onPressed: _registrarManual,
+          ),
           IconButton(
             tooltip: 'Resumen de gastos',
             icon: const Icon(Icons.insights_outlined),

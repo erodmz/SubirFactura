@@ -11,6 +11,7 @@ import '../widgets/logo.dart';
 import 'capture_screen.dart';
 import 'invoice_detail_screen.dart';
 import 'login_screen.dart';
+import 'manual_invoice_screen.dart';
 import 'resumen_gastos_screen.dart';
 import 'settings_screen.dart';
 
@@ -158,6 +159,23 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> with WidgetsBinding
     }
   }
 
+  Future<void> _registrarManual() async {
+    final aviso = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (_) => ManualInvoiceScreen(
+          orgId: _orgId,
+          fixedClientId: widget.client.id,
+          fixedClientName: widget.client.razonSocial,
+          canValidar: widget.me.canValidateInOrg(_orgId),
+        ),
+      ),
+    );
+    if (aviso != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(aviso)));
+      await _load();
+    }
+  }
+
   Future<void> _logout() async {
     await ApiClient.instance.clearTokens();
     if (!mounted) return;
@@ -195,6 +213,11 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> with WidgetsBinding
             : const Logo(size: 24),
         actions: [
           const ConnectivityBadge(),
+          IconButton(
+            tooltip: 'Registrar gasto a mano',
+            icon: const Icon(Icons.edit_note_outlined),
+            onPressed: _registrarManual,
+          ),
           // El resumen de gastos solo si el contador habilitó a este cliente.
           if (widget.me.canViewReportsInOrg(_orgId))
             IconButton(

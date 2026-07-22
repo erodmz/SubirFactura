@@ -76,6 +76,7 @@ class Membership {
     this.puedeValidar = false,
     this.puedeVerReportes = false,
     this.orgLogoUrl,
+    this.estadoAprobacion = 'aprobada',
   });
 
   factory Membership.fromJson(Map<String, dynamic> json) {
@@ -88,6 +89,9 @@ class Membership {
       puedeValidar: json['puedeValidar'] as bool? ?? false,
       puedeVerReportes: json['puedeVerReportes'] as bool? ?? false,
       orgLogoUrl: org['logoUrl'] as String?,
+      // Backends viejos (o /me cacheado) no lo traen: asumir aprobada para no
+      // bloquear de más; la pantalla de revisión verifica en vivo igual.
+      estadoAprobacion: org['estadoAprobacion'] as String? ?? 'aprobada',
     );
   }
 
@@ -95,6 +99,10 @@ class Membership {
   final String rol;
   final String orgId;
   final String orgNombre;
+
+  /// KYC: 'pendiente' | 'aprobada' | 'rechazada'. Si no es aprobada, el API
+  /// bloquea el despacho y la app muestra la pantalla de revisión.
+  final String estadoAprobacion;
 
   /// El contador habilitó a este cliente para validar (no solo guardar).
   final bool puedeValidar;
