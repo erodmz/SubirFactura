@@ -1414,8 +1414,12 @@ main.app-content {
   margin-top: 0;
   border-style: dashed;
 }
-.org-card-new {
+/* Es un <button>: sin esto, button:hover (azul de marca) le gana a .org-card
+   por especificidad y la tarjeta fantasma se pintaba de azul brillante. */
+button.org-card-new,
+button.org-card-new:hover {
   background: var(--card);
+  color: var(--text);
 }
 .org-card-form {
   cursor: default;
