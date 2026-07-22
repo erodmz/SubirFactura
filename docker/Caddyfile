@@ -1,5 +1,18 @@
-# TLS automático cuando APP_DOMAIN es un dominio real; en localhost usa certificado interno
-{$APP_DOMAIN:localhost} {
+# TLS automático (Let's Encrypt) cuando APP_DOMAIN es un dominio real; en
+# localhost Caddy usa su CA interna y no toca ACME.
+{
+	# Let's Encrypt avisa a este correo si un certificado deja de renovarse.
+	# Sin él ese aviso se pierde y te enteras cuando el sitio ya está caído.
+	email {$ACME_EMAIL:admin@localhost}
+}
+
+# El canónico va primero; el apex solo redirige. Así hay UNA sola URL buena:
+# cookies, CORS y enlaces compartidos apuntan siempre al mismo sitio.
+{$APP_DOMAIN:localhost}, {$APEX_DOMAIN:apex.localhost} {
+	# subirfactura.com → www.subirfactura.com, conservando la ruta.
+	@apex host {$APEX_DOMAIN:apex.localhost}
+	redir @apex https://{$APP_DOMAIN:localhost}{uri} permanent
+
 	encode gzip
 
 	# HSTS (ESPECIFICACION.md §8)

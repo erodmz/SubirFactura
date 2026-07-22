@@ -192,6 +192,10 @@ services:
       - '443:443'
     environment:
       APP_DOMAIN: ${APP_DOMAIN}
+      # Redirige al canónico. Si el apex aún no resuelve, déjalo vacío: cae en
+      # un nombre .localhost que Caddy firma con su CA interna, sin tocar ACME.
+      APEX_DOMAIN: ${APEX_DOMAIN:-apex.localhost}
+      ACME_EMAIL: ${ACME_EMAIL:-admin@localhost}
     volumes:
       - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddydata:/data

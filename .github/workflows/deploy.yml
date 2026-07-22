@@ -118,7 +118,7 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          source: 'docker-compose.prod.yml,docker/Caddyfile,docker/initdb/*'
+          source: 'docker-compose.prod.yml,docker/Caddyfile,docker/initdb/*,scripts/actualizar.sh'
           target: /opt/subirfactura
           overwrite: true
 
@@ -131,6 +131,10 @@ jobs:
           script: |
             set -euo pipefail
             cd /opt/subirfactura
+
+            # scp no conserva el bit de ejecución.
+            chmod +x scripts/actualizar.sh 2>/dev/null || true
+            ln -sfn scripts/actualizar.sh actualizar.sh 2>/dev/null || true
 
             # El .env.prod vive SOLO en el servidor (nunca en el repo ni en Actions).
             if [ ! -f .env.prod ]; then

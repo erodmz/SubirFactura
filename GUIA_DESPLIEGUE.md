@@ -10,11 +10,11 @@ Tiempo estimado la primera vez: **~1 hora**.
 ```
                     Internet
                        │
-                 Cloudflare (gratis: DNS, caché, DDoS)
+              DNS (Google Cloud DNS) → 138.197.81.29
                        │  :443
               ┌────────▼────────┐
               │  Caddy (TLS auto)│   ← lo ÚNICO expuesto
-              └────┬────────┬────┘
+              └────┬────────┬────┘   Let's Encrypt automático
             /api/* │        │ resto
               ┌────▼───┐ ┌──▼────┐
               │  api   │ │  web  │
@@ -35,145 +35,158 @@ Tiempo estimado la primera vez: **~1 hora**.
 
 | Cosa | Dónde | Costo |
 |---|---|---|
-| VPS (recomendado: **Hetzner CPX21**, 3 vCPU / 4 GB / 80 GB, **Ashburn**) | hetzner.com/cloud | ~€8/mes |
-| Dominio | Namecheap / Cloudflare | ~$12/año |
-| Cuenta Cloudflare (DNS + caché) | cloudflare.com | gratis |
+| **Droplet** Premium AMD 4 GB / 2 vCPU / 80 GB NVMe, **NYC3** | DigitalOcean | ~$28/mes |
+| Dominio `subirfactura.com` | ya lo tienes (Google Cloud DNS) | ~$12/año |
 | Bucket para respaldos (**Cloudflare R2** o Backblaze B2) | — | centavos |
 | API key de Anthropic (OCR) | console.anthropic.com | pago por uso |
+| `age` en tu Mac | `brew install age` | gratis |
 
-> **¿Por qué Ashburn y no Alemania?** Ashburn está a ~50-60 ms de RD (Alemania,
-> ~130 ms). Y como Cloudflare tiene PoP en Santo Domingo, la landing y los
-> estáticos salen del borde: solo lo dinámico toca el origen.
+**Servidor de este proyecto: `138.197.81.29` · dominio: `www.subirfactura.com`.**
 
----
-
-## 2. Preparar el servidor (una sola vez)
-
-```bash
-ssh root@TU_IP
-
-# Usuario sin root para desplegar
-adduser --disabled-password --gecos "" deploy
-usermod -aG docker deploy 2>/dev/null || true
-
-# Docker
-curl -fsSL https://get.docker.com | sh
-usermod -aG docker deploy
-
-# Cortafuegos: solo SSH y web
-apt install -y ufw
-ufw allow OpenSSH && ufw allow 80 && ufw allow 443
-ufw --force enable
-
-mkdir -p /opt/subirfactura && chown deploy:deploy /opt/subirfactura
-```
-
-Llave SSH para que GitHub Actions entre (**en tu máquina**):
-
-```bash
-ssh-keygen -t ed25519 -f ~/.ssh/subirfactura_deploy -N ""
-ssh-copy-id -i ~/.ssh/subirfactura_deploy.pub deploy@TU_IP
-cat ~/.ssh/subirfactura_deploy      # ← esta clave privada va a los secretos
-```
+> **¿Por qué NYC3?** Está a ~55-70 ms de Santo Domingo. DigitalOcean no tiene
+> Ashburn, pero Nueva York rinde prácticamente igual.
+>
+> **¿Por qué 4 GB y no 2?** En la caja conviven Postgres, Redis, MinIO, api,
+> worker, web y Caddy: ~1.5 GB en reposo, pero el worker carga imágenes de
+> varios MB en memoria para el OCR. Con 2 GB sobrevives sin usuarios y te
+> mueres el día que tres personas suban fotos a la vez.
 
 ---
 
-## 3. Claves de respaldo (¡hazlo bien!)
+## 2. Generar llaves y secretos (en TU MÁQUINA)
 
-El servidor **solo puede cifrar**, no descifrar. Si algún día lo comprometen,
-el atacante no puede leer tus respaldos.
+Un solo comando produce todo lo que hace falta, en `.despliegue/` (ignorada
+por git). Es idempotente: si algo ya existe lo reusa — regenerar el
+`JWT_SECRET` cierra la sesión de todo el mundo, y regenerar la clave `age`
+deja ilegibles los respaldos viejos.
 
 ```bash
-# EN TU MÁQUINA, no en el servidor
-brew install age
-mkdir -p ~/.config/subirfactura
-age-keygen -o ~/.config/subirfactura/backup-key.txt
+./scripts/preparar-secretos.sh
 ```
 
-Verás algo como:
+Produce:
 
-```
-Public key: age1abc…      ← va al servidor (BACKUP_AGE_PUBLIC_KEY)
+| Archivo | Qué es |
+|---|---|
+| `deploy_key` / `.pub` | llave SSH con la que GitHub Actions entra al servidor |
+| `backup-key.txt` | clave **age** de los respaldos |
+| `.env.prod` | variables del servidor, con secretos ya generados |
+| `INSTRUCCIONES.txt` | los pasos siguientes, con tu IP ya puesta |
+
+Antes de continuar, **completa a mano dos cosas** en `.despliegue/.env.prod`:
+`ANTHROPIC_API_KEY` y las tres `BACKUP_S3_*` de tu bucket.
+
+> ⚠️ **`backup-key.txt` es lo único que puede descifrar tus respaldos.**
+> Al gestor de contraseñas y a un USB aparte. Si la pierdes, tus respaldos son
+> basura cifrada. **Nunca la subas al servidor**: el servidor solo cifra, y por
+> eso un atacante que lo comprometa tampoco puede leerlos.
+
+---
+
+## 3. Preparar el servidor (una sola vez)
+
+```bash
+scp scripts/bootstrap-servidor.sh root@138.197.81.29:/tmp/
+ssh root@138.197.81.29 "bash /tmp/bootstrap-servidor.sh \"$(cat .despliegue/deploy_key.pub)\""
 ```
 
-> ⚠️ **La clave privada (`backup-key.txt`) es lo único que puede restaurar tus
-> respaldos.** Guárdala en tu gestor de contraseñas y en un USB aparte. Si la
-> pierdes, los respaldos son basura cifrada. **Nunca la subas al servidor.**
+Deja listo: usuario `deploy` con tu llave · Docker · cortafuegos (solo 22/80/443)
+· 2 GB de swap · actualizaciones de seguridad automáticas · `/opt/subirfactura`.
+Puedes correrlo dos veces sin romper nada.
+
+Comprueba que entras **sin contraseña** y solo entonces cierra esa puerta:
+
+```bash
+ssh -i .despliegue/deploy_key deploy@138.197.81.29 'echo ok'
+ssh root@138.197.81.29 'bash /tmp/bootstrap-servidor.sh --endurecer-ssh'
+```
+
+> El endurecimiento va aparte **a propósito**: apaga las contraseñas SSH, y si
+> tu llave no quedó bien instalada te dejaría fuera de tu propio servidor. El
+> script se niega a hacerlo si `deploy` no tiene llaves.
 
 ---
 
 ## 4. Secretos y variables
 
-**En el servidor**, crea `/opt/subirfactura/.env.prod`:
+Sube el `.env.prod` que ya generaste (nunca pasa por git ni por GitHub):
 
 ```bash
-su - deploy && cd /opt/subirfactura && nano .env.prod
+scp -i .despliegue/deploy_key .despliegue/.env.prod deploy@138.197.81.29:/opt/subirfactura/.env.prod
+ssh -i .despliegue/deploy_key deploy@138.197.81.29 'chmod 600 /opt/subirfactura/.env.prod'
 ```
+
+Contenido (así lo genera el script):
 
 ```bash
 GHCR_OWNER=erodmz
-APP_DOMAIN=subirfactura.do
 
-# Postgres — genera con: openssl rand -hex 24
+# Dominio: APP_DOMAIN es el canónico; APEX_DOMAIN redirige a él.
+APP_DOMAIN=www.subirfactura.com
+APEX_DOMAIN=subirfactura.com
+ACME_EMAIL=tu@correo.com          # Let's Encrypt avisa aquí si algo falla
+
 POSTGRES_USER=facturard
-POSTGRES_PASSWORD=<pega-uno>
+POSTGRES_PASSWORD=<generado>
 POSTGRES_DB=facturard
-POSTGRES_APP_PASSWORD=<pega-otro>
+POSTGRES_APP_PASSWORD=<generado>  # rol SIN BYPASSRLS: 2ª barrera multi-tenant
 
-# MinIO
 MINIO_ROOT_USER=facturard
-MINIO_ROOT_PASSWORD=<pega-otro>
+MINIO_ROOT_PASSWORD=<generado>
 S3_BUCKET=invoices
 
-# JWT — openssl rand -hex 32 (uno distinto cada uno)
-JWT_SECRET=<...>
-JWT_REFRESH_SECRET=<...>
+JWT_SECRET=<generado>             # cambiarlos cierra la sesión de todos
+JWT_REFRESH_SECRET=<generado>
 JWT_EXPIRES_IN=15m
 JWT_REFRESH_EXPIRES_IN=7d
 
-# OCR
-ANTHROPIC_API_KEY=sk-ant-...
+ANTHROPIC_API_KEY=sk-ant-...      # ← LO PONES TÚ
 ANTHROPIC_MODEL=claude-haiku-4-5
 OCR_CONCURRENCY=2
 
-# Alertas (topic difícil de adivinar)
-NTFY_TOPIC=<tu-topic>
+NTFY_TOPIC=<generado>             # suscríbete en la app ntfy
 
-# Respaldos
-BACKUP_AGE_PUBLIC_KEY=age1abc…           # la PÚBLICA del paso 3
-BACKUP_REMOTE=s3:subirfactura-backups
-BACKUP_S3_PROVIDER=Cloudflare
+BACKUP_AGE_PUBLIC_KEY=age1...     # la PÚBLICA; la privada vive en tu Mac
+BACKUP_REMOTE=s3:subirfactura-respaldos
+BACKUP_IMAGES=true                # las imágenes SON la evidencia fiscal
+BACKUP_RETENTION_DAYS=30
+BACKUP_S3_PROVIDER=Cloudflare     # ← LAS 3 SIGUIENTES LAS PONES TÚ
 BACKUP_S3_ENDPOINT=https://<cuenta>.r2.cloudflarestorage.com
 BACKUP_S3_ACCESS_KEY=<...>
 BACKUP_S3_SECRET_KEY=<...>
-BACKUP_RETENTION_DAYS=30
-```
-
-```bash
-chmod 600 .env.prod    # que solo lo lea deploy
 ```
 
 **En GitHub** → Settings → Secrets and variables → Actions:
 
 | Secreto | Valor |
 |---|---|
-| `DEPLOY_HOST` | la IP del VPS |
+| `DEPLOY_HOST` | `138.197.81.29` |
 | `DEPLOY_USER` | `deploy` |
-| `DEPLOY_SSH_KEY` | el contenido de `~/.ssh/subirfactura_deploy` (la privada) |
+| `DEPLOY_SSH_KEY` | contenido de `.despliegue/deploy_key` (`pbcopy < .despliegue/deploy_key`) |
 
 ---
 
 ## 5. DNS
 
-En Cloudflare, apunta tu dominio al VPS:
+El dominio está en **Google Cloud DNS** (`ns-cloud-e*.googledomains.com`).
+Hacen falta los dos registros:
 
-| Tipo | Nombre | Contenido | Proxy |
+| Tipo | Nombre | Valor | Estado |
 |---|---|---|---|
-| A | `@` | TU_IP | 🟠 activado |
-| A | `www` | TU_IP | 🟠 activado |
+| A | `www` | `138.197.81.29` | ✅ ya existe |
+| A | `@` | `138.197.81.29` | ⬅ **falta** |
 
-En **SSL/TLS → Overview**, pon el modo en **Full (strict)**. Caddy saca su
-propio certificado; con "Flexible" se te arma un bucle de redirecciones.
+Sin el registro del apex, `subirfactura.com` sin "www" no abre, y Caddy
+reintenta sacarle certificado para siempre llenando el log de errores. Si
+prefieres esperar, deja `APEX_DOMAIN=` **vacío** en `.env.prod`: cae en un
+nombre `.localhost` que Caddy firma con su CA interna y no toca Let's Encrypt.
+
+**Let's Encrypt no requiere ninguna configuración.** Caddy pide el certificado
+solo la primera vez que alguien entra y lo renueva desde entonces; solo necesita
+que los puertos 80 y 443 lleguen a la máquina (el cortafuegos ya los abre). Sin
+Cloudflare de por medio no hay nada más que tocar — si algún día lo pones
+delante, debe ir en **Full (strict)**, nunca en "Flexible", o se arma un bucle
+de redirecciones.
 
 ---
 
@@ -191,10 +204,10 @@ responde**.
 Cuando acabe:
 
 ```bash
-curl https://TU_DOMINIO/health          # {"status":"ok","service":"facturard-api"}
+curl https://www.subirfactura.com/health          # {"status":"ok","service":"facturard-api"}
 ```
 
-Crea tu cuenta en `https://TU_DOMINIO/register` y luego hazte super-admin:
+Crea tu cuenta en `https://www.subirfactura.com/register` y luego hazte super-admin:
 
 ```bash
 cd /opt/subirfactura
@@ -233,7 +246,7 @@ botón no aparece y `/auth/google` responde "no configurado"). Para encenderlo:
 
 1. **Google Cloud Console** → *APIs y servicios* → *Credenciales* → *Crear
    credenciales* → *ID de cliente de OAuth* → tipo **Aplicación web**.
-   - Orígenes de JavaScript autorizados: `https://TU_DOMINIO`
+   - Orígenes de JavaScript autorizados: `https://www.subirfactura.com`
    - Copia el **Client ID** (es público, no es secreto).
 2. En GitHub → *Settings* → *Secrets and variables* → *Actions* → pestaña
    **Variables** (no Secrets): crea `GOOGLE_CLIENT_ID` con ese valor. El CD lo
@@ -253,13 +266,25 @@ botón no aparece y `/auth/google` responde "no configurado"). Para encenderlo:
 
 ```bash
 cd /opt/subirfactura
-alias dc='docker compose -f docker-compose.prod.yml --env-file .env.prod'
 
-dc ps                    # qué está corriendo
-dc logs -f api           # logs del API
-dc logs -f worker        # OCR
+./actualizar.sh --estado      # qué corre, memoria y disco
+./actualizar.sh --logs api    # seguir logs (api | worker | web | migrate…)
+./actualizar.sh --alertas     # rupturas detectadas por el pipeline
+./actualizar.sh               # traer y levantar la última versión
+./actualizar.sh <sha>         # rollback a un commit ya construido
+```
+
+`actualizar.sh` hace lo mismo que GitHub Actions —bajar imágenes, levantar y
+**esperar a que `/health` responda de verdad**— pero desde el servidor. Es para
+cuando quieres desplegar sin abrir el navegador, o revertir rápido a las 2 a.m.
+Nunca construye: un build de Node en 4 GB se muere.
+
+Para lo que no cubre:
+
+```bash
+alias dc='docker compose -f docker-compose.prod.yml --env-file .env.prod'
 dc logs backup           # respaldos
-grep '\[ALERTA\]' <(dc logs api worker)   # rupturas detectadas
+dc exec postgres psql -U facturard facturard
 ```
 
 ### Cuando haya demanda (lo elástico)
@@ -268,7 +293,8 @@ grep '\[ALERTA\]' <(dc logs api worker)   # rupturas detectadas
 # 1. Más workers — es donde ocurren los picos. Gratis, misma caja.
 dc up -d --scale worker=3
 
-# 2. Redimensionar la caja: en el panel de Hetzner, "Rescale" (~1 min)
+# 2. Redimensionar el droplet: panel de DigitalOcean → Resize (~1 min,
+#    con apagado; el disco no se toca)
 
 # 3. Imágenes a Cloudflare R2 (egress gratis) cuando el disco apriete:
 #    cambia S3_ENDPOINT / MINIO_ROOT_USER / MINIO_ROOT_PASSWORD en .env.prod
@@ -277,9 +303,13 @@ dc up -d --scale worker=3
 
 ### Rollback
 
+Desde el servidor (lo más rápido):
+
+```bash
+cd /opt/subirfactura && ./actualizar.sh <SHA del commit bueno>
 ```
-GitHub → Actions → Deploy → Run workflow → tag: <SHA del commit bueno>
-```
+
+O desde GitHub → Actions → Deploy → Run workflow → tag: `<SHA>`.
 
 Baja las imágenes de ese tag y levanta. **No reconstruye nada** → tarda ~1 min.
 Para ver los tags disponibles: pestaña *Packages* del repo.
@@ -294,13 +324,17 @@ Para ver los tags disponibles: pestaña *Packages* del repo.
 
 | Concepto | Mensual |
 |---|---|
-| VPS Hetzner CPX21 | ~$9 |
+| Droplet DigitalOcean 4 GB / 2 vCPU | ~$28 |
 | Dominio | ~$1 |
-| Cloudflare + R2 (respaldos) | ~$0–1 |
-| **Fijo** | **~$10–11** |
+| Cloudflare R2 (respaldos) | ~$0–1 |
+| **Fijo** | **~$30** |
 | Claude (OCR) | variable — pago por uso, atado a tus planes |
 
 El único costo que crece es el OCR, y crece **con el ingreso**, no contra él.
+
+Un VPS equivalente en Hetzner cuesta ~$9. La diferencia es real; si algún día
+pesa, el `docker-compose.prod.yml` corre igual en cualquier caja y mudarse es
+un `bootstrap-servidor.sh` + restaurar el respaldo.
 
 ---
 
@@ -313,7 +347,9 @@ El único costo que crece es el OCR, y crece **con el ingreso**, no contra él.
 - **El almacén no se expone.** Las imágenes de facturas se sirven por el proxy
   autenticado del API y los logos por una ruta pública propia. No hay que
   publicar MinIO ni configurar `S3_PUBLIC_URL`.
-- **Cloudflare en "Full (strict)"**, no "Flexible".
+- **Los dos registros DNS.** Con solo `www`, el apex no abre; con solo el apex,
+  Caddy no puede sacar el certificado del canónico.
+- **Si algún día pones Cloudflare delante**, en "Full (strict)", no "Flexible".
 - **Las migraciones corren en su propia imagen** (`migrate`), que sí trae el CLI
   de prisma y tsx. Incluye los seeds: sin ellos no hay planes ni categorías 606
   y el despliegue nace roto.
