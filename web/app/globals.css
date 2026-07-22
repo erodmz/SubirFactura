@@ -626,9 +626,11 @@ th {
     transform: none;
   }
 }
-/* Cada tarjeta entra con un respiro sutil al montarse. */
+/* Cada tarjeta entra con un respiro sutil al montarse. SIN fill-mode: un
+   transform/opacity "filled" deja un stacking context permanente y los menús
+   de los dropdowns quedaban enterrados bajo la tarjeta siguiente. */
 .card {
-  animation: fade-up 0.22s ease both;
+  animation: fade-up 0.22s ease;
 }
 
 @keyframes pop-in {
