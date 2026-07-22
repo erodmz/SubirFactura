@@ -81,9 +81,8 @@ export default function HomePage() {
   return (
     <>
       <div className="topbar">
-        <Link href="/" aria-label="Inicio">
-          <Logo />
-        </Link>
+        {/* Sin enlace a propósito: desde el selector, el logo no navega. */}
+        <Logo />
         <div style={{ flex: 1 }} />
         {me?.isSuperAdmin && <Link href="/admin">Panel super-admin</Link>}
         <Link href="/settings">Mi cuenta</Link>
@@ -246,6 +245,12 @@ function OrgTile({ m }: { m: Membership }) {
       )}
       <strong>{m.organization.nombre}</strong>
       <span className="badge">{m.rol}</span>
+      {m.organization.estadoAprobacion === 'pendiente' && (
+        <span className="badge">🕵️ en revisión</span>
+      )}
+      {m.organization.estadoAprobacion === 'rechazada' && (
+        <span className="badge">verificación rechazada</span>
+      )}
     </Link>
   );
 }
@@ -262,6 +267,12 @@ function OrgRow({ m }: { m: Membership }) {
       )}
       <strong className="org-row-name">{m.organization.nombre}</strong>
       <span className="badge">{m.rol}</span>
+      {m.organization.estadoAprobacion === 'pendiente' && (
+        <span className="badge">🕵️ en revisión</span>
+      )}
+      {m.organization.estadoAprobacion === 'rechazada' && (
+        <span className="badge">verificación rechazada</span>
+      )}
       <span className="org-row-chev" aria-hidden>
         ›
       </span>

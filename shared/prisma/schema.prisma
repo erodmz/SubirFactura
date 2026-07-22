@@ -35,6 +35,14 @@ enum SubscriptionStatus {
   cancelada
 }
 
+// Aprobación KYC de la empresa contadora (§7): el autoservicio nace pendiente,
+// sube un documento que pruebe titularidad y el super-admin aprueba/rechaza.
+enum OrgApprovalStatus {
+  pendiente
+  aprobada
+  rechazada
+}
+
 model User {
   id           String       @id @default(uuid())
   email        String       @unique
@@ -163,6 +171,11 @@ model Organization {
   // Borrado lógico (solo super-admin). Una org borrada desaparece para sus
   // miembros (guard y /me la filtran) pero sus datos fiscales se conservan.
   deletedAt          DateTime?           @map("deleted_at")
+  // KYC: pendiente hasta que el super-admin aprueba (autoservicio); las que
+  // crea el propio super-admin nacen aprobadas. El guard bloquea el resto.
+  estadoAprobacion   OrgApprovalStatus   @default(pendiente) @map("estado_aprobacion")
+  verificacionDocKey String?             @map("verificacion_doc_key")
+  motivoRechazo      String?             @map("motivo_rechazo")
   createdAt          DateTime            @default(now()) @map("created_at")
   updatedAt          DateTime            @updatedAt @map("updated_at")
   plan               Plan?               @relation(fields: [planId], references: [id])
@@ -205,6 +218,9 @@ model ClientProfile {
   userId         String?      @map("user_id")
   rncOCedula     String       @map("rnc_o_cedula")
   razonSocial    String       @map("razon_social")
+  // Workflow de aprobación por cliente: si está activo, todo gasto registrado
+  // a mano entra en revisión y alguien con permiso de validar lo aprueba.
+  requiereAprobacion Boolean  @default(false) @map("requiere_aprobacion")
   createdAt      DateTime     @default(now()) @map("created_at")
   updatedAt      DateTime     @updatedAt @map("updated_at")
   organization   Organization @relation(fields: [organizationId], references: [id])
@@ -253,9 +269,12 @@ model Invoice {
   // Quién subió la factura (solo lectura, para trazabilidad).
   subidoPorId           String?       @map("subido_por_id")
   estado                InvoiceStatus @default(subida)
+  // 'foto' (pipeline OCR) o 'manual' (registrada a mano, con foto opcional).
+  origen                String        @default("foto")
   // Página 1 (principal); las páginas adicionales viven en invoice_images.
   // Un comprobante largo (recibo térmico) puede necesitar varias fotos.
-  imagenUrl             String        @map("imagen_url")
+  // NULL en registros manuales sin comprobante fotografiado.
+  imagenUrl             String?       @map("imagen_url")
   // Hash perceptual de la imagen para detección de duplicados (§4)
   imagenPhash           String?       @map("imagen_phash")
   ncf                   String?

@@ -9,6 +9,7 @@ import { useParams } from 'next/navigation';
 import { api } from '../../../../lib/api';
 import { useAutoRefresh } from '../../../../lib/useAutoRefresh';
 import UploadInvoicesModal from '../../../../components/UploadInvoicesModal';
+import ManualInvoiceModal from '../../../../components/ManualInvoiceModal';
 import FabSubir from '../../../../components/FabSubir';
 import type { Invoice, Me } from '../../../../lib/types';
 
@@ -30,6 +31,7 @@ export default function MiNegocioPage() {
   const [negocios, setNegocios] = useState<{ id: string; razonSocial: string }[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [showUpload, setShowUpload] = useState(false);
+  const [showManual, setShowManual] = useState(false);
   const [error, setError] = useState('');
 
   const load = useCallback(() => {
@@ -62,7 +64,13 @@ export default function MiNegocioPage() {
 
       {error && <div className="error">{error}</div>}
 
-      <div className="card" style={{ marginTop: 16 }}>
+      <p style={{ marginTop: 8 }}>
+        <button type="button" className="link-btn" onClick={() => setShowManual(true)}>
+          ✍️ ¿Sin comprobante que fotografiar? Regístralo a mano
+        </button>
+      </p>
+
+      <div className="card" style={{ marginTop: 8 }}>
         {invoices.length === 0 ? (
           <p className="muted">
             Aún no hay facturas. Sube la primera con el botón de abajo — solo necesitas una
@@ -101,6 +109,17 @@ export default function MiNegocioPage() {
       </div>
 
       <FabSubir onClick={() => setShowUpload(true)} />
+
+      {showManual && (
+        <ManualInvoiceModal
+          orgId={orgId}
+          clientes={negocios}
+          clienteFijo={negocios.length === 1 ? negocios[0]!.id : undefined}
+          puedeValidar={false}
+          onClose={() => setShowManual(false)}
+          onCreated={load}
+        />
+      )}
 
       {showUpload && (
         <UploadInvoicesModal

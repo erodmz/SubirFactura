@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import Modal from './Modal';
+import Toggle from './Toggle';
 import type { Client, Member } from '../lib/types';
 import type { ConfirmOptions } from './ConfirmDialog';
 
@@ -148,6 +149,26 @@ export default function ClientDetailModal({
       }
     >
       {error && <div className="error" style={{ marginBottom: 14 }}>{error}</div>}
+
+      {client && (
+        <section style={{ marginBottom: 22 }}>
+          <div className="detail-section-head">
+            <h3>Gastos registrados a mano</h3>
+          </div>
+          <Toggle
+            checked={client.requiereAprobacion ?? false}
+            onChange={(v) =>
+              wrap(() =>
+                api(`/api/organizations/${orgId}/clients/${clientId}`, {
+                  method: 'PATCH',
+                  body: { requiereAprobacion: v },
+                }),
+              )
+            }
+            label="Exigir aprobación: todo gasto registrado a mano queda en revisión hasta que alguien con permiso lo valide"
+          />
+        </section>
+      )}
 
       <section style={{ marginBottom: 22 }}>
         <div className="detail-section-head">

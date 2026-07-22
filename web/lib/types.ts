@@ -13,6 +13,7 @@ export interface Me {
       id: string;
       nombre: string;
       estadoSuscripcion: string | null;
+      estadoAprobacion?: 'pendiente' | 'aprobada' | 'rechazada';
       logoUrl?: string | null;
     };
   }[];
@@ -45,6 +46,8 @@ export interface Client {
   rncOCedula: string;
   razonSocial: string;
   userId: string | null;
+  /** Workflow: los gastos registrados a mano entran en revisión obligatoria. */
+  requiereAprobacion?: boolean;
   contadores?: Member[];
   _count?: { assignments: number; members: number; invoices: number };
   limitWarning?: string;
@@ -263,6 +266,9 @@ export interface AdminOrg {
   nombre: string;
   rnc: string | null;
   estadoSuscripcion: string | null;
+  estadoAprobacion: 'pendiente' | 'aprobada' | 'rechazada';
+  verificacionDocKey: string | null;
+  motivoRechazo: string | null;
   plan: { nombre: string } | null;
   _count: { memberships: number };
   createdAt: string;

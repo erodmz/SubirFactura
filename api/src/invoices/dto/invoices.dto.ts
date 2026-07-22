@@ -19,6 +19,67 @@ export class UploadInvoiceDto {
   clientProfileId?: string;
 }
 
+/**
+ * Registro manual de un gasto (sin foto, o con foto opcional aparte): para
+ * cuando no hay comprobante que fotografiar. Entra como `en_revision`; si el
+ * cliente no exige aprobación y quien registra puede validar, `validar: true`
+ * la valida al guardar (con las mismas validaciones determinísticas).
+ */
+export class CreateManualInvoiceDto {
+  @IsString()
+  @IsNotEmpty({ message: 'Indica a qué cliente pertenece el gasto' })
+  clientProfileId!: string;
+
+  @IsOptional()
+  @IsString()
+  ncf?: string;
+
+  @IsOptional()
+  @IsString()
+  rncProveedor?: string;
+
+  @IsOptional()
+  @IsString()
+  razonSocialProveedor?: string;
+
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'Fecha inválida (AAAA-MM-DD)' })
+  fecha?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  montoFacturado?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  itbis?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  otrosImpuestos?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  propinaLegal?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  montoTotal?: number;
+
+  @IsOptional()
+  @IsString()
+  categoria606?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  validar?: boolean;
+}
+
 /** Estados a los que el contador puede mover una factura manualmente (corregir errores). */
 export const ESTADOS_MANUALES = ['en_revision', 'validada', 'rechazada'] as const;
 

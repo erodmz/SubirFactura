@@ -191,7 +191,15 @@ export async function processOcrJob(job: Job<OcrJobData>) {
     orderBy: { orderIndex: 'asc' },
     select: { key: true },
   });
-  const keys = [invoice.imagenUrl, ...extraImages.map((i) => i.key)];
+  // Un registro manual no tiene foto (imagenUrl null) y nunca se encola, pero
+  // por si acaso: sin páginas no hay nada que OCRear.
+  const keys = [invoice.imagenUrl, ...extraImages.map((i) => i.key)].filter(
+    (k): k is string => k != null,
+  );
+  if (keys.length === 0) {
+    await prisma.invoice.update({ where: { id: invoiceId }, data: { estado: 'en_revision' } });
+    return;
+  }
   const images = await Promise.all(keys.map((k) => getImageBase64(k)));
   const extraction = await extractInvoice(images);
 

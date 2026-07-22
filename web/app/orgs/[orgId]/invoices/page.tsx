@@ -10,6 +10,7 @@ import Dropdown from '../../../../components/Dropdown';
 import ImageLightbox from '../../../../components/ImageLightbox';
 import InvoiceTimeline from '../../../../components/InvoiceTimeline';
 import UploadInvoicesModal from '../../../../components/UploadInvoicesModal';
+import ManualInvoiceModal from '../../../../components/ManualInvoiceModal';
 import FabSubir from '../../../../components/FabSubir';
 import { ESTADO_COLOR } from '../../../../components/Charts';
 import { TrashIcon } from '../../../../components/icons';
@@ -266,6 +267,7 @@ export default function InvoicesPage() {
   // ?open=<id> abre esa factura directo (enlaces de "omitidas" del 606).
   const [expanded, setExpanded] = useState<string | null>(searchParams.get('open'));
   const [showUpload, setShowUpload] = useState(false);
+  const [showManual, setShowManual] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   // El modal se renderiza por portal a <body>; esperar a montar (evita SSR).
@@ -356,7 +358,12 @@ export default function InvoicesPage() {
 
   return (
     <>
-      <h1>Facturas</h1>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <h1 style={{ marginRight: 'auto' }}>Facturas</h1>
+        <button type="button" className="secondary" onClick={() => setShowManual(true)}>
+          ✍️ Registrar a mano
+        </button>
+      </div>
       {error && <div className="error">{error}</div>}
 
       <div className="card">
@@ -470,6 +477,16 @@ export default function InvoicesPage() {
           onUploaded={(subidas) => {
             if (subidas > 0) load();
           }}
+        />
+      )}
+
+      {showManual && (
+        <ManualInvoiceModal
+          orgId={orgId}
+          clientes={clientes}
+          puedeValidar
+          onClose={() => setShowManual(false)}
+          onCreated={load}
         />
       )}
 

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { api } from '../../lib/api';
+import { api, apiObjectUrl } from '../../lib/api';
 import type { AdminCreatedOrg, AdminOrg } from '../../lib/types';
 
 const PLANES = ['Básico', 'Pro', 'Empresarial'];
@@ -103,6 +103,44 @@ export default function AdminPage() {
       load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error inesperado');
+    }
+  }
+
+  async function aprobar(org: AdminOrg) {
+    setError('');
+    try {
+      await api(`/api/admin/organizations/${org.id}/aprobar`, { method: 'POST' });
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error inesperado');
+    }
+  }
+
+  async function rechazar(org: AdminOrg) {
+    const motivo = window.prompt(
+      `Motivo del rechazo de "${org.nombre}" (el usuario lo verá y podrá resubir el documento):`,
+    );
+    if (!motivo?.trim()) return;
+    setError('');
+    try {
+      await api(`/api/admin/organizations/${org.id}/rechazar`, {
+        method: 'POST',
+        body: { motivo: motivo.trim() },
+      });
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error inesperado');
+    }
+  }
+
+  /** El doc exige Authorization: se baja como blob y se abre en otra pestaña. */
+  async function verDocumento(org: AdminOrg) {
+    setError('');
+    try {
+      const url = await apiObjectUrl(`/api/admin/organizations/${org.id}/verificacion`);
+      window.open(url, '_blank', 'noopener');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo abrir el documento');
     }
   }
 
@@ -241,6 +279,10 @@ export default function AdminPage() {
                   {org.nombre}
                   {org.rnc && <span className="muted"> · {org.rnc}</span>}
                   {org.deletedAt && <span className="badge"> borrada</span>}
+                  {org.estadoAprobacion === 'pendiente' && (
+                    <span className="badge"> 🕵️ por aprobar{org.verificacionDocKey ? ' · doc listo' : ' · sin doc'}</span>
+                  )}
+                  {org.estadoAprobacion === 'rechazada' && <span className="badge"> rechazada</span>}
                 </td>
                 <td>{org.plan?.nombre ?? '—'}</td>
                 <td>
@@ -259,6 +301,42 @@ export default function AdminPage() {
                     </button>
                   ) : (
                     <>
+                      {org.verificacionDocKey && (
+                        <>
+                          <button
+                            type="button"
+                            className="link-btn"
+                            onClick={() => verDocumento(org)}
+                            aria-label={`Ver documento de ${org.nombre}`}
+                          >
+                            Ver doc
+                          </button>{' '}
+                        </>
+                      )}
+                      {org.estadoAprobacion !== 'aprobada' && (
+                        <>
+                          <button
+                            type="button"
+                            className="link-btn"
+                            onClick={() => aprobar(org)}
+                            aria-label={`Aprobar ${org.nombre}`}
+                          >
+                            ✓ Aprobar
+                          </button>{' '}
+                          {org.estadoAprobacion !== 'rechazada' && (
+                            <>
+                              <button
+                                type="button"
+                                className="link-btn"
+                                onClick={() => rechazar(org)}
+                                aria-label={`Rechazar ${org.nombre}`}
+                              >
+                                Rechazar
+                              </button>{' '}
+                            </>
+                          )}
+                        </>
+                      )}
                       <button
                         type="button"
                         className="link-btn"

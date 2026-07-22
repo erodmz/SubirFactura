@@ -20,6 +20,7 @@ import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-use
 import {
   BulkFormaPagoDto,
   ChangeStatusDto,
+  CreateManualInvoiceDto,
   ListInvoicesQueryDto,
   ReviewInvoiceDto,
   UploadInvoiceDto,
@@ -46,6 +47,18 @@ export class InvoicesController {
       throw new Error('Falta el archivo: enviar multipart/form-data con el campo "file" o "files"');
     }
     return this.invoices.upload(orgId, user, req.membership, dto.clientProfileId, files);
+  }
+
+  /** Registro manual de un gasto sin foto (¿hay foto? mejor súbela: la IA la lee). */
+  @Post('manual')
+  @OrgRoles('org_admin', 'contador', 'cliente')
+  createManual(
+    @Param('orgId') orgId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: { membership: Membership },
+    @Body() dto: CreateManualInvoiceDto,
+  ) {
+    return this.invoices.createManual(orgId, user, req.membership, dto);
   }
 
   // Ruta literal ANTES de las rutas con :invoiceId para que Nest no la capture

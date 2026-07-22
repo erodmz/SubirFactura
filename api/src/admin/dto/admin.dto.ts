@@ -19,6 +19,12 @@ export class AdminCreateOrganizationDto {
   adminEmail?: string;
 }
 
+export class RejectOrganizationDto {
+  @IsString()
+  @IsNotEmpty({ message: 'Indica el motivo del rechazo (el usuario lo verá)' })
+  motivo!: string;
+}
+
 export class SetSubscriptionDto {
   @IsString()
   planNombre!: string; // Básico | Pro | Empresarial

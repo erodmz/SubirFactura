@@ -142,7 +142,11 @@ export class ClientsService {
     await this.get(orgId, clientId, membership);
     const client = await this.prisma.forOrg(orgId).clientProfile.update({
       where: { id: clientId },
-      data: { razonSocial: dto.razonSocial ?? undefined, userId: dto.userId },
+      data: {
+        razonSocial: dto.razonSocial ?? undefined,
+        userId: dto.userId,
+        requiereAprobacion: dto.requiereAprobacion ?? undefined,
+      },
     });
     await this.audit.log({
       organizationId: orgId,

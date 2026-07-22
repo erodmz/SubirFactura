@@ -12,6 +12,9 @@ const LOGO_MIME = new Map([
   ['image/webp', 'webp'],
 ]);
 
+// El documento de verificación admite además PDF (registro mercantil, factura).
+const VERIF_MIME = new Map([...LOGO_MIME, ['application/pdf', 'pdf']]);
+
 /**
  * Ruta del logo servida por el propio API, RELATIVA a la base del API — el
  * cliente la antepone con la suya (en producción, mismo origen tras Caddy: '').
@@ -84,13 +87,53 @@ export class OrganizationsService {
       entidadId: org.id,
       datos: { plan: plan.nombre },
     });
-    if (Number(plan.precio) > 0) {
-      await notifyBusinessEvent(
-        'Nueva empresa con plan pago',
-        `"${org.nombre}" se registró con el plan ${plan.nombre}. Coordina el pago.`,
-      );
-    }
+    // El autoservicio nace pendiente de aprobación (KYC): avisar SIEMPRE al
+    // operador; si además eligió plan pago, ese detalle va en el mensaje.
+    await notifyBusinessEvent(
+      'Nueva empresa pendiente de aprobación',
+      `"${org.nombre}" se registró con el plan ${plan.nombre}${Number(plan.precio) > 0 ? ' (pago)' : ''}. Revisa su documento y apruébala en el panel.`,
+    );
     return org;
+  }
+
+  /**
+   * Documento de verificación KYC (org_admin, mientras está pendiente o
+   * rechazada): una factura del negocio, registro mercantil, etc. Reemplaza el
+   * anterior si se sube de nuevo (caso rechazo → corregir → reintentar).
+   */
+  async uploadVerificationDoc(
+    orgId: string,
+    userId: string,
+    file: { buffer: Buffer; mimetype: string },
+  ) {
+    const ext = VERIF_MIME.get(file.mimetype);
+    if (!ext) {
+      throw new BadRequestException('Formato no válido (usa PDF, PNG, JPG o WebP)');
+    }
+    const org = await this.prisma.organization.findUnique({ where: { id: orgId } });
+    if (!org) throw new NotFoundException('Organización no encontrada');
+    if (org.estadoAprobacion === 'aprobada') {
+      throw new BadRequestException('La empresa ya está aprobada');
+    }
+    const key = `verificaciones/${orgId}/${randomUUID()}.${ext}`;
+    await this.storage.putObject(key, file.buffer, file.mimetype);
+    await this.prisma.organization.update({
+      where: { id: orgId },
+      // Reintento tras rechazo: vuelve a pendiente y limpia el motivo.
+      data: { verificacionDocKey: key, estadoAprobacion: 'pendiente', motivoRechazo: null },
+    });
+    await this.audit.log({
+      organizationId: orgId,
+      userId,
+      accion: 'organization.upload_verificacion',
+      entidad: 'organization',
+      entidadId: orgId,
+    });
+    await notifyBusinessEvent(
+      'Documento de verificación recibido',
+      `"${org.nombre}" subió su documento. Revísalo y aprueba o rechaza en el panel.`,
+    );
+    return { ok: true, estadoAprobacion: 'pendiente' };
   }
 
   /**

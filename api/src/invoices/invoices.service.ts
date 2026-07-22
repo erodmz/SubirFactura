@@ -21,7 +21,7 @@ import { StorageService } from '../storage/storage.service';
 import { OcrQueueService } from '../queue/ocr-queue.service';
 import { AuditService } from '../audit/audit.service';
 import { PlanLimitsService } from '../plans/plan-limits.service';
-import { ListInvoicesQueryDto, ReviewInvoiceDto } from './dto/invoices.dto';
+import { CreateManualInvoiceDto, ListInvoicesQueryDto, ReviewInvoiceDto } from './dto/invoices.dto';
 import { rasterizePdf } from './pdf';
 import type { AuthenticatedUser } from '../common/decorators/current-user.decorator';
 
@@ -40,6 +40,75 @@ export class InvoicesService {
     private readonly audit: AuditService,
     private readonly planLimits: PlanLimitsService,
   ) {}
+
+  /**
+   * Registro MANUAL de un gasto (sin comprobante que fotografiar). Crea la
+   * factura con origen 'manual' y delega en review() los campos y las
+   * validaciones fiscales — una sola fuente de verdad. Si el cliente exige
+   * aprobación (workflow por cliente), entra en revisión aunque pidan validar.
+   */
+  async createManual(
+    orgId: string,
+    user: AuthenticatedUser,
+    membership: Membership,
+    dto: CreateManualInvoiceDto,
+  ) {
+    const client = await this.prisma.forOrg(orgId).clientProfile.findUnique({
+      where: { id: dto.clientProfileId },
+    });
+    if (!client) throw new NotFoundException('Cliente no encontrado');
+    if (membership.rol === 'cliente') {
+      const link = await this.prisma.clientMember.findUnique({
+        where: {
+          clientProfileId_userId: { clientProfileId: dto.clientProfileId, userId: user.userId },
+        },
+      });
+      if (!link) {
+        throw new ForbiddenException('No estás habilitado para registrar gastos de este cliente');
+      }
+    }
+    const limitWarning = await this.planLimits.ensureCanAddFactura(orgId);
+
+    // Workflow de aprobación por cliente: fuerza revisión aunque pidan validar.
+    const validar = dto.validar === true && !client.requiereAprobacion;
+
+    const created = await this.prisma.forOrg(orgId).invoice.create({
+      data: {
+        organizationId: orgId,
+        clientProfileId: dto.clientProfileId,
+        subidoPorId: user.userId,
+        estado: 'en_revision',
+        origen: 'manual',
+        imagenUrl: null,
+      },
+    });
+
+    try {
+      const { validar: _ignorado, ...fields } = dto;
+      void _ignorado;
+      const updated = await this.review(orgId, created.id, user, membership, {
+        ...fields,
+        validar,
+      });
+      return {
+        ...updated,
+        limitWarning,
+        aprobacionRequerida: dto.validar === true && client.requiereAprobacion,
+      };
+    } catch (error) {
+      // No dejar el esqueleto huérfano si los campos no pasaron (dup NCF, etc.).
+      await this.prisma
+        .forOrg(orgId)
+        .invoice.delete({ where: { id: created.id } })
+        .catch(() => {});
+      if ((error as { code?: string }).code === 'P2002') {
+        throw new ConflictException(
+          'Ya existe una factura de ese proveedor con ese NCF (duplicada)',
+        );
+      }
+      throw error;
+    }
+  }
 
   /**
    * Sube una o varias fotos (páginas) como UNA factura, crea en `subida` y
@@ -597,7 +666,8 @@ export class InvoicesService {
     // exponer el almacén a internet. Aquí solo va cuántas páginas hay.
     return {
       ...invoice,
-      pageCount: 1 + invoice.images.length,
+      // Un registro manual no tiene foto: 0 páginas (la UI muestra "sin comprobante").
+      pageCount: (invoice.imagenUrl ? 1 : 0) + invoice.images.length,
     };
   }
 
@@ -969,7 +1039,10 @@ export class InvoicesService {
     // Borra primero las filas (dentro del alcance de la org), luego los objetos.
     await this.prisma.forOrg(orgId).invoiceImage.deleteMany({ where: { invoiceId } });
     await this.prisma.forOrg(orgId).invoice.delete({ where: { id: invoiceId } });
-    for (const key of [invoice.imagenUrl, ...invoice.images.map((i) => i.key)]) {
+    // filter(Boolean): un registro manual no tiene foto (imagenUrl null).
+    for (const key of [invoice.imagenUrl, ...invoice.images.map((i) => i.key)].filter(
+      (k): k is string => k != null,
+    )) {
       await this.storage.deleteObject(key);
     }
 

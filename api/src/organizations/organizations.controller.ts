@@ -16,6 +16,7 @@ import { OrganizationsService } from './organizations.service';
 import { MembersService } from './members.service';
 import { PlanLimitsService } from '../plans/plan-limits.service';
 import { OrgRoles } from '../common/decorators/org-roles.decorator';
+import { AllowPendingOrg } from '../common/decorators/allow-pending-org.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-user.decorator';
 import {
@@ -40,10 +41,26 @@ export class OrganizationsController {
     return this.organizations.create(user.userId, dto);
   }
 
+  // @AllowPendingOrg: una empresa en revisión KYC necesita poder ver su estado.
   @Get(':orgId')
   @OrgRoles('org_admin', 'contador', 'cliente')
+  @AllowPendingOrg()
   get(@Param('orgId') orgId: string) {
     return this.organizations.get(orgId);
+  }
+
+  /** Documento KYC (factura del negocio, registro mercantil…) mientras está en revisión. */
+  @Post(':orgId/verificacion')
+  @OrgRoles('org_admin')
+  @AllowPendingOrg()
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 5 * 1024 * 1024 } }))
+  uploadVerificacion(
+    @Param('orgId') orgId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) throw new Error('Falta el archivo (campo "file")');
+    return this.organizations.uploadVerificationDoc(orgId, user.userId, file);
   }
 
   @Patch(':orgId')

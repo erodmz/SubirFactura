@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { api, getTokens } from '../../lib/api';
+import { api, apiUpload, getTokens } from '../../lib/api';
 import Logo from '../../components/Logo';
 import ThemeToggle from '../../components/ThemeToggle';
 import type { PlanInfo } from '../../lib/types';
@@ -13,7 +13,7 @@ import type { PlanInfo } from '../../lib/types';
  * Los planes (límites y precios) vienen de la BD, nunca hardcodeados.
  */
 
-const PASOS = ['Tu despacho', 'Tu plan', '¡Listo!'];
+const PASOS = ['Tu despacho', 'Tu plan', 'Verificación', '¡Listo!'];
 
 const fmtRD = (n: number) =>
   n === 0 ? 'Gratis' : `RD$${n.toLocaleString('es-DO')}/mes`;
@@ -28,6 +28,7 @@ export default function OnboardingPage() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [orgId, setOrgId] = useState('');
+  const [docSubido, setDocSubido] = useState(false);
 
   useEffect(() => {
     if (!getTokens()) {
@@ -63,6 +64,25 @@ export default function OnboardingPage() {
       setError(err instanceof Error ? err.message : 'Error inesperado');
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function subirDoc(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError('');
+    setBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      await apiUpload(`/api/organizations/${orgId}/verificacion`, fd);
+      setDocSubido(true);
+      setPaso(3);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo subir el documento');
+    } finally {
+      setBusy(false);
+      e.target.value = '';
     }
   }
 
@@ -180,21 +200,58 @@ export default function OnboardingPage() {
         )}
 
         {paso === 2 && (
+          <div className="card">
+            <h1>Un último paso: verifiquemos que es tuya 🛡️</h1>
+            <p className="muted">
+              Manejamos información fiscal, así que antes de activar{' '}
+              <strong>{nombre.trim()}</strong> necesitamos una prueba de que eres el dueño o
+              tienes acceso a la empresa. Sirve cualquiera de estos:
+            </p>
+            <ul className="ob-next">
+              <li>🧾 Una factura emitida o recibida por la empresa</li>
+              <li>📜 El registro mercantil o certificado del RNC</li>
+              <li>📄 Cualquier documento oficial a nombre de la empresa</li>
+            </ul>
+            <label
+              className="card"
+              style={{ display: 'block', textAlign: 'center', cursor: 'pointer', borderStyle: 'dashed' }}
+            >
+              <input
+                type="file"
+                accept="application/pdf,image/png,image/jpeg,image/webp"
+                onChange={subirDoc}
+                disabled={busy}
+                style={{ display: 'none' }}
+              />
+              {busy ? 'Subiendo…' : '📎 Toca aquí para subir el documento (PDF o foto, hasta 5 MB)'}
+            </label>
+            <p className="muted" style={{ fontSize: '.85rem' }}>
+              Nuestro equipo lo revisa (normalmente el mismo día) y te activamos la empresa.
+            </p>
+            <button type="button" className="link-btn" onClick={() => setPaso(3)}>
+              Lo subo después →
+            </button>
+          </div>
+        )}
+
+        {paso === 3 && (
           <div className="card" style={{ textAlign: 'center' }}>
             <Confetti />
-            <span className="ob-party" aria-hidden>🎉</span>
-            <h1>¡{nombre.trim()} está en el aire!</h1>
+            <span className="ob-party" aria-hidden>🕵️</span>
+            <h1>¡{nombre.trim()} quedó registrada!</h1>
             <p className="muted">
-              Plan {plan} activo. Esto es lo que viene ahora (tranquilo, te guiamos adentro):
+              {docSubido
+                ? 'Recibimos tu documento. Estamos revisándolo — normalmente el mismo día — y te activamos la empresa.'
+                : 'Está pendiente de verificación: sube el documento desde tu panel para que podamos activarla.'}
             </p>
             <ul className="ob-next" style={{ textAlign: 'left', display: 'inline-block' }}>
-              <li>👥 Agrega tu primer cliente (su RNC y ya)</li>
-              <li>📨 Invita a tus contadores o a tus clientes con un enlace</li>
-              <li>📸 Que te manden la primera factura — la IA hace el resto</li>
+              <li>✅ Plan {plan} reservado para tu empresa</li>
+              <li>🕐 Te avisamos en cuanto quede aprobada</li>
+              <li>🚀 Después: clientes, invitaciones y facturas con IA</li>
             </ul>
             <div>
-              <button onClick={() => router.push(`/orgs/${orgId}?tour=1`)} style={{ marginTop: 10 }}>
-                Entrar a mi despacho →
+              <button onClick={() => router.push(`/orgs/${orgId}`)} style={{ marginTop: 10 }}>
+                Ver el estado de mi empresa →
               </button>
             </div>
           </div>

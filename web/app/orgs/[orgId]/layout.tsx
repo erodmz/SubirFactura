@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { useParams, usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { api, apiUrl, clearTokens, getTokens } from '../../../lib/api';
+import { api, apiUpload, apiUrl, clearTokens, getTokens } from '../../../lib/api';
 import ThemeToggle from '../../../components/ThemeToggle';
 import Logo from '../../../components/Logo';
 import NotificationsBell from '../../../components/NotificationsBell';
@@ -38,9 +38,16 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [orgName, setOrgName] = useState('');
   const [orgLogo, setOrgLogo] = useState<string | null>(null);
+  const [aprobacion, setAprobacion] = useState<{
+    estado: 'pendiente' | 'aprobada' | 'rechazada';
+    motivo: string | null;
+    tieneDoc: boolean;
+  } | null>(null);
   const [me, setMe] = useState<Me | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [subiendoDoc, setSubiendoDoc] = useState(false);
+  const [errorDoc, setErrorDoc] = useState('');
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -48,14 +55,43 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
       router.replace('/login');
       return;
     }
-    api<{ nombre: string; logoUrl: string | null }>(`/api/organizations/${orgId}`)
+    api<{
+      nombre: string;
+      logoUrl: string | null;
+      estadoAprobacion?: 'pendiente' | 'aprobada' | 'rechazada';
+      motivoRechazo?: string | null;
+      verificacionDocKey?: string | null;
+    }>(`/api/organizations/${orgId}`)
       .then((org) => {
         setOrgName(org.nombre);
         setOrgLogo(org.logoUrl);
+        setAprobacion({
+          estado: org.estadoAprobacion ?? 'aprobada',
+          motivo: org.motivoRechazo ?? null,
+          tieneDoc: org.verificacionDocKey != null,
+        });
       })
       .catch(() => {});
     api<Me>('/api/me').then(setMe).catch(() => {});
   }, [orgId, router]);
+
+  async function subirVerificacion(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setErrorDoc('');
+    setSubiendoDoc(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      await apiUpload(`/api/organizations/${orgId}/verificacion`, fd);
+      setAprobacion((a) => (a ? { estado: 'pendiente', motivo: null, tieneDoc: true } : a));
+    } catch (err) {
+      setErrorDoc(err instanceof Error ? err.message : 'No se pudo subir el documento');
+    } finally {
+      setSubiendoDoc(false);
+      e.target.value = '';
+    }
+  }
 
   useEffect(() => {
     function onClick(e: MouseEvent) {
@@ -78,6 +114,60 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
   const base = `/orgs/${orgId}`;
   const rol = me?.memberships.find((m) => m.organization.id === orgId)?.rol;
   const navItems = rol === 'cliente' ? NAV_CLIENTE : NAV;
+
+  // KYC: mientras la empresa no esté aprobada, el panel completo queda cerrado
+  // — solo estado + subir documento (el guard del API bloquea el resto igual).
+  if (aprobacion && aprobacion.estado !== 'aprobada') {
+    return (
+      <main className="auth-box" style={{ maxWidth: 560 }}>
+        <div className="card" style={{ textAlign: 'center' }}>
+          <span style={{ fontSize: '2.6rem' }} aria-hidden>
+            {aprobacion.estado === 'rechazada' ? '🙁' : '🕵️'}
+          </span>
+          <h1>
+            {aprobacion.estado === 'rechazada'
+              ? 'La verificación fue rechazada'
+              : `${orgName || 'Tu empresa'} está en revisión`}
+          </h1>
+          {aprobacion.estado === 'rechazada' && aprobacion.motivo && (
+            <div className="error" style={{ textAlign: 'left' }}>
+              Motivo: {aprobacion.motivo}
+            </div>
+          )}
+          <p className="muted">
+            {aprobacion.estado === 'rechazada'
+              ? 'Corrige el documento y súbelo de nuevo — lo revisamos en cuanto llegue.'
+              : aprobacion.tieneDoc
+                ? 'Recibimos tu documento y lo estamos revisando (normalmente el mismo día). Te avisamos en cuanto quede activa.'
+                : 'Falta el documento que pruebe que eres el dueño o tienes acceso a la empresa (una factura del negocio, registro mercantil o certificado del RNC).'}
+          </p>
+          {errorDoc && <div className="error">{errorDoc}</div>}
+          {rol === 'org_admin' && (
+            <label
+              className="card"
+              style={{ display: 'block', cursor: 'pointer', borderStyle: 'dashed', marginTop: 10 }}
+            >
+              <input
+                type="file"
+                accept="application/pdf,image/png,image/jpeg,image/webp"
+                onChange={subirVerificacion}
+                disabled={subiendoDoc}
+                style={{ display: 'none' }}
+              />
+              {subiendoDoc
+                ? 'Subiendo…'
+                : aprobacion.tieneDoc
+                  ? '📎 Reemplazar el documento (PDF o foto, hasta 5 MB)'
+                  : '📎 Subir el documento (PDF o foto, hasta 5 MB)'}
+            </label>
+          )}
+          <p style={{ marginTop: 14 }}>
+            <Link href="/app">← Volver a mis empresas</Link>
+          </p>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <div className="app-shell">

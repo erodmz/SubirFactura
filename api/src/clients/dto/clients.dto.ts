@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class CreateClientDto {
   @IsString()
@@ -24,6 +24,11 @@ export class UpdateClientDto {
   @IsOptional()
   @IsString()
   userId?: string | null;
+
+  /** Workflow de aprobación: los registros manuales de este cliente entran en revisión. */
+  @IsOptional()
+  @IsBoolean()
+  requiereAprobacion?: boolean;
 }
 
 export class CreateAssignmentDto {

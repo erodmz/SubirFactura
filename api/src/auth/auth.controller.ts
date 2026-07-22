@@ -134,7 +134,13 @@ export class AuthController {
         where: { userId: user.userId, organization: { deletedAt: null } },
         include: {
           organization: {
-            select: { id: true, nombre: true, estadoSuscripcion: true, logoKey: true },
+            select: {
+              id: true,
+              nombre: true,
+              estadoSuscripcion: true,
+              estadoAprobacion: true,
+              logoKey: true,
+            },
           },
         },
       }),
@@ -184,6 +190,7 @@ export class AuthController {
           id: m.organization.id,
           nombre: m.organization.nombre,
           estadoSuscripcion: m.organization.estadoSuscripcion,
+          estadoAprobacion: m.organization.estadoAprobacion,
           logoUrl: logoPath(m.organization.id, m.organization.logoKey),
         },
       })),

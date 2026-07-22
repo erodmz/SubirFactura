@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { validateTaxId } from '@facturard/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { StorageService } from '../storage/storage.service';
 import { hashToken } from '../auth/auth.service';
 import { AdminCreateOrganizationDto, SetSubscriptionDto } from './dto/admin.dto';
 
@@ -19,6 +20,7 @@ export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly storage: StorageService,
   ) {}
 
   listOrganizations() {
@@ -58,6 +60,8 @@ export class AdminService {
           rnc: dto.rnc,
           planId: plan.id,
           estadoSuscripcion: 'activa',
+          // La crea el propio operador: no pasa por el embudo KYC.
+          estadoAprobacion: 'aprobada',
         },
       });
       await tx.subscription.create({
@@ -109,6 +113,58 @@ export class AdminService {
             }
           : null,
     };
+  }
+
+  /** Documento de verificación KYC de una empresa (lo revisa el super-admin). */
+  async verificationDocBytes(orgId: string) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { verificacionDocKey: true },
+    });
+    if (!org?.verificacionDocKey) {
+      throw new NotFoundException('Esta empresa no ha subido documento de verificación');
+    }
+    return this.storage.getObject(org.verificacionDocKey);
+  }
+
+  /** Aprueba la empresa (KYC): desbloquea el uso del app para sus miembros. */
+  async approveOrganization(orgId: string, actorUserId: string) {
+    const org = await this.prisma.organization.findUnique({ where: { id: orgId } });
+    if (!org) throw new NotFoundException('Organización no encontrada');
+    if (org.estadoAprobacion === 'aprobada') {
+      throw new BadRequestException('La empresa ya está aprobada');
+    }
+    const updated = await this.prisma.organization.update({
+      where: { id: orgId },
+      data: { estadoAprobacion: 'aprobada', motivoRechazo: null },
+    });
+    await this.audit.log({
+      organizationId: orgId,
+      userId: actorUserId,
+      accion: 'admin.approve_organization',
+      entidad: 'organization',
+      entidadId: orgId,
+    });
+    return updated;
+  }
+
+  /** Rechaza la empresa con motivo; el org_admin puede corregir y resubir. */
+  async rejectOrganization(orgId: string, actorUserId: string, motivo: string) {
+    const org = await this.prisma.organization.findUnique({ where: { id: orgId } });
+    if (!org) throw new NotFoundException('Organización no encontrada');
+    const updated = await this.prisma.organization.update({
+      where: { id: orgId },
+      data: { estadoAprobacion: 'rechazada', motivoRechazo: motivo },
+    });
+    await this.audit.log({
+      organizationId: orgId,
+      userId: actorUserId,
+      accion: 'admin.reject_organization',
+      entidad: 'organization',
+      entidadId: orgId,
+      datos: { motivo },
+    });
+    return updated;
   }
 
   /** Borrado lógico: la org desaparece para sus miembros; los datos quedan. */
