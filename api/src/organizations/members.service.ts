@@ -28,7 +28,8 @@ export class MembersService {
 
   private async assertNotLastAdmin(orgId: string, membershipId: string) {
     const admins = await this.prisma.membership.findMany({
-      where: { organizationId: orgId, rol: 'org_admin' },
+      // Solo cuentan los ACTIVOS: un admin inactivo no sostiene la organización.
+      where: { organizationId: orgId, rol: 'org_admin', deletedAt: null },
     });
     if (admins.length === 1 && admins[0]!.id === membershipId) {
       throw new BadRequestException('La organización debe conservar al menos un administrador');
@@ -129,9 +130,14 @@ export class MembersService {
     if (membership.rol === 'org_admin') {
       await this.assertNotLastAdmin(orgId, membershipId);
     }
+    // Borrado LÓGICO: se le quita el acceso, pero su cuenta y el historial
+    // (facturas que subió, auditoría) quedan intactos y se puede reactivar.
     await this.prisma.$transaction([
       this.prisma.assignment.deleteMany({ where: { contadorMembershipId: membershipId } }),
-      this.prisma.membership.delete({ where: { id: membershipId } }),
+      this.prisma.membership.update({
+        where: { id: membershipId },
+        data: { deletedAt: new Date() },
+      }),
     ]);
     await this.audit.log({
       organizationId: orgId,
@@ -140,5 +146,48 @@ export class MembersService {
       entidad: 'membership',
       entidadId: membershipId,
     });
+  }
+
+  /** Devuelve el acceso a un miembro inactivo (deshace el "Quitar"). */
+  async reactivate(orgId: string, membershipId: string, actorUserId: string) {
+    const membership = await this.getInOrg(orgId, membershipId);
+    if (!membership.deletedAt) {
+      throw new BadRequestException('El miembro ya está activo');
+    }
+    const updated = await this.prisma.membership.update({
+      where: { id: membershipId },
+      data: { deletedAt: null },
+    });
+    await this.audit.log({
+      organizationId: orgId,
+      userId: actorUserId,
+      accion: 'membership.reactivate',
+      entidad: 'membership',
+      entidadId: membershipId,
+    });
+    return updated;
+  }
+
+  /**
+   * Edita el nombre del usuario (solo org_admin — se expone así en el
+   * controller). Ojo: el nombre es GLOBAL del usuario (una cuenta, varias
+   * empresas); el cambio queda auditado.
+   */
+  async updateMemberName(orgId: string, membershipId: string, nombre: string, actorUserId: string) {
+    const membership = await this.getInOrg(orgId, membershipId);
+    const updated = await this.prisma.user.update({
+      where: { id: membership.userId },
+      data: { nombre },
+      select: { id: true, nombre: true },
+    });
+    await this.audit.log({
+      organizationId: orgId,
+      userId: actorUserId,
+      accion: 'membership.update_name',
+      entidad: 'user',
+      entidadId: membership.userId,
+      datos: { nombre },
+    });
+    return updated;
   }
 }

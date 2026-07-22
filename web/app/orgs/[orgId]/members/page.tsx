@@ -29,6 +29,8 @@ function initials(nombre: string, email: string) {
 export default function MembersPage() {
   const { orgId } = useParams<{ orgId: string }>();
   const [members, setMembers] = useState<Member[]>([]);
+  const [editingName, setEditingName] = useState<string | null>(null);
+  const [nameDraft, setNameDraft] = useState('');
   const [clientes, setClientes] = useState<{ id: string; razonSocial: string }[]>([]);
   const [q, setQ] = useState('');
   const [filtro, setFiltro] = useState<RolFiltro>('todos');
@@ -110,14 +112,43 @@ export default function MembersPage() {
   async function remove(m: Member) {
     const ok = await confirm({
       title: 'Quitar del equipo',
-      message: `¿Quitar a ${m.user.nombre} de la organización?`,
-      confirmLabel: 'Quitar',
+      message: `¿Quitar a ${m.user.nombre}? Pierde el acceso a esta empresa, pero su cuenta y su historial no se borran — puedes reactivarlo cuando quieras.`,
+      confirmLabel: 'Quitar acceso',
       danger: true,
     });
     if (!ok) return;
     setError('');
     try {
       await api(`/api/organizations/${orgId}/members/${m.id}`, { method: 'DELETE' });
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error inesperado');
+    }
+  }
+
+  async function reactivar(m: Member) {
+    setError('');
+    try {
+      await api(`/api/organizations/${orgId}/members/${m.id}/reactivar`, { method: 'POST' });
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error inesperado');
+    }
+  }
+
+  async function guardarNombre(m: Member) {
+    const nombre = nameDraft.trim();
+    if (!nombre || nombre === m.user.nombre) {
+      setEditingName(null);
+      return;
+    }
+    setError('');
+    try {
+      await api(`/api/organizations/${orgId}/members/${m.id}/nombre`, {
+        method: 'PATCH',
+        body: { nombre },
+      });
+      setEditingName(null);
       load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error inesperado');
@@ -240,17 +271,60 @@ export default function MembersPage() {
                       <div className="person-cell">
                         <span className="avatar">{initials(m.user.nombre, m.user.email)}</span>
                         <div>
-                          <div className="person-name">{m.user.nombre}</div>
+                          {editingName === m.id ? (
+                            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                              <input
+                                value={nameDraft}
+                                onChange={(e) => setNameDraft(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') guardarNombre(m);
+                                  if (e.key === 'Escape') setEditingName(null);
+                                }}
+                                autoFocus
+                                style={{ maxWidth: 180 }}
+                                aria-label="Nombre del usuario"
+                              />
+                              <button type="button" className="link-btn" onClick={() => guardarNombre(m)}>
+                                ✓
+                              </button>
+                              <button type="button" className="link-btn" onClick={() => setEditingName(null)}>
+                                ✕
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="person-name" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                              {m.user.nombre}
+                              {m.deletedAt && <span className="badge">inactivo</span>}
+                              {!m.deletedAt && (
+                                <button
+                                  type="button"
+                                  className="link-btn"
+                                  onClick={() => {
+                                    setEditingName(m.id);
+                                    setNameDraft(m.user.nombre);
+                                  }}
+                                  aria-label={`Editar nombre de ${m.user.nombre}`}
+                                  title="Editar nombre"
+                                >
+                                  ✎
+                                </button>
+                              )}
+                            </div>
+                          )}
                           <div className="person-sub">{m.user.email}</div>
                         </div>
                       </div>
                     </td>
                     <td>
-                      <select value={m.rol} onChange={(e) => changeRole(m.id, e.target.value)}>
-                        <option value="org_admin">Administrador</option>
-                        <option value="contador">Contador</option>
-                        <option value="cliente">Cliente</option>
-                      </select>
+                      {m.deletedAt ? (
+                        <span className="muted">{m.rol}</span>
+                      ) : (
+                        <select value={m.rol} onChange={(e) => changeRole(m.id, e.target.value)}>
+                          <option value="org_admin">Administrador</option>
+                          <option value="contador">Contador</option>
+                          <option value="cliente">Cliente</option>
+                        </select>
+                      )}
                     </td>
                     <td>
                       {m.rol === 'cliente' ? (
@@ -285,14 +359,25 @@ export default function MembersPage() {
                       </span>
                     </td>
                     <td style={{ textAlign: 'right' }}>
-                      <button
-                        type="button"
-                        className="link-btn danger-link"
-                        onClick={() => remove(m)}
-                        aria-label={`Quitar a ${m.user.nombre}`}
-                      >
-                        Quitar
-                      </button>
+                      {m.deletedAt ? (
+                        <button
+                          type="button"
+                          className="link-btn"
+                          onClick={() => reactivar(m)}
+                          aria-label={`Reactivar a ${m.user.nombre}`}
+                        >
+                          Reactivar
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="link-btn danger-link"
+                          onClick={() => remove(m)}
+                          aria-label={`Quitar a ${m.user.nombre}`}
+                        >
+                          Quitar
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );

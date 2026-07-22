@@ -40,8 +40,14 @@ export class OrgRolesGuard implements CanActivate {
       where: { userId_organizationId: { userId: user.userId, organizationId: orgId } },
       include: { organization: { select: { deletedAt: true, estadoAprobacion: true } } },
     });
-    // Una org con borrado lógico deja de existir para sus miembros.
-    if (!membership || membership.organization.deletedAt || !roles.includes(membership.rol)) {
+    // Una org con borrado lógico deja de existir para sus miembros; una
+    // membresía inactiva (miembro "quitado") tampoco da acceso.
+    if (
+      !membership ||
+      membership.deletedAt ||
+      membership.organization.deletedAt ||
+      !roles.includes(membership.rol)
+    ) {
       throw new ForbiddenException('No tienes permiso en esta organización');
     }
 

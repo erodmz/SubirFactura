@@ -60,3 +60,9 @@ export class SetExemptApprovalDto {
   @IsBoolean()
   exentoAprobacion!: boolean;
 }
+
+export class UpdateMemberNameDto {
+  @IsString()
+  @IsNotEmpty({ message: 'El nombre no puede ir vacío' })
+  nombre!: string;
+}

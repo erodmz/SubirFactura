@@ -130,8 +130,9 @@ export class AuthController {
         select: { nombre: true, emailVerifiedAt: true },
       }),
       this.prisma.membership.findMany({
-        // Las orgs con borrado lógico desaparecen del selector (web y móvil).
-        where: { userId: user.userId, organization: { deletedAt: null } },
+        // Las orgs con borrado lógico desaparecen del selector (web y móvil);
+        // las membresías inactivas (miembro "quitado") también.
+        where: { userId: user.userId, deletedAt: null, organization: { deletedAt: null } },
         include: {
           organization: {
             select: {

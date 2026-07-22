@@ -25,6 +25,7 @@ import {
   SetExemptApprovalDto,
   SetValidatePermissionDto,
   SetReportsPermissionDto,
+  UpdateMemberNameDto,
   UpdateMemberRoleDto,
   UpdateOrganizationDto,
 } from './dto/organizations.dto';
@@ -174,6 +175,7 @@ export class OrganizationsController {
     return this.members.setReportsPermission(orgId, membershipId, dto.puedeVerReportes, user.userId);
   }
 
+  // "Quitar" = borrado lógico de la membresía (la cuenta no se toca).
   @Delete(':orgId/members/:membershipId')
   @HttpCode(204)
   @OrgRoles('org_admin')
@@ -183,5 +185,27 @@ export class OrganizationsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.members.remove(orgId, membershipId, user.userId);
+  }
+
+  @Post(':orgId/members/:membershipId/reactivar')
+  @OrgRoles('org_admin')
+  reactivateMember(
+    @Param('orgId') orgId: string,
+    @Param('membershipId') membershipId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.members.reactivate(orgId, membershipId, user.userId);
+  }
+
+  /** Editar el nombre del usuario: privilegio administrativo (queda auditado). */
+  @Patch(':orgId/members/:membershipId/nombre')
+  @OrgRoles('org_admin')
+  updateMemberName(
+    @Param('orgId') orgId: string,
+    @Param('membershipId') membershipId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: UpdateMemberNameDto,
+  ) {
+    return this.members.updateMemberName(orgId, membershipId, dto.nombre, user.userId);
   }
 }

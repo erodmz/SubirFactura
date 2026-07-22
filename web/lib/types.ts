@@ -40,6 +40,8 @@ export interface Member {
   puedeVerReportes?: boolean;
   /** Usuario de confianza: sus registros manuales no pasan por aprobación. */
   exentoAprobacion?: boolean;
+  /** Inactivo ("quitado" con borrado lógico): sin acceso, reactivable. */
+  deletedAt?: string | null;
   user: { id: string; email: string; nombre: string; telefono: string | null };
 }
 

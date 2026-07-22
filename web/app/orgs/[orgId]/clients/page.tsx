@@ -28,7 +28,10 @@ export default function ClientsPage() {
 
   const load = useCallback(() => {
     api<Client[]>(`/api/organizations/${orgId}/clients`).then(setClients).catch(() => {});
-    api<Member[]>(`/api/organizations/${orgId}/members`).then(setMembers).catch(() => {});
+    api<Member[]>(`/api/organizations/${orgId}/members`)
+      // Los inactivos (quitados) no se asignan ni se habilitan.
+      .then((ms) => setMembers(ms.filter((m) => !m.deletedAt)))
+      .catch(() => {});
   }, [orgId]);
 
   useEffect(load, [load]);

@@ -38,7 +38,11 @@ export class InvitationsService {
       const membership = await this.prisma.membership.findUnique({
         where: { userId_organizationId: { userId: existingUser.id, organizationId: orgId } },
       });
-      if (membership) throw new ConflictException('Ese usuario ya es miembro de la organización');
+      // Una membresía inactiva (miembro "quitado") no bloquea: se puede
+      // reinvitar y al aceptar se reactiva.
+      if (membership && !membership.deletedAt) {
+        throw new ConflictException('Ese usuario ya es miembro de la organización');
+      }
     }
 
     // El negocio vinculado solo aplica a clientes y debe pertenecer a ESTA org.
@@ -137,12 +141,21 @@ export class InvitationsService {
     }
 
     const membership = await this.prisma.$transaction(async (tx) => {
-      const created = await tx.membership.create({
-        data: {
+      // upsert: si existía una membresía inactiva (miembro "quitado"), la
+      // invitación la REACTIVA con el rol nuevo en vez de chocar con la unicidad.
+      const created = await tx.membership.upsert({
+        where: {
+          userId_organizationId: {
+            userId: user.userId,
+            organizationId: invitation.organizationId,
+          },
+        },
+        create: {
           userId: user.userId,
           organizationId: invitation.organizationId,
           rol: invitation.rol,
         },
+        update: { rol: invitation.rol, deletedAt: null },
       });
       // Invitación de cliente con negocio vinculado: el client_member se crea
       // aquí mismo — sin el 2.º paso manual en "Gestionar" que nadie descubría.
