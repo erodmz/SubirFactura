@@ -80,8 +80,11 @@ export async function api<T = unknown>(
     throw new ApiError(401, 'Sesión expirada');
   }
   if (!res.ok) throw await parseError(res);
+  // Tolerar respuestas sin cuerpo (204, o 200/201 de endpoints void como
+  // habilitar usuario): parsear "" con res.json() revienta.
   if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
+  const text = await res.text();
+  return (text ? JSON.parse(text) : undefined) as T;
 }
 
 /** Sube un archivo (multipart) al API con auth + refresh, y devuelve el JSON. */
