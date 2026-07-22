@@ -120,6 +120,7 @@ Contenido (así lo genera el script):
 
 ```bash
 GHCR_OWNER=erodmz
+GHCR_TOKEN=ghp_...                # ← LO PONES TÚ (ver más abajo)
 
 # Dominio: APP_DOMAIN es el canónico; APEX_DOMAIN redirige a él.
 APP_DOMAIN=www.subirfactura.com
@@ -163,6 +164,29 @@ BACKUP_S3_SECRET_KEY=<...>
 | `DEPLOY_HOST` | `138.197.81.29` |
 | `DEPLOY_USER` | `deploy` |
 | `DEPLOY_SSH_KEY` | contenido de `.despliegue/deploy_key` (`pbcopy < .despliegue/deploy_key`) |
+
+### El token del registro (`GHCR_TOKEN`)
+
+**Las imágenes de GHCR nacen privadas aunque el repo sea público.** Durante el
+despliegue automático no hace falta nada: el workflow entra con su propio token.
+El problema aparece después — ese token **caduca al terminar el workflow**, así
+que el `docker login` que deja en el servidor queda muerto y un
+`./actualizar.sh` días después falla con un `denied` que no explica nada.
+
+Por eso el servidor lleva su propia credencial:
+
+1. github.com/settings/tokens → *Generate new token (classic)*
+2. Un solo permiso: **`read:packages`**. Nada más — ese token solo puede
+   *leer* imágenes; si se filtra, no puede tocar tu código ni publicar nada.
+3. Pégalo en `.env.prod` como `GHCR_TOKEN=ghp_...`
+
+`actualizar.sh` renueva la sesión con él en cada despliegue, así que no importa
+qué credencial vieja hubiera quedado.
+
+> Si prefieres no manejar token, la alternativa es hacer **públicos los cinco
+> paquetes** (repo → Packages → cada uno → Package settings → Change visibility).
+> Es una decisión distinta a la del repo: expone las imágenes construidas, que
+> llevan el código compilado dentro.
 
 ---
 
@@ -344,6 +368,9 @@ un `bootstrap-servidor.sh` + restaurar el respaldo.
   construye en Actions y el servidor solo baja imágenes.
 - **`.env.prod` nunca en el repo.** El workflow falla a propósito si no lo
   encuentra en el servidor.
+- **Los paquetes de GHCR son privados aunque el repo sea público.** El
+  despliegue automático funciona igual; el que se rompe sin `GHCR_TOKEN` es el
+  manual desde el servidor, y el error (`denied`) no dice por qué.
 - **El almacén no se expone.** Las imágenes de facturas se sirven por el proxy
   autenticado del API y los logos por una ruta pública propia. No hay que
   publicar MinIO ni configurar `S3_PUBLIC_URL`.

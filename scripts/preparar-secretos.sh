@@ -62,6 +62,12 @@ else
 # Generado por scripts/preparar-secretos.sh — no lo subas al repo.
 
 GHCR_OWNER=erodmz
+# Token para que el SERVIDOR baje las imágenes por su cuenta (./actualizar.sh).
+# Los paquetes de GHCR nacen privados aunque el repo sea público, y el token de
+# GitHub Actions caduca al terminar el workflow. Crea uno en
+# github.com/settings/tokens con UN SOLO permiso: read:packages.
+# ⚠️ LO PONES TÚ. Sin él, los despliegues manuales desde el servidor fallan.
+GHCR_TOKEN=
 
 # ── Dominio ───────────────────────────────────────────────────────────────────
 # APP_DOMAIN es el canónico (el que ve el usuario en la barra).
@@ -145,8 +151,11 @@ SubirFactura — pasos para el primer despliegue
 
 2) SUBIR EL .env.prod (nunca pasa por git ni por GitHub)
 
-   Completa primero ANTHROPIC_API_KEY y las 3 variables BACKUP_S3_* en
-   $DIR/.env.prod, y luego:
+   Completa primero, en $DIR/.env.prod:
+     · ANTHROPIC_API_KEY   (console.anthropic.com)
+     · GHCR_TOKEN          (github.com/settings/tokens → solo read:packages)
+     · BACKUP_S3_*         (las 3 de tu bucket de respaldos)
+   y luego:
 
    scp -i $DIR/deploy_key $DIR/.env.prod deploy@$IP:/opt/subirfactura/.env.prod
    ssh -i $DIR/deploy_key deploy@$IP 'chmod 600 /opt/subirfactura/.env.prod'
@@ -183,5 +192,5 @@ info "Todo quedó en $DIR/ (ignorada por git)"
 echo
 cat "$DIR/INSTRUCCIONES.txt"
 echo
-warn "Antes de desplegar, completa en $DIR/.env.prod: ANTHROPIC_API_KEY y BACKUP_S3_*"
+warn "Antes de desplegar, completa en $DIR/.env.prod: ANTHROPIC_API_KEY, GHCR_TOKEN y BACKUP_S3_*"
 warn "Y respalda $DIR/backup-key.txt fuera de esta máquina."

@@ -62,20 +62,36 @@ esac
 TAG="${1:-latest}"
 
 # ── 1. Entrar al registro ─────────────────────────────────────────────────────
-# GHCR necesita autenticación incluso para imágenes públicas de un repo privado.
-if [ -n "${GHCR_TOKEN:-}" ]; then
-  say "Entrando a GHCR"
-  GHCR_OWNER=$(grep -E '^GHCR_OWNER=' "$ENVFILE" | cut -d= -f2)
-  echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_OWNER" --password-stdin >/dev/null
+# Los paquetes de GHCR nacen PRIVADOS aunque el repo sea público, así que el
+# servidor necesita credenciales propias. Las de GitHub Actions caducan al
+# terminar el workflow: el `docker login` que deja en ~/.docker/config.json
+# queda muerto, y un pull manual días después falla con un "denied" confuso.
+# Por eso GHCR_TOKEN vive en .env.prod y aquí se renueva la sesión cada vez.
+leer_env() { grep -E "^$1=" "$ENVFILE" | tail -1 | cut -d= -f2- | tr -d '"'"'"'\r'; }
+GHCR_OWNER="$(leer_env GHCR_OWNER)"
+GHCR_TOKEN="${GHCR_TOKEN:-$(leer_env GHCR_TOKEN)}"
+
+if [ -n "$GHCR_TOKEN" ]; then
+  say "Entrando a GHCR como $GHCR_OWNER"
+  echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_OWNER" --password-stdin >/dev/null \
+    || fail "GHCR rechazó el token. ¿Caducó, o le falta el permiso read:packages?"
   info "ok"
-elif ! docker system info 2>/dev/null | grep -q 'ghcr.io'; then
-  info "usando la sesión de docker login que ya existe"
+else
+  info "sin GHCR_TOKEN — intento con la sesión que haya (funciona si los paquetes son públicos)"
 fi
 
 # ── 2. Bajar imágenes ─────────────────────────────────────────────────────────
 say "Bajando imágenes (tag: $TAG)"
 export IMAGE_TAG="$TAG"
-dc pull
+if ! dc pull; then
+  echo
+  warn "No pude bajar las imágenes. Lo más común es que sea el registro:"
+  warn "  · Los paquetes de GHCR son privados por defecto, incluso con el repo público."
+  warn "  · Crea un token en github.com/settings/tokens con el permiso read:packages"
+  warn "    y añádelo a $ENVFILE como:  GHCR_TOKEN=ghp_..."
+  warn "  · Comprueba también que el tag existe: pestaña Packages del repo."
+  fail "Nada que levantar — no toco lo que está corriendo."
+fi
 
 # ── 3. Levantar ───────────────────────────────────────────────────────────────
 # `migrate` corre primero y termina; el resto arranca contra el esquema nuevo.
