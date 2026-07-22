@@ -158,6 +158,9 @@ model Organization {
   requiereValidacionAritmetica Boolean  @default(true) @map("requiere_validacion_aritmetica")
   // Logo de la empresa (objeto en MinIO); se muestra en la lista de empresas.
   logoKey            String?             @map("logo_key")
+  // Borrado lógico (solo super-admin). Una org borrada desaparece para sus
+  // miembros (guard y /me la filtran) pero sus datos fiscales se conservan.
+  deletedAt          DateTime?           @map("deleted_at")
   createdAt          DateTime            @default(now()) @map("created_at")
   updatedAt          DateTime            @updatedAt @map("updated_at")
   plan               Plan?               @relation(fields: [planId], references: [id])

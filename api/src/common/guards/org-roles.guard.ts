@@ -37,8 +37,10 @@ export class OrgRolesGuard implements CanActivate {
 
     const membership = await this.prisma.membership.findUnique({
       where: { userId_organizationId: { userId: user.userId, organizationId: orgId } },
+      include: { organization: { select: { deletedAt: true } } },
     });
-    if (!membership || !roles.includes(membership.rol)) {
+    // Una org con borrado lógico deja de existir para sus miembros.
+    if (!membership || membership.organization.deletedAt || !roles.includes(membership.rol)) {
       throw new ForbiddenException('No tienes permiso en esta organización');
     }
 

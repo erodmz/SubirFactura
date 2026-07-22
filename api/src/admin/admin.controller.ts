@@ -1,8 +1,8 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { SuperAdminGuard } from '../common/guards/super-admin.guard';
 import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-user.decorator';
-import { SetSubscriptionDto } from './dto/admin.dto';
+import { AdminCreateOrganizationDto, SetSubscriptionDto } from './dto/admin.dto';
 
 @Controller('admin')
 @UseGuards(SuperAdminGuard)
@@ -12,6 +12,21 @@ export class AdminController {
   @Get('organizations')
   listOrganizations() {
     return this.admin.listOrganizations();
+  }
+
+  @Post('organizations')
+  createOrganization(@CurrentUser() user: AuthenticatedUser, @Body() dto: AdminCreateOrganizationDto) {
+    return this.admin.createOrganization(user.userId, dto);
+  }
+
+  @Delete('organizations/:orgId')
+  softDeleteOrganization(@Param('orgId') orgId: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.admin.softDeleteOrganization(orgId, user.userId);
+  }
+
+  @Post('organizations/:orgId/restore')
+  restoreOrganization(@Param('orgId') orgId: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.admin.restoreOrganization(orgId, user.userId);
   }
 
   @Get('organizations/:orgId/subscriptions')

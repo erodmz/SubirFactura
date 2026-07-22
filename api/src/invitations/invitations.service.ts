@@ -93,7 +93,7 @@ export class InvitationsService {
   private async findByToken(token: string) {
     const invitation = await this.prisma.invitation.findUnique({
       where: { tokenHash: hashToken(token) },
-      include: { organization: { select: { id: true, nombre: true } } },
+      include: { organization: { select: { id: true, nombre: true, deletedAt: true } } },
     });
     if (!invitation) throw new NotFoundException('Invitación no encontrada');
     return invitation;
@@ -127,6 +127,9 @@ export class InvitationsService {
 
   async accept(token: string, user: AuthenticatedUser) {
     const invitation = await this.findByToken(token);
+    if (invitation.organization.deletedAt) {
+      throw new ForbiddenException('Esta empresa ya no está activa');
+    }
     if (invitation.acceptedAt) throw new ConflictException('La invitación ya fue usada');
     if (invitation.expiresAt < new Date()) throw new ForbiddenException('La invitación expiró');
     if (invitation.email.toLowerCase() !== user.email.toLowerCase()) {

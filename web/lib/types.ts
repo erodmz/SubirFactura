@@ -257,4 +257,18 @@ export interface AdminOrg {
   plan: { nombre: string } | null;
   _count: { memberships: number };
   createdAt: string;
+  deletedAt: string | null;
+}
+
+/** Respuesta de POST /api/admin/organizations (crear empresa llave en mano). */
+export interface AdminCreatedOrg {
+  id: string;
+  nombre: string;
+  plan: { nombre: string };
+  invitation: {
+    email: string;
+    rol: string;
+    expiresAt: string;
+    inviteUrl: string;
+  } | null;
 }
