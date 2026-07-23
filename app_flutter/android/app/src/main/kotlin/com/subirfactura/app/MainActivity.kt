@@ -1,4 +1,4 @@
-package com.facturard.app
+package com.subirfactura.app
 
 import io.flutter.embedding.android.FlutterActivity
 

@@ -9,9 +9,31 @@ rootProject.buildDir = "../build"
 subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"
 }
+// Algunos plugins declaran un compileSdk más nuevo que el publicado en el
+// repositorio del SDK (receive_sharing_intent pedía android-37, que ni siquiera
+// existe todavía) y el build muere con "Failed to find Platform SDK". Se fija a
+// la misma versión que usa la app: compilar contra una API más nueva no cambia
+// el comportamiento en runtime, eso lo determina targetSdk.
+//
+// Va ANTES de evaluationDependsOn a propósito: ese bloque ya fuerza la
+// evaluación, y después un afterEvaluate llega tarde ("Cannot run
+// Project.afterEvaluate when the project is already evaluated").
+subprojects {
+    afterEvaluate { proyecto ->
+        if (proyecto.hasProperty("android")) {
+            proyecto.android {
+                if (compileSdk == null || compileSdk > 36) {
+                    compileSdk = 36
+                }
+            }
+        }
+    }
+}
+
 subprojects {
     project.evaluationDependsOn(":app")
 }
+
 
 tasks.register("clean", Delete) {
     delete rootProject.buildDir

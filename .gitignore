@@ -15,6 +15,12 @@ next-env.d.ts
 # Llaves y variables de despliegue (scripts/preparar-secretos.sh)
 .despliegue/
 
+# Firma de release de Android. Si esto se filtra, cualquiera puede publicar
+# actualizaciones que Google Play acepta como tuyas.
+**/key.properties
+*.jks
+*.keystore
+
 # Prisma
 shared/prisma/generated/
 
