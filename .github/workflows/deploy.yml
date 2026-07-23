@@ -90,6 +90,7 @@ jobs:
           # es build-time). Se toma de una variable del repo, no de un secreto.
           build-args: |
             NEXT_PUBLIC_GOOGLE_CLIENT_ID=${{ vars.GOOGLE_CLIENT_ID }}
+            NEXT_PUBLIC_SITE_URL=${{ vars.SITE_URL || 'https://www.subirfactura.com' }}
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/subirfactura-${{ matrix.nombre }}:${{ github.sha }}

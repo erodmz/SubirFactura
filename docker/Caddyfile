@@ -1,33 +1,56 @@
-# TLS automático (Let's Encrypt) cuando APP_DOMAIN es un dominio real; en
-# localhost Caddy usa su CA interna y no toca ACME.
+# TLS automático (Let's Encrypt) cuando los dominios son reales; en localhost
+# Caddy usa su CA interna y no toca ACME.
 {
 	# Let's Encrypt avisa a este correo si un certificado deja de renovarse.
 	# Sin él ese aviso se pierde y te enteras cuando el sitio ya está caído.
 	email {$ACME_EMAIL:admin@localhost}
 }
 
-# El canónico va primero; el apex solo redirige. Así hay UNA sola URL buena:
-# cookies, CORS y enlaces compartidos apuntan siempre al mismo sitio.
-{$APP_DOMAIN:localhost}, {$APEX_DOMAIN:apex.localhost} {
-	# subirfactura.com → www.subirfactura.com, conservando la ruta.
-	@apex host {$APEX_DOMAIN:apex.localhost}
-	redir @apex https://{$APP_DOMAIN:localhost}{uri} permanent
-
+# ── Panel (app.subirfactura.com) ──────────────────────────────────────────────
+# Es el dominio CANÓNICO de la aplicación: los enlaces de los correos, las
+# invitaciones y el CORS apuntan aquí. Las sesiones viven en localStorage, que
+# es por origen, así que el panel tiene que estar siempre en el mismo host.
+{$APP_DOMAIN:localhost} {
 	encode gzip
-
-	# HSTS (ESPECIFICACION.md §8)
 	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
 
-	# API NestJS bajo /api; /health para monitoreo
+	# La raíz del panel no es la landing: al escritorio. 302 y no 301 — un 301
+	# se cachea en el navegador para siempre y ata las manos si esto cambia.
+	redir / /app
+
 	handle /api/* {
 		reverse_proxy api:3000
 	}
 	handle /health {
 		reverse_proxy api:3000
 	}
-
-	# Panel web del contador (Next.js)
 	handle {
 		reverse_proxy web:3000
 	}
+}
+
+# ── Landing (www.subirfactura.com) ────────────────────────────────────────────
+{$LANDING_DOMAIN:landing.localhost} {
+	encode gzip
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+	# Las pantallas privadas viven SOLO en el panel: una URL por pantalla, y
+	# nadie se queda mirando un /app en www preguntándose por qué salió la
+	# sesión (localStorage no cruza de host).
+	@panel path /app /app/* /orgs/* /admin /admin/* /settings /settings/* /onboarding /onboarding/* /login /register /forgot-password /reset-password /verificar-correo /invitations/*
+	redir @panel https://{$APP_DOMAIN:localhost}{uri} permanent
+
+	handle /health {
+		reverse_proxy api:3000
+	}
+	handle {
+		reverse_proxy web:3000
+	}
+}
+
+# ── Apex (subirfactura.com) → landing ─────────────────────────────────────────
+# Con APEX_DOMAIN vacío cae en un nombre .localhost que Caddy firma con su CA
+# interna: no molesta a Let's Encrypt mientras el registro A no exista.
+{$APEX_DOMAIN:apex.localhost} {
+	redir https://{$LANDING_DOMAIN:landing.localhost}{uri} permanent
 }

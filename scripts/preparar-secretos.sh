@@ -69,10 +69,14 @@ GHCR_OWNER=erodmz
 # ⚠️ LO PONES TÚ. Sin él, los despliegues manuales desde el servidor fallan.
 GHCR_TOKEN=
 
-# ── Dominio ───────────────────────────────────────────────────────────────────
-# APP_DOMAIN es el canónico (el que ve el usuario en la barra).
-# APEX_DOMAIN redirige al canónico. Déjalo vacío si el apex aún no resuelve.
-APP_DOMAIN=www.subirfactura.com
+# ── Dominios ──────────────────────────────────────────────────────────────────
+# El panel y la landing viven en hosts distintos:
+#   APP_DOMAIN     → el PANEL. Canónico de la app: los enlaces de los correos,
+#                    las invitaciones y el CORS apuntan aquí.
+#   LANDING_DOMAIN → la página pública. Es la URL que se indexa (SEO).
+#   APEX_DOMAIN    → redirige a la landing. VACÍO si el apex aún no resuelve.
+APP_DOMAIN=app.subirfactura.com
+LANDING_DOMAIN=www.subirfactura.com
 APEX_DOMAIN=subirfactura.com
 # Let's Encrypt te escribe aquí si un certificado deja de renovarse.
 ACME_EMAIL=elmer.rodriguez.m@gmail.com

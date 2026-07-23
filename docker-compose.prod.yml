@@ -110,8 +110,12 @@ services:
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+      # Los enlaces que salen por correo (verificar, recuperar, invitación) van
+      # al PANEL: son pantallas privadas, no la landing.
       APP_URL: https://${APP_DOMAIN}
-      WEB_ORIGIN: https://${APP_DOMAIN}
+      # CORS: ambos hosts sirven el mismo Next, y la landing puede acabar
+      # llamando al API el día que tenga un formulario.
+      WEB_ORIGIN: https://${APP_DOMAIN},https://${LANDING_DOMAIN:-landing.localhost}
       # Acceso con Google (opcional): sin esto, /auth/google responde "no
       # configurado" y el botón no aparece en el panel.
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
@@ -177,7 +181,10 @@ services:
       NODE_ENV: production
       # Mismo origen detrás de Caddy: el panel llama a /api/* relativo.
       NEXT_PUBLIC_API_URL: ''
-      NEXT_PUBLIC_SITE_URL: https://${APP_DOMAIN}
+      # OJO: las NEXT_PUBLIC_* se hornean en el BUILD; esto es documentación de
+      # lo que se usó, no configuración efectiva. El valor real se pasa como
+      # build-arg (ver web/Dockerfile). La URL canónica para SEO es la LANDING.
+      NEXT_PUBLIC_SITE_URL: https://${LANDING_DOMAIN:-landing.localhost}
     depends_on: [api]
     deploy:
       resources:
@@ -193,8 +200,10 @@ services:
       - '80:80'
       - '443:443'
     environment:
+      # Panel (canónico de la app) y landing, en hosts distintos.
       APP_DOMAIN: ${APP_DOMAIN}
-      # Redirige al canónico. Si el apex aún no resuelve, déjalo vacío: cae en
+      LANDING_DOMAIN: ${LANDING_DOMAIN:-landing.localhost}
+      # Redirige a la landing. Si el apex aún no resuelve, déjalo vacío: cae en
       # un nombre .localhost que Caddy firma con su CA interna, sin tocar ACME.
       APEX_DOMAIN: ${APEX_DOMAIN:-apex.localhost}
       ACME_EMAIL: ${ACME_EMAIL:-admin@localhost}

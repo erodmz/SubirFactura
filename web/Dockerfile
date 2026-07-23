@@ -15,6 +15,10 @@ ENV NEXT_PUBLIC_GOOGLE_CLIENT_ID=$NEXT_PUBLIC_GOOGLE_CLIENT_ID
 # producción pide a la máquina equivocada.
 ARG NEXT_PUBLIC_API_URL=""
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+# URL canónica para SEO (robots.txt, sitemap, og:url). Es la LANDING, no el
+# panel: lo que se indexa es la página pública.
+ARG NEXT_PUBLIC_SITE_URL="https://www.subirfactura.com"
+ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY web/package.json web/
 RUN pnpm install --frozen-lockfile --filter @facturard/web
