@@ -32,6 +32,10 @@ if [ "${1:-}" = "--endurecer-ssh" ]; then
   if [ ! -s "/home/$USUARIO/.ssh/authorized_keys" ]; then
     fail "El usuario $USUARIO no tiene llaves. Te quedarías fuera. Aborto."
   fi
+  if sshd -T 2>/dev/null | grep -q '^passwordauthentication no'; then
+    info "el servidor ya venía endurecido — no hay nada que cambiar"
+    exit 0
+  fi
   install -d -m 755 /etc/ssh/sshd_config.d
   cat > /etc/ssh/sshd_config.d/99-subirfactura.conf <<'EOF'
 # Solo llaves: las contraseñas SSH se adivinan, las llaves ed25519 no.
@@ -94,12 +98,32 @@ info "$USUARIO puede usar docker"
 
 # ── 4. Cortafuegos ────────────────────────────────────────────────────────────
 # Nada más se expone: Postgres, Redis y MinIO viven en la red interna de Docker.
-say "Cortafuegos (solo SSH, HTTP y HTTPS)"
-ufw allow OpenSSH >/dev/null
-ufw allow 80/tcp  >/dev/null
-ufw allow 443/tcp >/dev/null
+#
+# Si el servidor ya tenía ufw configurado (p. ej. con un LIMIT en el 22 contra
+# fuerza bruta), NO lo pisamos: solo añadimos lo que falta. Meter un `allow
+# OpenSSH` encima de un `limit 22/tcp` no rompe nada, pero ensucia el conjunto
+# de reglas y confunde a quien lo lea después.
+say "Cortafuegos"
+ufw status 2>/dev/null | grep -q '^Status: active' && info "ufw ya estaba activo — conservo sus reglas"
+if ufw status 2>/dev/null | grep -qE '^(22/tcp|OpenSSH)'; then
+  info "la regla de SSH que ya existía queda intacta"
+else
+  ufw allow OpenSSH >/dev/null
+  info "SSH permitido"
+fi
+for PUERTO in 80 443; do
+  if ufw status 2>/dev/null | grep -q "^${PUERTO}/tcp"; then
+    info "$PUERTO/tcp ya estaba abierto"
+  else
+    ufw allow "${PUERTO}/tcp" >/dev/null
+    info "$PUERTO/tcp abierto"
+  fi
+done
 ufw --force enable >/dev/null
 info "$(ufw status | head -1)"
+# Docker inserta sus propias reglas por delante de ufw: los puertos que publique
+# un contenedor quedan expuestos aunque ufw diga lo contrario. Aquí solo publica
+# Caddy (80/443), que es justo lo que queremos público — pero conviene saberlo.
 
 # ── 5. Swap ───────────────────────────────────────────────────────────────────
 # Los droplets vienen sin swap. Es el seguro barato contra un OOM que se lleve

@@ -1,0 +1,32 @@
+# Qué NO viaja al contexto de build. Los Dockerfile copian carpetas concretas
+# (nunca `COPY . .`), así que esto no cambia el contenido de las imágenes: lo
+# que evita es mandar cientos de MB al demonio en cada build — y que un .env
+# ande dando vueltas por el contexto si algún día alguien añade un COPY amplio.
+node_modules
+**/node_modules
+.git
+.github
+.despliegue
+
+# Builds locales
+dist
+**/dist
+.next
+**/.next
+*.tsbuildinfo
+shared/prisma/generated
+
+# Secretos y entorno
+.env
+.env.*
+!.env.example
+
+# Fuera del backend
+app_flutter
+docs
+.volumes
+logs
+coverage
+*.log
+.DS_Store
+.claude
