@@ -11,6 +11,7 @@ import { AuditService } from '../audit/audit.service';
 import { PlanLimitsService } from '../plans/plan-limits.service';
 import { hashToken } from '../auth/auth.service';
 import { CreateInvitationDto } from './dto/invitations.dto';
+import { MailService } from '../mail/mail.service';
 import type { AuthenticatedUser } from '../common/decorators/current-user.decorator';
 
 const INVITATION_TTL_MS = 7 * 86_400_000; // 7 días
@@ -21,11 +22,13 @@ export class InvitationsService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly planLimits: PlanLimitsService,
+    private readonly mail: MailService,
   ) {}
 
   /**
-   * v1 sin correo saliente: devuelve el enlace para compartirlo manualmente
-   * (WhatsApp es el canal real de los contadores dominicanos).
+   * Manda el correo con el enlace Y lo devuelve en la respuesta: aunque haya
+   * proveedor configurado, el contador suele pasarlo por WhatsApp, que es el
+   * canal real en RD. Si el correo no sale, la invitación sirve igual.
    */
   async create(orgId: string, inviterUserId: string, dto: CreateInvitationDto) {
     let warning = false;
@@ -81,13 +84,35 @@ export class InvitationsService {
     });
 
     const baseUrl = process.env.APP_URL ?? 'http://localhost:3000';
+    const inviteUrl = `${baseUrl}/invitations/${token}`;
+
+    // El nombre de la empresa y de quien invita hacen que el correo no parezca
+    // spam: sin ellos es "alguien te invitó a algo".
+    const [org, inviter] = await Promise.all([
+      this.prisma.organization.findUnique({
+        where: { id: orgId },
+        select: { nombre: true },
+      }),
+      this.prisma.user.findUnique({
+        where: { id: inviterUserId },
+        select: { nombre: true },
+      }),
+    ]);
+    await this.mail.sendInvitation(
+      dto.email,
+      inviteUrl,
+      org?.nombre ?? 'una empresa',
+      dto.rol,
+      inviter?.nombre,
+    );
+
     return {
       id: invitation.id,
       email: invitation.email,
       rol: invitation.rol,
       negocio: clientProfile?.razonSocial,
       expiresAt: invitation.expiresAt,
-      inviteUrl: `${baseUrl}/invitations/${token}`,
+      inviteUrl,
       limitWarning: warning
         ? 'Estás cerca del límite de contadores de tu plan'
         : undefined,

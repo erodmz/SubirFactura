@@ -263,6 +263,44 @@ scripts/restore-backup.sh ./restore/subirfactura-*.age \
 
 ---
 
+## 7.4 Activar el correo saliente
+
+Sin esto la app funciona, pero **nadie recibe nada**: el enlace de verificación,
+el de recuperar contraseña y el de invitación quedan solo en el log del
+servidor. El código ya está listo — falta la cuenta y el dominio verificado.
+
+1. **Crea la cuenta** en [resend.com](https://resend.com) (el plan gratis da
+   3.000 correos/mes, de sobra para empezar).
+2. **Domains → Add Domain → `subirfactura.com`.** Resend te muestra 3 registros
+   DNS (uno TXT de SPF, uno TXT de DKIM y uno MX para rebotes). Cópialos tal
+   cual a **Google Cloud DNS**; son distintos para cada cuenta, así que no se
+   pueden dejar escritos aquí.
+3. Espera a que el dominio salga **Verified** (suele ser minutos).
+4. **API Keys → Create** con permiso *Sending access*, y añádelo a `.env.prod`:
+
+```bash
+RESEND_API_KEY=re_...
+MAIL_FROM=SubirFactura <no-reply@subirfactura.com>
+```
+
+5. Recarga y comprueba con un correo real:
+
+```bash
+cd /opt/subirfactura && ./actualizar.sh
+curl -s -X POST https://www.subirfactura.com/api/auth/resend-verification \
+  -H 'Content-Type: application/json' -d '{"email":"TU@CORREO.COM"}'
+```
+
+> **El remitente debe estar en el dominio verificado.** Con `MAIL_FROM` en un
+> `@gmail.com` Resend devuelve 403 y el correo no sale — es el fallo número uno
+> al configurarlo.
+>
+> Si un envío falla, la operación que lo disparó (registro, invitación) **se
+> completa igual**: el fallo sale por `[ALERTA]` en el log y por ntfy, no
+> rompiendo el registro del usuario. Para verlos: `./actualizar.sh --alertas`.
+
+---
+
 ## 7.5 Activar "Entrar con Google" (opcional)
 
 El acceso social viene **apagado** hasta que lo configures (sin credenciales, el

@@ -127,7 +127,11 @@ BACKUP_S3_SECRET_KEY=
 
 # ── Opcionales ────────────────────────────────────────────────────────────────
 # GOOGLE_CLIENT_ID=            # "Entrar con Google" (ver GUIA_DESPLIEGUE.md §7.5)
-# RESEND_API_KEY=              # correos de verificación / recuperación
+# ── Correo (verificación, recuperación, invitaciones) ─────────────────────────
+# Sin esto no sale ningún correo: los enlaces quedan en el log del servidor.
+# resend.com → API Keys. El dominio del remitente debe estar verificado allí.
+RESEND_API_KEY=
+MAIL_FROM=SubirFactura <no-reply@subirfactura.com>
 DGII_LIVE_CONSULTA=true
 DGII_LIVE_VERIFICATION=false
 EOF

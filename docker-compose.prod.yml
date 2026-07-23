@@ -119,8 +119,10 @@ services:
       DGII_LIVE_CONSULTA: ${DGII_LIVE_CONSULTA:-true}
       NTFY_URL: ${NTFY_URL:-https://ntfy.sh}
       NTFY_TOPIC: ${NTFY_TOPIC}
+      # Sin RESEND_API_KEY no sale ningún correo: los enlaces de verificación,
+      # recuperación e invitación quedan en el log del servidor.
       RESEND_API_KEY: ${RESEND_API_KEY:-}
-      SMTP_URL: ${SMTP_URL:-}
+      MAIL_FROM: ${MAIL_FROM:-SubirFactura <no-reply@subirfactura.com>}
     depends_on:
       migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
