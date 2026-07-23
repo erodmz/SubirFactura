@@ -4,6 +4,33 @@
 	# Let's Encrypt avisa a este correo si un certificado deja de renovarse.
 	# Sin él ese aviso se pierde y te enteras cuando el sitio ya está caído.
 	email {$ACME_EMAIL:admin@localhost}
+
+	servers {
+		# Con Cloudflare delante, la conexión al origen viene de SU red: el API
+		# vería la IP de Cloudflare y el rate-limit del login (10/min contra
+		# fuerza bruta) metería a todo el mundo en el mismo cubo — o bloqueas a
+		# inocentes, o el atacante se diluye entre el tráfico legítimo.
+		#
+		# Solo se confía en CF-Connecting-IP si el paquete VIENE de un rango de
+		# Cloudflare; si no, esa cabecera la falsifica cualquiera y el rate-limit
+		# se evade poniéndose una IP distinta en cada intento.
+		#
+		# Sin Cloudflare esto no hace nada: ningún cliente casa con los rangos y
+		# {client_ip} cae en la IP real de la conexión. Por eso puede quedar
+		# puesto desde antes de activarlo.
+		#
+		# Lista de rangos: https://www.cloudflare.com/ips (cambia muy de vez en
+		# cuando; si algún día el rate-limit se comporta raro, revísala).
+		trusted_proxies static 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32
+		client_ip_headers CF-Connecting-IP
+	}
+}
+
+# El API corre con `trust proxy = 1`: espera UN salto. Con Cloudflare habría
+# dos, así que aquí se reescribe X-Forwarded-For con la IP real ya resuelta y
+# el API no necesita saber si hay CDN delante o no.
+(alOrigen) {
+	header_up X-Forwarded-For {client_ip}
 }
 
 # ── Panel (app.subirfactura.com) ──────────────────────────────────────────────
@@ -19,13 +46,19 @@
 	redir / /app
 
 	handle /api/* {
-		reverse_proxy api:3000
+		reverse_proxy api:3000 {
+			import alOrigen
+		}
 	}
 	handle /health {
-		reverse_proxy api:3000
+		reverse_proxy api:3000 {
+			import alOrigen
+		}
 	}
 	handle {
-		reverse_proxy web:3000
+		reverse_proxy web:3000 {
+			import alOrigen
+		}
 	}
 }
 
@@ -41,10 +74,14 @@
 	redir @panel https://{$APP_DOMAIN:localhost}{uri} permanent
 
 	handle /health {
-		reverse_proxy api:3000
+		reverse_proxy api:3000 {
+			import alOrigen
+		}
 	}
 	handle {
-		reverse_proxy web:3000
+		reverse_proxy web:3000 {
+			import alOrigen
+		}
 	}
 }
 
