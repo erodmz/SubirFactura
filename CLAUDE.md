@@ -46,11 +46,18 @@ App Flutter (NO es workspace de pnpm; vive en `app_flutter/`):
 
 ```bash
 cd app_flutter
+# PRODUCCIÓN (lo normal para probar en un teléfono real)
+flutter run --release --dart-define=API_URL=https://app.subirfactura.com
+
+# Contra el API local
 flutter run --dart-define=API_URL=http://localhost:3000       # simulador iOS (cámara → galería)
 flutter run --dart-define=API_URL=http://10.0.2.2:3000        # emulador Android
 flutter run --release --dart-define=API_URL=http://<IP_LAN>:3000  # iPhone físico: SIEMPRE --release
 flutter analyze && flutter test
 ```
+
+En release NO hay valor por defecto de `API_URL`: un build sin `--dart-define`
+falla al arrancar en vez de apuntar a localhost en silencio.
 
 ## Entorno local (particularidades no obvias)
 

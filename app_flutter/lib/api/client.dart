@@ -22,7 +22,9 @@ class ApiClient {
 
   static final ApiClient instance = ApiClient._();
 
-  /// Configurable en build: flutter run --dart-define=API_URL=http://10.0.2.2:3000
+  /// Configurable en build:
+  ///   producción → --dart-define=API_URL=https://app.subirfactura.com
+  ///   emulador   → --dart-define=API_URL=http://10.0.2.2:3000
   ///
   /// En release NO hay default: un build de producción sin --dart-define
   /// apuntaría a localhost en silencio. Aquí falla al arrancar, que es mejor.
@@ -33,7 +35,7 @@ class ApiClient {
   static void assertConfigured() {
     if (baseUrl.isEmpty) {
       throw StateError(
-        'API_URL no configurada: compila con --dart-define=API_URL=https://api.subirfactura.com',
+        'API_URL no configurada: compila con --dart-define=API_URL=https://app.subirfactura.com',
       );
     }
   }
