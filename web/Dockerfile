@@ -19,6 +19,10 @@ FROM node:23-alpine AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=build /app/web/.next/standalone ./
+# El `standalone` de Next NO incluye ni los estáticos ni public/: hay que
+# copiarlos a mano. Sin la segunda línea, las fotos de la landing dan 404 en
+# producción y en local no se nota (el dev server sirve public/ solo).
 COPY --from=build /app/web/.next/static ./web/.next/static
+COPY --from=build /app/web/public ./web/public
 EXPOSE 3000
 CMD ["node", "web/server.js"]
