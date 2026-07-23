@@ -16,9 +16,16 @@ dist
 *.tsbuildinfo
 shared/prisma/generated
 
-# Secretos y entorno
+# Secretos y entorno.
+# Con ** en todos los niveles A PROPÓSITO: los patrones de .dockerignore son
+# relativos a la raíz del contexto, así que un `.env.*` pelado NO tapa
+# web/.env.local — y ese archivo, que dev.sh crea apuntando a tu IP local,
+# se hornea en el bundle de Next (NEXT_PUBLIC_* es build-time) y deja el panel
+# de producción llamando a una IP de tu casa. Pasó de verdad.
 .env
 .env.*
+**/.env
+**/.env.*
 !.env.example
 
 # Fuera del backend

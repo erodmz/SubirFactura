@@ -9,6 +9,12 @@ FROM base AS build
 # el botón "Entrar con Google" no se muestra.
 ARG NEXT_PUBLIC_GOOGLE_CLIENT_ID=""
 ENV NEXT_PUBLIC_GOOGLE_CLIENT_ID=$NEXT_PUBLIC_GOOGLE_CLIENT_ID
+# Vacío = el panel llama a /api relativo, que es lo correcto detrás de Caddy
+# (mismo origen). Se fija aquí, y no solo en el .dockerignore, porque un
+# NEXT_PUBLIC_* mal horneado no falla el build: el panel compila feliz y en
+# producción pide a la máquina equivocada.
+ARG NEXT_PUBLIC_API_URL=""
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY web/package.json web/
 RUN pnpm install --frozen-lockfile --filter @facturard/web
