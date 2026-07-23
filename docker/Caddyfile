@@ -41,6 +41,13 @@
 	encode gzip
 	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
 
+	# Log de acceso: sin esto no hay forma de saber qué IP vio el servidor, que
+	# es justo lo que hay que poder auditar cuando hay un CDN de por medio.
+	log {
+		output stdout
+		format json
+	}
+
 	# La raíz del panel no es la landing: al escritorio. 302 y no 301 — un 301
 	# se cachea en el navegador para siempre y ata las manos si esto cambia.
 	redir / /app
@@ -66,6 +73,13 @@
 {$LANDING_DOMAIN:landing.localhost} {
 	encode gzip
 	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+	# Log de acceso: sin esto no hay forma de saber qué IP vio el servidor, que
+	# es justo lo que hay que poder auditar cuando hay un CDN de por medio.
+	log {
+		output stdout
+		format json
+	}
 
 	# Las pantallas privadas viven SOLO en el panel: una URL por pantalla, y
 	# nadie se queda mirando un /app en www preguntándose por qué salió la
