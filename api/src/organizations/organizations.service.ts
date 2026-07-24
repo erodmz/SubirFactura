@@ -153,6 +153,49 @@ export class OrganizationsService {
       throw new BadRequestException(`Ya estás en el plan ${plan.nombre}`);
     }
 
+    // Cobro manual (§7): un plan PAGO no se activa solo. El autoservicio antes
+    // ponía la suscripción "activa" al instante, así que cualquiera se subía a
+    // Empresarial sin pagar. Ahora un plan pago es una SOLICITUD: se avisa al
+    // operador para coordinar el cobro y el plan efectivo NO cambia hasta que
+    // el super-admin lo confirme en el panel. Solo el plan gratis (bajar a
+    // Básico) se aplica en el acto — no hay nada que cobrar.
+    if (Number(plan.precio) > 0) {
+      await this.audit.log({
+        organizationId: orgId,
+        userId,
+        accion: 'organization.request_plan',
+        entidad: 'organization',
+        entidadId: orgId,
+        datos: { de: org.plan?.nombre ?? null, solicita: plan.nombre },
+      });
+      await notifyBusinessEvent(
+        'Solicitud de plan pago',
+        `"${org.nombre}" solicita ${plan.nombre} (tenía ${org.plan?.nombre ?? 'sin plan'}). ` +
+          `Coordina el pago y actívalo en el panel.`,
+      );
+      return {
+        plan: { nombre: org.plan?.nombre ?? plan.nombre },
+        solicitudPendiente: true,
+        planSolicitado: plan.nombre,
+      };
+    }
+
+    // Bajar de plan no borra clientes ni contadores ya creados: simplemente el
+    // límite pasa a ser menor. Avisamos si quedan POR ENCIMA del nuevo tope —
+    // no podrán añadir más de esa categoría hasta bajar el conteo. Antes esto
+    // pasaba en silencio y luego "no puedo crear clientes" no tenía explicación.
+    const [contadores, clientes] = await Promise.all([
+      this.prisma.membership.count({
+        where: { organizationId: orgId, rol: { in: ['contador', 'org_admin'] }, deletedAt: null },
+      }),
+      this.prisma.forOrg(orgId).clientProfile.count(),
+    ]);
+    const excesos: string[] = [];
+    if (contadores > plan.maxContadores)
+      excesos.push(`${contadores} contadores (el nuevo plan permite ${plan.maxContadores})`);
+    if (clientes > plan.maxClientes)
+      excesos.push(`${clientes} clientes (el nuevo plan permite ${plan.maxClientes})`);
+
     await this.prisma.$transaction(async (tx) => {
       await tx.subscription.create({
         data: {
@@ -177,13 +220,13 @@ export class OrganizationsService {
       entidadId: orgId,
       datos: { de: org.plan?.nombre ?? null, a: plan.nombre },
     });
-    if (Number(plan.precio) > 0) {
-      await notifyBusinessEvent(
-        'Cambio a plan pago',
-        `"${org.nombre}" cambió de ${org.plan?.nombre ?? 'sin plan'} a ${plan.nombre}. Coordina el pago.`,
-      );
-    }
-    return { plan: { nombre: plan.nombre } };
+    return {
+      plan: { nombre: plan.nombre },
+      solicitudPendiente: false,
+      advertencia: excesos.length
+        ? `Tienes ${excesos.join(' y ')}. No podrás añadir más hasta quedar dentro del límite.`
+        : undefined,
+    };
   }
 
   async get(orgId: string) {

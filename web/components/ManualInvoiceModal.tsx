@@ -40,6 +40,7 @@ export default function ManualInvoiceModal({
     itbis: '',
     montoTotal: '',
     categoria606: '',
+    formaPago: '',
   });
   const [validar, setValidar] = useState(false);
   const [error, setError] = useState('');
@@ -72,6 +73,7 @@ export default function ManualInvoiceModal({
             itbis: num(form.itbis),
             montoTotal: num(form.montoTotal),
             categoria606: form.categoria606 || undefined,
+            formaPago: form.formaPago || undefined,
             validar: validar || undefined,
           },
         },
@@ -186,15 +188,32 @@ export default function ManualInvoiceModal({
               <input type="number" step="0.01" min="0" value={form.montoTotal} onChange={set('montoTotal')} />
             </div>
           </div>
-          <label>Categoría del gasto (606)</label>
-          <select value={form.categoria606} onChange={set('categoria606')}>
-            <option value="">— Sin clasificar (el contador la asigna) —</option>
-            {Object.entries(CATEGORIAS_606).map(([codigo, nombre]) => (
-              <option key={codigo} value={codigo}>
-                {codigo} · {nombre}
-              </option>
-            ))}
-          </select>
+          <div className="row">
+            <div>
+              <label>Categoría del gasto (606)</label>
+              <select value={form.categoria606} onChange={set('categoria606')}>
+                <option value="">— Sin clasificar —</option>
+                {Object.entries(CATEGORIAS_606).map(([codigo, nombre]) => (
+                  <option key={codigo} value={codigo}>
+                    {codigo} · {nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label>Forma de pago</label>
+              <select value={form.formaPago} onChange={set('formaPago')}>
+                <option value="">— Sin especificar —</option>
+                <option value="1">1 · Efectivo</option>
+                <option value="2">2 · Cheque / transferencia</option>
+                <option value="3">3 · Tarjeta crédito/débito</option>
+                <option value="4">4 · Compra a crédito</option>
+                <option value="5">5 · Permuta</option>
+                <option value="6">6 · Nota de crédito</option>
+                <option value="7">7 · Mixto / otras</option>
+              </select>
+            </div>
+          </div>
           {puedeValidar && (
             <div style={{ marginTop: 8 }}>
               <Toggle

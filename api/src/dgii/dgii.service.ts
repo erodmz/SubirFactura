@@ -433,6 +433,16 @@ export class DgiiService {
   async cerrarPeriodo606(orgId: string, periodo: string, clientId: string, actorUserId: string) {
     const result = await this.generate606(orgId, periodo, clientId);
 
+    // Cerrar un período sin ni una factura reportable no cierra nada: dejaba un
+    // registro fantasma "incluidas: 0" en el historial y el usuario creía que
+    // había reportado. Mejor frenar y decir qué falta.
+    if (result.cantidadRegistros === 0) {
+      const detalle = result.omitidas.length
+        ? ` Hay ${result.omitidas.length} factura(s) que no entran todavía (revisa la vista previa).`
+        : ' No hay facturas validadas de este cliente en el período.';
+      throw new BadRequestException(`No hay nada que reportar en el 606.${detalle}`);
+    }
+
     const updated = await this.prisma.forOrg(orgId).invoice.updateMany({
       where: { periodoFiscal: periodo, estado: 'validada', clientProfileId: clientId },
       data: { estado: 'incluida_en_606' },

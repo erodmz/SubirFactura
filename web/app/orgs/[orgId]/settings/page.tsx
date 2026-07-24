@@ -60,15 +60,18 @@ export default function OrgSettingsPage() {
     setPlanMsg('');
     setChangingPlan(nombre);
     try {
-      await api(`/api/organizations/${orgId}/plan`, {
-        method: 'POST',
-        body: { planNombre: nombre },
-      });
-      const elegido = planes.find((p) => p.nombre === nombre);
+      const res = await api<{ solicitudPendiente?: boolean; advertencia?: string }>(
+        `/api/organizations/${orgId}/plan`,
+        { method: 'POST', body: { planNombre: nombre } },
+      );
+      // Un plan pago no se activa solo: queda como solicitud hasta que
+      // confirmemos el pago. No mentimos con "¡ya estás en el plan!".
       setPlanMsg(
-        elegido && Number(elegido.precio) > 0
-          ? `¡Ya estás en el plan ${nombre}! Te contactaremos para coordinar el pago por transferencia.`
-          : `¡Ya estás en el plan ${nombre}!`,
+        res.solicitudPendiente
+          ? `Solicitud de ${nombre} recibida. Te contactaremos para coordinar el pago por transferencia y lo activamos.`
+          : res.advertencia
+            ? `Ya estás en el plan ${nombre}. ${res.advertencia}`
+            : `¡Ya estás en el plan ${nombre}!`,
       );
       loadUsage();
     } catch (err) {

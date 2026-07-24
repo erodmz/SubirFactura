@@ -41,6 +41,7 @@ class _ManualInvoiceScreenState extends State<ManualInvoiceScreen> {
   List<Map<String, dynamic>> _clientes = [];
   String? _clientId;
   String? _categoria606;
+  String? _formaPago;
   DateTime? _fecha;
   bool _validar = false;
   bool _busy = false;
@@ -104,6 +105,7 @@ class _ManualInvoiceScreenState extends State<ManualInvoiceScreen> {
           if (_num(_itbis) != null) 'itbis': _num(_itbis),
           if (_num(_total) != null) 'montoTotal': _num(_total),
           if (_categoria606 != null) 'categoria606': _categoria606,
+          if (_formaPago != null) 'formaPago': _formaPago,
           if (_validar) 'validar': true,
         },
       ) as Map<String, dynamic>;
@@ -266,6 +268,23 @@ class _ManualInvoiceScreenState extends State<ManualInvoiceScreen> {
                   DropdownMenuItem(value: e.key, child: Text('${e.key} · ${e.value}')),
               ],
               onChanged: (v) => setState(() => _categoria606 = v),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: _formaPago,
+              isExpanded: true,
+              decoration: _dec('Forma de pago'),
+              hint: const Text('Sin especificar'),
+              items: const [
+                DropdownMenuItem(value: '1', child: Text('1 · Efectivo')),
+                DropdownMenuItem(value: '2', child: Text('2 · Cheque / transferencia')),
+                DropdownMenuItem(value: '3', child: Text('3 · Tarjeta crédito/débito')),
+                DropdownMenuItem(value: '4', child: Text('4 · Compra a crédito')),
+                DropdownMenuItem(value: '5', child: Text('5 · Permuta')),
+                DropdownMenuItem(value: '6', child: Text('6 · Nota de crédito')),
+                DropdownMenuItem(value: '7', child: Text('7 · Mixto / otras')),
+              ],
+              onChanged: (v) => setState(() => _formaPago = v),
             ),
             // Validar sin categoría deja la factura verde pero fuera del 606.
             if (widget.canValidar && _validar && _categoria606 == null) ...[

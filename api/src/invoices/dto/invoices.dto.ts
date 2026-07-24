@@ -75,6 +75,12 @@ export class CreateManualInvoiceDto {
   @IsString()
   categoria606?: string;
 
+  // El 606 exige forma de pago; sin ella una factura validada bloquea el cierre
+  // y hay que arreglarla en lote. Pedirla aquí evita ese rodeo.
+  @IsOptional()
+  @IsIn(['1', '2', '3', '4', '5', '6', '7'], { message: 'Forma de pago inválida (1–7)' })
+  formaPago?: string;
+
   @IsOptional()
   @IsBoolean()
   validar?: boolean;
