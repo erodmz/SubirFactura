@@ -246,6 +246,13 @@ export const CATEGORIAS_606: Record<string, string> = {
   '11': 'Gastos de seguros',
 };
 
+/** Etiquetas de rol para la UI (en código siguen siendo org_admin/contador/cliente). */
+export const ROL_LABELS: Record<string, string> = {
+  org_admin: 'Administrador',
+  contador: 'Contador',
+  cliente: 'Usuario',
+};
+
 export const ESTADO_LABELS: Record<string, string> = {
   subida: 'Subida',
   procesando: 'Procesando',

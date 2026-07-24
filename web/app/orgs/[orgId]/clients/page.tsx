@@ -318,6 +318,9 @@ export default function ClientsPage() {
 
 /** Logo pequeño del cliente; sin logo, la inicial del negocio como fallback. */
 function ClientLogo({ c, size }: { c: Client; size: number }) {
+  // Si la imagen falla (borrada del almacén, red caída), no queremos el ícono
+  // de "imagen rota": caemos a la inicial, igual que si no hubiera logo.
+  const [falló, setFalló] = useState(false);
   const base: React.CSSProperties = {
     width: size,
     height: size,
@@ -325,12 +328,13 @@ function ClientLogo({ c, size }: { c: Client; size: number }) {
     border: '1px solid var(--border)',
     flexShrink: 0,
   };
-  if (c.logoUrl) {
+  if (c.logoUrl && !falló) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
         src={apiUrl(c.logoUrl)}
         alt=""
+        onError={() => setFalló(true)}
         style={{ ...base, objectFit: 'cover', background: 'var(--bg-soft)' }}
       />
     );

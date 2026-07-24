@@ -56,3 +56,49 @@ export function EyeOffIcon({ size = 20, className }: IconProps) {
     </svg>
   );
 }
+
+export function BuildingIcon({ size = 20, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <rect x="4" y="3" width="16" height="18" rx="1.5" />
+      <path d="M9 8h1M14 8h1M9 12h1M14 12h1M9 16h1M14 16h1" />
+    </svg>
+  );
+}
+
+export function CalendarIcon({ size = 20, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <rect x="3" y="4" width="18" height="17" rx="2" />
+      <path d="M3 9h18M8 2v4M16 2v4" />
+    </svg>
+  );
+}
+
+export function TruckIcon({ size = 20, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <path d="M1 6h13v10H1zM14 9h4l3 3v4h-7" />
+      <circle cx="5.5" cy="18" r="1.8" />
+      <circle cx="17.5" cy="18" r="1.8" />
+    </svg>
+  );
+}
+
+export function SearchIcon({ size = 20, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <circle cx="11" cy="11" r="7" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </svg>
+  );
+}
+
+export function TagIcon({ size = 20, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0l-7.2-7.2A2 2 0 0 1 2.8 12V4a1.2 1.2 0 0 1 1.2-1.2h8a2 2 0 0 1 1.4.6l7.2 7.2a2 2 0 0 1 0 2.8Z" />
+      <circle cx="7.5" cy="7.5" r="1.2" />
+    </svg>
+  );
+}

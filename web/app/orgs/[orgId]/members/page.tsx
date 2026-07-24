@@ -6,7 +6,7 @@ import { api } from '../../../../lib/api';
 import InviteMemberModal from '../../../../components/InviteMemberModal';
 import Toggle from '../../../../components/Toggle';
 import { useConfirm } from '../../../../components/ConfirmDialog';
-import type { Member } from '../../../../lib/types';
+import { ROL_LABELS, type Member } from '../../../../lib/types';
 
 type RolFiltro = 'todos' | 'org_admin' | 'contador' | 'cliente';
 
@@ -317,12 +317,18 @@ export default function MembersPage() {
                     </td>
                     <td>
                       {m.deletedAt ? (
-                        <span className="muted">{m.rol}</span>
+                        <span className="muted">{ROL_LABELS[m.rol] ?? m.rol}</span>
                       ) : (
-                        <select value={m.rol} onChange={(e) => changeRole(m.id, e.target.value)}>
+                        // minWidth: el select se comía el texto ("Adı", "Coı")
+                        // en la celda estrecha de la tabla.
+                        <select
+                          value={m.rol}
+                          onChange={(e) => changeRole(m.id, e.target.value)}
+                          style={{ minWidth: 148 }}
+                        >
                           <option value="org_admin">Administrador</option>
                           <option value="contador">Contador</option>
-                          <option value="cliente">Cliente</option>
+                          <option value="cliente">Usuario</option>
                         </select>
                       )}
                     </td>

@@ -32,9 +32,25 @@ function periodoActual(): string {
   return `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
 
-// El <input type="month"> usa "AAAA-MM"; el resto del código usa "AAAAMM".
-const aMonthInput = (p: string) => (/^\d{6}$/.test(p) ? `${p.slice(0, 4)}-${p.slice(4, 6)}` : '');
-const deMonthInput = (v: string) => v.replace('-', '');
+// El período fiscal se elige con un <select> en español: el <input type="month">
+// nativo mostraba el mes en el idioma del navegador ("July 2026") sin forma de
+// forzarlo. Últimos 18 meses, del más reciente al más viejo.
+const MESES_ES = [
+  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+];
+function periodoLabel(p: string): string {
+  return `${MESES_ES[Number(p.slice(4, 6)) - 1] ?? p.slice(4, 6)} ${p.slice(0, 4)}`;
+}
+function periodosRecientes(): string[] {
+  const out: string[] = [];
+  const d = new Date();
+  for (let i = 0; i < 18; i++) {
+    out.push(`${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`);
+    d.setMonth(d.getMonth() - 1);
+  }
+  return out;
+}
 
 function money(v: number | null): string {
   if (v == null) return '—';
@@ -245,11 +261,13 @@ export default function DgiiPage() {
         <div className="row" style={{ alignItems: 'flex-end' }}>
           <div>
             <label>Mes fiscal</label>
-            <input
-              type="month"
-              value={aMonthInput(periodo)}
-              onChange={(e) => setPeriodo(deMonthInput(e.target.value))}
-            />
+            <select value={periodo} onChange={(e) => setPeriodo(e.target.value)}>
+              {periodosRecientes().map((p) => (
+                <option key={p} value={p}>
+                  {periodoLabel(p)}
+                </option>
+              ))}
+            </select>
           </div>
           <div style={{ flex: '0 0 auto' }}>
             <button className="secondary" onClick={doDownloadZip} disabled={!validPeriodo}>

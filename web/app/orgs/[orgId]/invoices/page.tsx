@@ -13,7 +13,14 @@ import UploadInvoicesModal from '../../../../components/UploadInvoicesModal';
 import ManualInvoiceModal from '../../../../components/ManualInvoiceModal';
 import FabSubir from '../../../../components/FabSubir';
 import { ESTADO_COLOR } from '../../../../components/Charts';
-import { TrashIcon } from '../../../../components/icons';
+import {
+  BuildingIcon,
+  CalendarIcon,
+  SearchIcon,
+  TagIcon,
+  TrashIcon,
+  TruckIcon,
+} from '../../../../components/icons';
 import { CATEGORIAS_606, ESTADO_LABELS, type Invoice } from '../../../../lib/types';
 
 const MESES_ABR = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
@@ -370,7 +377,7 @@ export default function InvoicesPage() {
         <div className="inv-filters">
           <Dropdown
             ariaLabel="Cliente"
-            icon={<span aria-hidden>🏢</span>}
+            icon={<BuildingIcon size={16} />}
             value={clientId}
             onChange={setClientId}
             options={[
@@ -381,7 +388,7 @@ export default function InvoicesPage() {
           <div className="inv-estado">
             <Dropdown
               ariaLabel="Estado"
-              icon={<span aria-hidden>🏷️</span>}
+              icon={<TagIcon size={16} />}
               value={estado}
               onChange={setEstado}
               options={[
@@ -393,7 +400,7 @@ export default function InvoicesPage() {
           </div>
           <Dropdown
             ariaLabel="Período"
-            icon={<span aria-hidden>📅</span>}
+            icon={<CalendarIcon size={16} />}
             value={periodo}
             onChange={setPeriodo}
             options={[
@@ -409,7 +416,7 @@ export default function InvoicesPage() {
           />
           <Dropdown
             ariaLabel="Proveedor"
-            icon={<span aria-hidden>🚚</span>}
+            icon={<TruckIcon size={16} />}
             value={proveedor}
             onChange={setProveedor}
             options={[
@@ -418,7 +425,7 @@ export default function InvoicesPage() {
             ]}
           />
           <div className="select-search" style={{ maxWidth: 260 }}>
-            <span aria-hidden>🔍</span>
+            <SearchIcon size={16} />
             <input
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}

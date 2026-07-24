@@ -8,7 +8,7 @@ import ThemeToggle from '../../components/ThemeToggle';
 import Logo from '../../components/Logo';
 import Dropdown from '../../components/Dropdown';
 import VerifyEmailBanner from '../../components/VerifyEmailBanner';
-import type { Me } from '../../lib/types';
+import { ROL_LABELS, type Me } from '../../lib/types';
 
 type Membership = Me['memberships'][number];
 
@@ -255,7 +255,7 @@ function OrgTile({ m }: { m: Membership }) {
         <span className="org-initial">{m.organization.nombre.charAt(0).toUpperCase()}</span>
       )}
       <strong>{m.organization.nombre}</strong>
-      <span className="badge">{m.rol}</span>
+      <span className="badge">{ROL_LABELS[m.rol] ?? m.rol}</span>
       {m.organization.estadoAprobacion === 'pendiente' && (
         <span className="badge">🕵️ en revisión</span>
       )}
@@ -277,7 +277,7 @@ function OrgRow({ m }: { m: Membership }) {
         <span className="org-initial sm">{m.organization.nombre.charAt(0).toUpperCase()}</span>
       )}
       <strong className="org-row-name">{m.organization.nombre}</strong>
-      <span className="badge">{m.rol}</span>
+      <span className="badge">{ROL_LABELS[m.rol] ?? m.rol}</span>
       {m.organization.estadoAprobacion === 'pendiente' && (
         <span className="badge">🕵️ en revisión</span>
       )}
