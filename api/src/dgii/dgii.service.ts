@@ -230,18 +230,41 @@ export class DgiiService {
    * Semáforo de cierre del 606: qué falta para reportar el período y cuánto
    * tiempo queda (la DGII recibe el 606 hasta el día 15 del mes siguiente).
    * Con `clientId` evalúa el cierre de ESE contribuyente; sin él, da la vista
-   * global del despacho (todas las facturas del período).
+   * agregada.
+   *
+   * `scopeClientIds` acota esa vista agregada a un conjunto de clientes: el
+   * org_admin ve todo el despacho (`undefined`), pero un contador solo debe ver
+   * el total de SUS clientes asignados — sin esto, la vista global sumaba las
+   * facturas de clientes ajenos (fuga intra-despacho, hallazgo E2E). Una lista
+   * vacía significa "no tiene clientes": cero facturas, no todas.
    */
-  async cierreEstado(orgId: string, periodo: string, clientId?: string): Promise<CierreEstado> {
+  async cierreEstado(
+    orgId: string,
+    periodo: string,
+    clientId?: string,
+    scopeClientIds?: string[],
+  ): Promise<CierreEstado> {
     if (clientId) await this.clienteInformante(orgId, clientId); // valida cliente + RNC
-    const invoices = await this.prisma.forOrg(orgId).invoice.findMany({
-      where: { periodoFiscal: periodo, ...(clientId ? { clientProfileId: clientId } : {}) },
-    });
+    const filtroCliente = clientId
+      ? { clientProfileId: clientId }
+      : scopeClientIds
+        ? { clientProfileId: { in: scopeClientIds } }
+        : {};
+    const invoices = scopeClientIds && scopeClientIds.length === 0 && !clientId
+      ? []
+      : await this.prisma.forOrg(orgId).invoice.findMany({
+          where: { periodoFiscal: periodo, ...filtroCliente },
+        });
     // Facturas del período aún sin cliente: no entran a NINGÚN 606, así que se
     // vigilan siempre a nivel de despacho (aunque se esté mirando un cliente).
-    const sinAsignar = await this.prisma.forOrg(orgId).invoice.count({
-      where: { periodoFiscal: periodo, clientProfileId: null },
-    });
+    // Solo las ve quien alcanza todo el despacho: para un contador acotado no
+    // son "suyas" y repartirlas es tarea del admin.
+    const sinAsignar =
+      clientId || scopeClientIds
+        ? 0
+        : await this.prisma.forOrg(orgId).invoice.count({
+            where: { periodoFiscal: periodo, clientProfileId: null },
+          });
     return this.construirCierre(periodo, invoices, sinAsignar, clientId);
   }
 

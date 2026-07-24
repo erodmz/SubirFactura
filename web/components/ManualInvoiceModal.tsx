@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '../lib/api';
+import { CATEGORIAS_606 } from '../lib/types';
 import Toggle from './Toggle';
 import SuccessCheck from './SuccessCheck';
 
@@ -38,6 +39,7 @@ export default function ManualInvoiceModal({
     montoFacturado: '',
     itbis: '',
     montoTotal: '',
+    categoria606: '',
   });
   const [validar, setValidar] = useState(false);
   const [error, setError] = useState('');
@@ -69,6 +71,7 @@ export default function ManualInvoiceModal({
             montoFacturado: num(form.montoFacturado),
             itbis: num(form.itbis),
             montoTotal: num(form.montoTotal),
+            categoria606: form.categoria606 || undefined,
             validar: validar || undefined,
           },
         },
@@ -183,6 +186,15 @@ export default function ManualInvoiceModal({
               <input type="number" step="0.01" min="0" value={form.montoTotal} onChange={set('montoTotal')} />
             </div>
           </div>
+          <label>Categoría del gasto (606)</label>
+          <select value={form.categoria606} onChange={set('categoria606')}>
+            <option value="">— Sin clasificar (el contador la asigna) —</option>
+            {Object.entries(CATEGORIAS_606).map(([codigo, nombre]) => (
+              <option key={codigo} value={codigo}>
+                {codigo} · {nombre}
+              </option>
+            ))}
+          </select>
           {puedeValidar && (
             <div style={{ marginTop: 8 }}>
               <Toggle
@@ -190,6 +202,14 @@ export default function ManualInvoiceModal({
                 onChange={setValidar}
                 label="Validar al guardar (exige NCF, RNC, fecha, montos y que cuadren)"
               />
+              {/* Una factura validada SIN categoría queda verde pero el 606 la
+                  omite en silencio: avisamos aquí en vez de en el cierre. */}
+              {validar && !form.categoria606 && (
+                <p className="muted" style={{ fontSize: '.8rem', marginTop: 6 }}>
+                  Sin categoría, esta factura no entrará al 606 aunque quede validada.
+                  Elige una arriba para que se reporte.
+                </p>
+              )}
             </div>
           )}
           <p className="muted" style={{ fontSize: '.82rem' }}>

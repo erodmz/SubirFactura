@@ -106,6 +106,17 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
     setDrawerOpen(false);
   }, [pathname]);
 
+  // El dueño de negocio (rol cliente) no tiene "Resumen": esa pantalla es del
+  // contador y le respondía "no tienes permiso". Si aterriza en la raíz de la
+  // empresa (un enlace viejo, o al elegirla en /app), lo llevamos a su espacio.
+  useEffect(() => {
+    if (!me) return;
+    const suRol = me.memberships.find((m) => m.organization.id === orgId)?.rol;
+    if (suRol === 'cliente' && pathname === `/orgs/${orgId}`) {
+      router.replace(`/orgs/${orgId}/mi-negocio`);
+    }
+  }, [me, pathname, orgId, router]);
+
   function logout() {
     clearTokens();
     router.replace('/');
@@ -260,7 +271,9 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
         </header>
         <main className="app-content">
           {me && me.emailVerified === false && <VerifyEmailBanner email={me.email} />}
-          {children}
+          {/* Mientras el cliente se redirige fuera del "Resumen", no pintamos el
+              dashboard del contador (daría un parpadeo de "no tienes permiso"). */}
+          {rol === 'cliente' && pathname === base ? null : children}
         </main>
         {rol && (
           <Suspense fallback={null}>

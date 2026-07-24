@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../api/client.dart';
+import '../models.dart';
 import '../widgets/error_banner.dart';
 
 /// Registro MANUAL de un gasto — para cuando no hay comprobante que
@@ -39,6 +40,7 @@ class _ManualInvoiceScreenState extends State<ManualInvoiceScreen> {
 
   List<Map<String, dynamic>> _clientes = [];
   String? _clientId;
+  String? _categoria606;
   DateTime? _fecha;
   bool _validar = false;
   bool _busy = false;
@@ -101,6 +103,7 @@ class _ManualInvoiceScreenState extends State<ManualInvoiceScreen> {
           if (_num(_subtotal) != null) 'montoFacturado': _num(_subtotal),
           if (_num(_itbis) != null) 'itbis': _num(_itbis),
           if (_num(_total) != null) 'montoTotal': _num(_total),
+          if (_categoria606 != null) 'categoria606': _categoria606,
           if (_validar) 'validar': true,
         },
       ) as Map<String, dynamic>;
@@ -252,6 +255,26 @@ class _ManualInvoiceScreenState extends State<ManualInvoiceScreen> {
               decoration: _dec('Total (como en el comprobante)'),
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
             ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: _categoria606,
+              isExpanded: true,
+              decoration: _dec('Categoría del gasto (606)'),
+              hint: const Text('Sin clasificar (el contador la asigna)'),
+              items: [
+                for (final e in categorias606.entries)
+                  DropdownMenuItem(value: e.key, child: Text('${e.key} · ${e.value}')),
+              ],
+              onChanged: (v) => setState(() => _categoria606 = v),
+            ),
+            // Validar sin categoría deja la factura verde pero fuera del 606.
+            if (widget.canValidar && _validar && _categoria606 == null) ...[
+              const SizedBox(height: 6),
+              Text(
+                'Sin categoría, esta factura no entrará al 606 aunque quede validada.',
+                style: TextStyle(fontSize: 12.5, color: scheme.error),
+              ),
+            ],
             if (widget.canValidar) ...[
               const SizedBox(height: 6),
               SwitchListTile(

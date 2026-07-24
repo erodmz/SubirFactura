@@ -74,9 +74,17 @@ export class DgiiController {
     @Query('periodo') periodo?: string,
     @Query('clientId') clientId?: string,
   ) {
-    // Con cliente: valida el alcance. Sin cliente: vista global del despacho.
-    if (clientId) await this.clients.assertClientInScope(orgId, clientId, req.membership);
-    return this.dgii.cierreEstado(orgId, this.assertPeriodo(periodo), clientId || undefined);
+    // Con cliente: valida el alcance. Sin cliente: vista agregada, pero un
+    // contador solo suma SUS clientes (el admin ve todo el despacho) — si no,
+    // la vista global filtraba las facturas de clientes ajenos.
+    if (clientId) {
+      await this.clients.assertClientInScope(orgId, clientId, req.membership);
+    }
+    const scope =
+      !clientId && req.membership.rol === 'contador'
+        ? (await this.clients.list(orgId, req.membership)).map((c) => c.id)
+        : undefined;
+    return this.dgii.cierreEstado(orgId, this.assertPeriodo(periodo), clientId || undefined, scope);
   }
 
   /** Vista previa: resumen + facturas omitidas, sin modificar estados. */
