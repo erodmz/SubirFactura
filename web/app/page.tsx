@@ -400,6 +400,10 @@ export default function Landing() {
         </div>
         <div className="lp-footer-legal">
           <span>© 2026 SubirFactura · Digitalización de facturas y reportes DGII</span>
+          <span className="lp-footer-legal-links">
+            <Link href="/privacidad">Privacidad</Link>
+            <Link href="/terminos">Términos</Link>
+          </span>
         </div>
       </footer>
     </div>
